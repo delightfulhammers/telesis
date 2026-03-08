@@ -32,29 +32,31 @@ func runContext(cmd *cobra.Command, args []string) error {
 	}
 
 	claudePath := filepath.Join(rootDir, "CLAUDE.md")
-	tmp, err := os.CreateTemp(rootDir, ".CLAUDE-*.md")
+	tmpPath := filepath.Join(rootDir, fmt.Sprintf(".CLAUDE-%d.md", os.Getpid()))
+	tmp, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 	if err != nil {
 		return fmt.Errorf("could not create temp file: %w", err)
 	}
-	tmpPath := tmp.Name()
+
+	success := false
+	defer func() {
+		if !success {
+			os.Remove(tmpPath)
+		}
+	}()
 
 	if _, err := tmp.WriteString(output); err != nil {
 		tmp.Close()
-		os.Remove(tmpPath)
 		return fmt.Errorf("could not write CLAUDE.md: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("could not close CLAUDE.md: %w", err)
 	}
-	if err := os.Chmod(tmpPath, 0o644); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("could not set CLAUDE.md permissions: %w", err)
-	}
 	if err := os.Rename(tmpPath, claudePath); err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("could not finalize CLAUDE.md: %w", err)
 	}
+
+	success = true
 
 	fmt.Println("CLAUDE.md regenerated successfully.")
 	return nil

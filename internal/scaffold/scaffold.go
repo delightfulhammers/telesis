@@ -6,12 +6,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"text/template"
 
 	"github.com/delightfulhammers/telesis/internal/config"
 	"github.com/delightfulhammers/telesis/internal/context"
 	"github.com/delightfulhammers/telesis/templates"
 )
+
+var tempCounter atomic.Int64
 
 type templateData struct {
 	ProjectName  string
@@ -36,14 +40,17 @@ var readmeStubs = map[string]string{
 	"docs/tdd/README.md": "# Technical Design Documents (TDDs)\n\nThis directory contains TDD files created by `telesis tdd new <slug>`.\n\nEach TDD details the design of a specific component or subsystem.\n",
 }
 
-var docTemplates *template.Template
+var (
+	docTemplates     *template.Template
+	docTemplatesOnce sync.Once
+	docTemplatesErr  error
+)
 
-func init() {
-	var err error
-	docTemplates, err = template.ParseFS(templates.FS, "*.tmpl")
-	if err != nil {
-		panic(fmt.Sprintf("parsing embedded templates: %v", err))
-	}
+func loadTemplates() (*template.Template, error) {
+	docTemplatesOnce.Do(func() {
+		docTemplates, docTemplatesErr = template.ParseFS(templates.FS, "*.tmpl")
+	})
+	return docTemplates, docTemplatesErr
 }
 
 // Scaffold initializes a new Telesis project structure at rootDir.
@@ -95,13 +102,14 @@ func validateInput(cfg *config.Config) error {
 	if cfg.Project.Name == "" {
 		return fmt.Errorf("project name is required")
 	}
-	fields := map[string]string{
-		"name":     cfg.Project.Name,
-		"owner":    cfg.Project.Owner,
-		"language": cfg.Project.Language,
-		"repo":     cfg.Project.Repo,
+	fields := []struct{ name, value string }{
+		{"name", cfg.Project.Name},
+		{"owner", cfg.Project.Owner},
+		{"language", cfg.Project.Language},
+		{"repo", cfg.Project.Repo},
 	}
-	for field, val := range fields {
+	for _, f := range fields {
+		field, val := f.name, f.value
 		if strings.ContainsAny(val, "\x00\n\r") {
 			return fmt.Errorf("project %s contains invalid characters (newlines or null bytes)", field)
 		}
@@ -179,8 +187,12 @@ func generateCLAUDEMD(rootDir string) error {
 }
 
 func renderTemplate(name string, data templateData) ([]byte, error) {
+	tmpls, err := loadTemplates()
+	if err != nil {
+		return nil, fmt.Errorf("loading templates: %w", err)
+	}
 	var buf bytes.Buffer
-	if err := docTemplates.ExecuteTemplate(&buf, name, data); err != nil {
+	if err := tmpls.ExecuteTemplate(&buf, name, data); err != nil {
 		return nil, fmt.Errorf("executing template %s: %w", name, err)
 	}
 	return buf.Bytes(), nil
@@ -192,11 +204,11 @@ func writeFileAtomic(dest string, content []byte) error {
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
-	tmp, err := os.CreateTemp(dir, ".scaffold-*")
+	tmpPath := filepath.Join(dir, fmt.Sprintf(".scaffold-%d-%d", os.Getpid(), tempCounter.Add(1)))
+	tmp, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 	if err != nil {
 		return fmt.Errorf("creating temp file: %w", err)
 	}
-	tmpPath := tmp.Name()
 
 	success := false
 	defer func() {
@@ -211,9 +223,6 @@ func writeFileAtomic(dest string, content []byte) error {
 	}
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("closing temp file: %w", err)
-	}
-	if err := os.Chmod(tmpPath, 0o644); err != nil {
-		return fmt.Errorf("setting permissions: %w", err)
 	}
 	if err := os.Rename(tmpPath, dest); err != nil {
 		return fmt.Errorf("renaming temp file: %w", err)
