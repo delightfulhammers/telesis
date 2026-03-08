@@ -46,7 +46,7 @@ func Load(rootDir string) (*Config, error) {
 
 func Save(rootDir string, cfg *Config) error {
 	dir := filepath.Join(rootDir, telesisDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("could not create %s directory: %w", telesisDir, err)
 	}
 

@@ -32,8 +32,24 @@ func runContext(cmd *cobra.Command, args []string) error {
 	}
 
 	claudePath := filepath.Join(rootDir, "CLAUDE.md")
-	if err := os.WriteFile(claudePath, []byte(output), 0o644); err != nil {
+	tmp, err := os.CreateTemp(rootDir, ".CLAUDE-*.md")
+	if err != nil {
+		return fmt.Errorf("could not create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.WriteString(output); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("could not write CLAUDE.md: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("could not close CLAUDE.md: %w", err)
+	}
+	if err := os.Rename(tmpPath, claudePath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("could not finalize CLAUDE.md: %w", err)
 	}
 
 	fmt.Println("CLAUDE.md regenerated successfully.")
