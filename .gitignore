@@ -1,13 +1,10 @@
-# Dependencies
-node_modules/
-.pnp/
-.pnp.js
+# Binary output
+/telesis
+*.exe
 
-# Build outputs
-dist/
-build/
-out/
-*.tsbuildinfo
+# Go build artifacts
+*.test
+*.out
 
 # Environment
 .env
@@ -25,12 +22,12 @@ out/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
 # Coverage
 coverage/
+*.coverprofile
+
+# Bop review output
+review-output/
 
 # Temp
 tmp/
