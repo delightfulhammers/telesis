@@ -1,0 +1,7 @@
+# Telesis project configuration
+project:
+  name: Telesis
+  owner: Delightful Hammers
+  language: Go
+  status: active
+  repo: github.com/delightfulhammers/telesis
