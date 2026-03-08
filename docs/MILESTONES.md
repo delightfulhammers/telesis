@@ -30,6 +30,16 @@
 5. **Phase 4 — Status:** `internal/status` + status command
 6. **Phase 5 — Self-hosting:** Run Telesis on itself, validate all acceptance criteria
 
+### Phase 5 Notes
+
+The generated `CLAUDE.md` template must reach parity with the hand-written bootstrap version before it can replace it. Sections currently in the hand-written CLAUDE.md that the template does not yet generate:
+
+- Working Conventions (language/runtime, package discipline, error handling, testing, file generation, ADR discipline, PR expectations, scope discipline)
+- Relationship to Bop
+- "What On Track Looks Like" guidance
+
+These sections contain critical guidance for Claude Code sessions. The template should either extract them from `docs/ARCHITECTURE.md` and `docs/VISION.md`, or support a freeform "additional context" section in the config. This must be resolved before acceptance criterion #7 can be considered fully met.
+
 ---
 
 ## Future Milestones
@@ -38,5 +48,6 @@
 
 - **v0.2.0 — Interactive Init:** Interview-driven `telesis init` with guided prompts
 - **v0.3.0 — Drift Detection:** Compare implementation against spec, flag divergence
-- **v0.4.0 — Bop Integration:** ACP server interface, Telesis-driven code review
+- **v0.4.0 — Session Insight Capture:** Lightweight mechanism for feeding development observations back into project memory (see VISION.md, "The Insight Gap")
+- **v0.5.0 — Bop Integration:** ACP server interface, Telesis-driven code review
 - **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development lifecycle

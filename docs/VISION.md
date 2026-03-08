@@ -137,6 +137,18 @@ Once this exists, Telesis can be used to build the rest of Telesis.
 
 ---
 
+## The Insight Gap
+
+Development sessions produce insights that don't fit neatly into existing categories. An observation like "the `.gitignore` pattern `telesis` matches `cmd/telesis/` — use `/telesis` for root-only" isn't an architectural decision (too small for an ADR), isn't a requirement (doesn't belong in the PRD), and isn't a milestone item. But it's exactly the kind of knowledge that prevents future mistakes.
+
+Today, these insights live in three places — the conversation (ephemeral), the developer's memory (unreliable), or nowhere. None of those are the *project's* memory.
+
+Telesis's principle #4 says memory is first-class. But the MVP's memory mechanisms (ADRs, generated CLAUDE.md, doc updates) are all **heavyweight or structured**. What's missing is a lightweight capture path for **development observations** — things learned during implementation that should inform future sessions.
+
+This is the gap between "documentation as a byproduct" (principle #6) and the reality that some byproducts need an explicit collection mechanism. The Chronicler agent in the swarm model is the long-term answer, but a simpler version — perhaps `telesis note <text>` or automatic extraction from session transcripts — could close this gap much sooner.
+
+---
+
 ## What Success Looks Like
 
 A developer starts a new project. They run `telesis init`, answer a few questions about what they're building and why, and Telesis creates the project context. From that point forward:

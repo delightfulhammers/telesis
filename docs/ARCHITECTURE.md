@@ -150,6 +150,14 @@ Templates:
 
 Templates receive a data struct with project config and document metadata. The `telesis context` command is idempotent — same inputs always produce the same output.
 
+### Template Completeness (CLAUDE.md)
+
+The `claude.md.tmpl` template currently generates: project metadata, quick start, active milestone (from MILESTONES.md), recent ADRs, key document links, and design principles (from VISION.md).
+
+It does **not** yet generate: working conventions, package discipline, error handling guidance, testing conventions, PR expectations, or project-specific context sections. These are present in the hand-written bootstrap CLAUDE.md and are essential for guiding Claude Code sessions effectively.
+
+Approach for closing this gap: extract convention sections from `docs/ARCHITECTURE.md` during context generation, similar to how principles are extracted from `docs/VISION.md`. This keeps ARCHITECTURE.md as the source of truth while making the conventions available in the generated CLAUDE.md.
+
 ---
 
 ## Key Design Decisions
