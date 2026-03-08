@@ -67,9 +67,10 @@ func TestSaveCreatesDirectory(t *testing.T) {
 
 func TestExists(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func(string) error
-		expected bool
+		name      string
+		setup     func(string) error
+		expected  bool
+		expectErr bool
 	}{
 		{
 			name:     "returns false when no config",
@@ -91,7 +92,13 @@ func TestExists(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rootDir := t.TempDir()
 			require.NoError(t, tt.setup(rootDir))
-			assert.Equal(t, tt.expected, config.Exists(rootDir))
+			exists, err := config.Exists(rootDir)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, exists)
+			}
 		})
 	}
 }

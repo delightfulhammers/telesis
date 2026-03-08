@@ -1,12 +1,15 @@
 package context
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -16,17 +19,17 @@ import (
 )
 
 type templateData struct {
-	ProjectName      string
-	ProjectOwner     string
-	ProjectLanguage  string
-	ProjectStatus    string
-	ProjectRepo      string
-	GeneratedDate    string
+	ProjectName       string
+	ProjectOwner      string
+	ProjectLanguage   string
+	ProjectStatus     string
+	ProjectRepo       string
+	GeneratedDate     string
 	MilestonesContent string
-	ADRs             []string
-	ADRCount         int
-	TDDCount         int
-	Principles       string
+	ADRs              []string
+	ADRCount          int
+	TDDCount          int
+	Principles        string
 }
 
 func Generate(rootDir string) (string, error) {
@@ -44,10 +47,30 @@ func Generate(rootDir string) (string, error) {
 		GeneratedDate:   time.Now().Format("2006-01-02"),
 	}
 
-	data.ADRs, data.ADRCount = scanADRs(filepath.Join(rootDir, "docs", "adr"))
-	data.TDDCount = countFiles(filepath.Join(rootDir, "docs", "tdd"), "TDD-*.md")
-	data.MilestonesContent = extractMilestones(filepath.Join(rootDir, "docs", "MILESTONES.md"))
-	data.Principles = extractPrinciples(filepath.Join(rootDir, "docs", "VISION.md"))
+	adrs, adrCount, err := scanADRs(filepath.Join(rootDir, "docs", "adr"))
+	if err != nil {
+		return "", fmt.Errorf("scanning ADRs: %w", err)
+	}
+	data.ADRs = adrs
+	data.ADRCount = adrCount
+
+	tddCount, err := countFiles(filepath.Join(rootDir, "docs", "tdd"), "TDD-*.md")
+	if err != nil {
+		return "", fmt.Errorf("counting TDDs: %w", err)
+	}
+	data.TDDCount = tddCount
+
+	milestones, err := extractMilestones(filepath.Join(rootDir, "docs", "MILESTONES.md"))
+	if err != nil {
+		return "", fmt.Errorf("reading milestones: %w", err)
+	}
+	data.MilestonesContent = milestones
+
+	principles, err := extractPrinciples(filepath.Join(rootDir, "docs", "VISION.md"))
+	if err != nil {
+		return "", fmt.Errorf("reading vision: %w", err)
+	}
+	data.Principles = principles
 
 	tmplContent, err := templates.FS.ReadFile("claude.md.tmpl")
 	if err != nil {
@@ -67,15 +90,23 @@ func Generate(rootDir string) (string, error) {
 	return buf.String(), nil
 }
 
-func scanADRs(adrDir string) ([]string, int) {
+var adrNumberRe = regexp.MustCompile(`^ADR-(\d+)`)
+
+func scanADRs(adrDir string) ([]string, int, error) {
 	matches, err := filepath.Glob(filepath.Join(adrDir, "ADR-*.md"))
-	if err != nil || len(matches) == 0 {
-		return nil, 0
+	if err != nil {
+		return nil, 0, fmt.Errorf("globbing ADR directory: %w", err)
+	}
+	if len(matches) == 0 {
+		return nil, 0, nil
 	}
 
-	sort.Strings(matches)
+	// Sort numerically by ADR number
+	sort.Slice(matches, func(i, j int) bool {
+		return parseADRNumber(matches[i]) < parseADRNumber(matches[j])
+	})
 
-	// Return up to 5 most recent (last in sorted order)
+	// Return up to 5 most recent (highest numbered)
 	start := 0
 	if len(matches) > 5 {
 		start = len(matches) - 5
@@ -84,102 +115,128 @@ func scanADRs(adrDir string) ([]string, int) {
 
 	var summaries []string
 	for _, path := range recent {
-		summary := extractADRSummary(path)
-		if summary != "" {
-			summaries = append(summaries, summary)
+		summary, err := extractADRSummary(path)
+		if err != nil {
+			return nil, 0, fmt.Errorf("reading ADR %s: %w", filepath.Base(path), err)
 		}
+		summaries = append(summaries, summary)
 	}
 
-	return summaries, len(matches)
+	return summaries, len(matches), nil
+}
+
+func parseADRNumber(path string) int {
+	name := filepath.Base(path)
+	if m := adrNumberRe.FindStringSubmatch(name); len(m) > 1 {
+		n, _ := strconv.Atoi(m[1])
+		return n
+	}
+	return 0
 }
 
 var adrTitleRe = regexp.MustCompile(`^#\s+ADR-\d+:\s*(.+)`)
 
-func extractADRSummary(path string) string {
-	data, err := os.ReadFile(path)
+func extractADRSummary(path string) (string, error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return ""
+		return "", err
 	}
+	defer f.Close()
 
 	filename := filepath.Base(path)
 	name := strings.TrimSuffix(filename, ".md")
 
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		if m := adrTitleRe.FindStringSubmatch(strings.TrimSpace(line)); len(m) > 1 {
-			return fmt.Sprintf("%s: %s", name, m[1])
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if m := adrTitleRe.FindStringSubmatch(line); len(m) > 1 {
+			return fmt.Sprintf("%s: %s", name, m[1]), nil
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("scanning %s: %w", filename, err)
+	}
 
-	return name
+	return name, nil
 }
 
-func countFiles(dir, pattern string) int {
+func countFiles(dir, pattern string) (int, error) {
 	matches, err := filepath.Glob(filepath.Join(dir, pattern))
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("globbing %s: %w", dir, err)
 	}
-	return len(matches)
+	return len(matches), nil
 }
 
 var principlesHeaderRe = regexp.MustCompile(`(?i)^##\s+Design Principles`)
 
-func extractPrinciples(visionPath string) string {
-	data, err := os.ReadFile(visionPath)
+func extractPrinciples(visionPath string) (string, error) {
+	f, err := os.Open(visionPath)
 	if err != nil {
-		return ""
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
 	}
+	defer f.Close()
 
-	lines := strings.Split(string(data), "\n")
 	var capturing bool
 	var result []string
 
-	for _, line := range lines {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
 		if principlesHeaderRe.MatchString(line) {
 			capturing = true
 			continue
 		}
 		if capturing {
-			// Stop at next section header
 			if strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "---") {
 				break
 			}
 			result = append(result, line)
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("scanning vision: %w", err)
+	}
 
-	return strings.TrimSpace(strings.Join(result, "\n"))
+	return strings.TrimSpace(strings.Join(result, "\n")), nil
 }
 
 var milestonesHeaderRe = regexp.MustCompile(`(?i)^##\s+MVP`)
 
-func extractMilestones(milestonesPath string) string {
-	data, err := os.ReadFile(milestonesPath)
+func extractMilestones(milestonesPath string) (string, error) {
+	f, err := os.Open(milestonesPath)
 	if err != nil {
-		return ""
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
 	}
+	defer f.Close()
 
-	lines := strings.Split(string(data), "\n")
 	var capturing bool
 	var result []string
 
-	for _, line := range lines {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
 		if milestonesHeaderRe.MatchString(line) {
 			capturing = true
 			result = append(result, line)
 			continue
 		}
 		if capturing {
-			// Stop at next h2 section or horizontal rule before next section
-			if strings.HasPrefix(line, "## ") {
-				break
-			}
-			if line == "---" {
+			if strings.HasPrefix(line, "## ") || line == "---" {
 				break
 			}
 			result = append(result, line)
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("scanning milestones: %w", err)
+	}
 
-	return strings.TrimSpace(strings.Join(result, "\n"))
+	return strings.TrimSpace(strings.Join(result, "\n")), nil
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -64,7 +65,13 @@ func Save(rootDir string, cfg *Config) error {
 	return nil
 }
 
-func Exists(rootDir string) bool {
+func Exists(rootDir string) (bool, error) {
 	_, err := os.Stat(configPath(rootDir))
-	return err == nil
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, fmt.Errorf("could not check config: %w", err)
 }

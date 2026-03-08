@@ -1,6 +1,7 @@
 package context_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,7 +51,6 @@ func TestGenerate(t *testing.T) {
 func TestGenerateIncludesADRCount(t *testing.T) {
 	rootDir := setupProject(t)
 
-	// Create some ADR files
 	adrDir := filepath.Join(rootDir, "docs", "adr")
 	require.NoError(t, os.WriteFile(
 		filepath.Join(adrDir, "ADR-001-use-cobra.md"),
@@ -155,4 +155,73 @@ func TestGenerateIncludesADRSummaries(t *testing.T) {
 
 	assert.Contains(t, output, "ADR-001")
 	assert.Contains(t, output, "Use Cobra for CLI")
+}
+
+func TestGenerateSortsADRsNumerically(t *testing.T) {
+	rootDir := setupProject(t)
+
+	adrDir := filepath.Join(rootDir, "docs", "adr")
+	// Create ADRs with numbers that would sort wrong lexicographically
+	for _, adr := range []struct{ num, title string }{
+		{"002", "Second decision"},
+		{"010", "Tenth decision"},
+		{"001", "First decision"},
+		{"100", "Hundredth decision"},
+		{"003", "Third decision"},
+		{"020", "Twentieth decision"},
+	} {
+		content := fmt.Sprintf("# ADR-%s: %s\n\n## Status\nAccepted\n", adr.num, adr.title)
+		require.NoError(t, os.WriteFile(
+			filepath.Join(adrDir, fmt.Sprintf("ADR-%s-slug.md", adr.num)),
+			[]byte(content),
+			0o644,
+		))
+	}
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	// Should show last 5 by number: 003, 010, 020, 100
+	// (6 total, skips ADR-001 and ADR-002)
+	assert.Contains(t, output, "6 decisions on record")
+	assert.NotContains(t, output, "First decision")
+	assert.Contains(t, output, "Third decision")
+	assert.Contains(t, output, "Tenth decision")
+	assert.Contains(t, output, "Twentieth decision")
+	assert.Contains(t, output, "Hundredth decision")
+
+	// Verify order: 003 before 010 before 020 before 100
+	idx003 := strings.Index(output, "Third decision")
+	idx010 := strings.Index(output, "Tenth decision")
+	idx020 := strings.Index(output, "Twentieth decision")
+	idx100 := strings.Index(output, "Hundredth decision")
+	assert.Less(t, idx003, idx010)
+	assert.Less(t, idx010, idx020)
+	assert.Less(t, idx020, idx100)
+}
+
+func TestGenerateMissingOptionalFilesOK(t *testing.T) {
+	rootDir := setupProject(t)
+	// No VISION.md or MILESTONES.md — should succeed with empty sections
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "# TestProject — Claude Context")
+	assert.Contains(t, output, "No ADRs on record yet")
+}
+
+func TestGenerateUnreadableADRReturnsError(t *testing.T) {
+	rootDir := setupProject(t)
+
+	adrDir := filepath.Join(rootDir, "docs", "adr")
+	adrPath := filepath.Join(adrDir, "ADR-001-broken.md")
+	require.NoError(t, os.WriteFile(adrPath, []byte("# ADR-001: Broken\n"), 0o644))
+	// Remove read permission
+	require.NoError(t, os.Chmod(adrPath, 0o000))
+	t.Cleanup(func() { os.Chmod(adrPath, 0o644) })
+
+	_, err := context.Generate(rootDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "ADR-001")
 }
