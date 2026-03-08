@@ -98,18 +98,27 @@ type numberedADR struct {
 }
 
 func scanADRs(adrDir string) ([]string, int, error) {
-	matches, err := filepath.Glob(filepath.Join(adrDir, "ADR-*.md"))
+	entries, err := os.ReadDir(adrDir)
 	if err != nil {
-		return nil, 0, fmt.Errorf("globbing ADR directory: %w", err)
-	}
-	if len(matches) == 0 {
-		return nil, 0, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, 0, nil
+		}
+		return nil, 0, fmt.Errorf("reading ADR directory: %w", err)
 	}
 
-	// Pre-compute ADR numbers for sorting
-	adrs := make([]numberedADR, len(matches))
-	for i, path := range matches {
-		adrs[i] = numberedADR{path: path, num: parseADRNumber(path)}
+	var adrs []numberedADR
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		matched, _ := filepath.Match("ADR-*.md", entry.Name())
+		if matched {
+			p := filepath.Join(adrDir, entry.Name())
+			adrs = append(adrs, numberedADR{path: p, num: parseADRNumber(p)})
+		}
+	}
+	if len(adrs) == 0 {
+		return nil, 0, nil
 	}
 
 	sort.Slice(adrs, func(i, j int) bool {
@@ -171,11 +180,24 @@ func extractADRSummary(path string) (string, error) {
 }
 
 func countFiles(dir, pattern string) (int, error) {
-	matches, err := filepath.Glob(filepath.Join(dir, pattern))
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return 0, fmt.Errorf("globbing %s: %w", dir, err)
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("reading %s: %w", dir, err)
 	}
-	return len(matches), nil
+	count := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		matched, _ := filepath.Match(pattern, entry.Name())
+		if matched {
+			count++
+		}
+	}
+	return count, nil
 }
 
 var principlesHeaderRe = regexp.MustCompile(`(?i)^##\s+Design Principles`)

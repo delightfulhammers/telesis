@@ -47,6 +47,10 @@ func runContext(cmd *cobra.Command, args []string) error {
 		os.Remove(tmpPath)
 		return fmt.Errorf("could not close CLAUDE.md: %w", err)
 	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("could not set CLAUDE.md permissions: %w", err)
+	}
 	if err := os.Rename(tmpPath, claudePath); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("could not finalize CLAUDE.md: %w", err)
