@@ -213,6 +213,7 @@ func writeFileAtomic(dest string, content []byte) error {
 	success := false
 	defer func() {
 		if !success {
+			tmp.Close()
 			os.Remove(tmpPath)
 		}
 	}()

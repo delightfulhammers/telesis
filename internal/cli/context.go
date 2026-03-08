@@ -44,6 +44,7 @@ func runContext(cmd *cobra.Command, args []string) error {
 	success := false
 	defer func() {
 		if !success {
+			tmp.Close()
 			os.Remove(tmpPath)
 		}
 	}()

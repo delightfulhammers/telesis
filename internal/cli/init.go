@@ -13,6 +13,7 @@ func init() {
 	initCmd.Flags().StringP("owner", "o", "", "project owner")
 	initCmd.Flags().StringP("language", "l", "", "primary programming language")
 	initCmd.Flags().StringP("repo", "r", "", "repository URL")
+	initCmd.MarkFlagRequired("name")
 
 	rootCmd.AddCommand(initCmd)
 }
@@ -26,10 +27,6 @@ var initCmd = &cobra.Command{
 
 func runInit(cmd *cobra.Command, args []string) error {
 	name, _ := cmd.Flags().GetString("name")
-	if name == "" {
-		return fmt.Errorf("--name is required")
-	}
-
 	owner, _ := cmd.Flags().GetString("owner")
 	language, _ := cmd.Flags().GetString("language")
 	repo, _ := cmd.Flags().GetString("repo")
