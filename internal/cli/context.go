@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/delightfulhammers/telesis/internal/context"
 	"github.com/spf13/cobra"
 )
+
+var contextTempCounter atomic.Int64
 
 func init() {
 	rootCmd.AddCommand(contextCmd)
@@ -32,7 +35,7 @@ func runContext(cmd *cobra.Command, args []string) error {
 	}
 
 	claudePath := filepath.Join(rootDir, "CLAUDE.md")
-	tmpPath := filepath.Join(rootDir, fmt.Sprintf(".CLAUDE-%d.md", os.Getpid()))
+	tmpPath := filepath.Join(rootDir, fmt.Sprintf(".CLAUDE-%d-%d.md", os.Getpid(), contextTempCounter.Add(1)))
 	tmp, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
 	if err != nil {
 		return fmt.Errorf("could not create temp file: %w", err)
