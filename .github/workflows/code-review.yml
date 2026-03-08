@@ -14,18 +14,128 @@ permissions:
 
 jobs:
   review:
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Full history for git diff
 
-      - name: Run bop code review
-        uses: delightfulhammers/bop/action@main  # TODO: pin to v0.12.1 once goreleaser creates the release
+      - name: Get head commit message
+        id: get-commit
+        run: |
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --format=%B ${{ github.event.pull_request.head.sha }} >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Check for skip trigger
+        id: skip-check
+        env:
+          COMMIT_MSG: ${{ steps.get-commit.outputs.message }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Check for [skip code-review] or [skip review] in commit, title, or body
+          if echo "$COMMIT_MSG" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skip trigger found in commit message"
+            exit 0
+          fi
+          if echo "$PR_TITLE" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skip trigger found in PR title"
+            exit 0
+          fi
+          if echo "$PR_BODY" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skip trigger found in PR body"
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+          echo "No skip trigger found, proceeding with code review"
+
+      - name: Install bop
+        if: steps.skip-check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.BOP_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          VERSION="v0.8.4"
+          VERSION_NUM="${VERSION#v}"
+          ARCHIVE_NAME="bop_${VERSION_NUM}_linux_amd64.tar.gz"
+
+          echo "Installing bop ${VERSION}..."
+
+          # Get release info from private repo
+          RELEASE_INFO=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/delightfulhammers/bop/releases/tags/${VERSION}")
+
+          # Get asset URLs
+          ARCHIVE_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"$ARCHIVE_NAME\") | .url")
+          CHECKSUM_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name == "checksums.txt") | .url')
+
+          if [ -z "$ARCHIVE_URL" ] || [ "$ARCHIVE_URL" = "null" ]; then
+            echo "::error::Could not find asset: $ARCHIVE_NAME"
+            exit 1
+          fi
+
+          # Download via API (required for private repo)
+          TEMP_DIR=$(mktemp -d)
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$ARCHIVE_URL" -o "$TEMP_DIR/$ARCHIVE_NAME"
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$CHECKSUM_URL" -o "$TEMP_DIR/checksums.txt"
+
+          # Verify checksum
+          cd "$TEMP_DIR"
+          EXPECTED=$(awk -v f="$ARCHIVE_NAME" '$2 == f {print $1}' checksums.txt)
+          ACTUAL=$(sha256sum "$ARCHIVE_NAME" | awk '{print $1}')
+
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::Checksum verification failed!"
+            exit 1
+          fi
+
+          echo "Checksum verified successfully"
+
+          # Install
+          tar xzf "$ARCHIVE_NAME"
+          sudo mv bop /usr/local/bin/
+          echo "bop installed at $(which bop)"
+
+      - name: Run code review
+        if: steps.skip-check.outputs.skip != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          OUTPUT_DIR="${RUNNER_TEMP}/review-output"
+          mkdir -p "$OUTPUT_DIR"
+
+          bop review branch "${{ github.head_ref }}" \
+            --base main \
+            --output "$OUTPUT_DIR" \
+            --post-github-review \
+            --github-owner "${{ github.repository_owner }}" \
+            --github-repo "${{ github.event.repository.name }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --commit-sha "${{ github.event.pull_request.head.sha }}"
+
+      - name: Upload review artifacts
+        uses: actions/upload-artifact@v4
+        if: steps.skip-check.outputs.skip != 'true'
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          google-api-key: ${{ secrets.GEMINI_API_KEY }}
-          block-threshold: "high"
+          name: code-review-results
+          path: ${{ runner.temp }}/review-output/
+          retention-days: 7
