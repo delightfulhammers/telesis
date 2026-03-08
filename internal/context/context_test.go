@@ -241,43 +241,6 @@ Other content here.
 	assert.NotContains(t, output, "Other content here")
 }
 
-func TestGenerateExtractsConventions(t *testing.T) {
-	rootDir := setupProject(t)
-
-	arch := `# Architecture
-
-## Package Discipline
-
-- Business logic in internal packages.
-- CLI wiring in internal/cli.
-
-## Error Handling
-
-- Return errors, don't log.Fatal.
-
-## Data Flow
-
-Not a convention section.
-
-## Testing Strategy
-
-- Table-driven tests preferred.
-`
-	require.NoError(t, os.WriteFile(
-		filepath.Join(rootDir, "docs", "ARCHITECTURE.md"),
-		[]byte(arch),
-		0o644,
-	))
-
-	output, err := context.Generate(rootDir)
-	require.NoError(t, err)
-
-	assert.Contains(t, output, "Business logic in internal packages")
-	assert.Contains(t, output, "Return errors")
-	assert.Contains(t, output, "Table-driven tests preferred")
-	assert.NotContains(t, output, "Not a convention section")
-}
-
 func TestGenerateIncludesContextFiles(t *testing.T) {
 	rootDir := setupProject(t)
 

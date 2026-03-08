@@ -98,7 +98,6 @@ internal/cli/context.go
     → extract milestone from docs/MILESTONES.md
     → extract principles from docs/VISION.md
     → extract description from docs/VISION.md
-    → extract conventions from docs/ARCHITECTURE.md
     → scan docs/context/*.md for additional sections
     → render claude.md.tmpl
     → write CLAUDE.md
@@ -165,10 +164,9 @@ The `claude.md.tmpl` template generates:
 - **Recent Decisions** — scanned from `docs/adr/` (up to 5 most recent)
 - **Key Documents** — static links with ADR/TDD counts
 - **Principles** — extracted from VISION.md "Design Principles" section
-- **Working Conventions** — extracted from ARCHITECTURE.md (Package Discipline, Error Handling, Testing Strategy sections)
 - **Additional context** — all `.md` files from `docs/context/`, included verbatim in alphabetical order
 
-The `docs/context/` directory is the escape hatch for project-specific sections that don't fit into the standard extraction points. Any markdown file placed there becomes a section in the generated CLAUDE.md.
+The `docs/context/` directory holds project-specific sections for the generated CLAUDE.md. Any markdown file placed there becomes a section in the output. This is where working conventions, project relationships, and other curated guidance for Claude Code sessions belong — content that is authored explicitly rather than extracted from other docs.
 
 ---
 

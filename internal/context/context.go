@@ -31,7 +31,6 @@ type templateData struct {
 	ADRCount          int
 	TDDCount          int
 	Principles        string
-	Conventions       string
 	ContextSections   []contextSection
 }
 
@@ -79,17 +78,11 @@ func Generate(rootDir string) (string, error) {
 	}
 	data.Principles = principles
 
-	description, err := extractSection(filepath.Join(rootDir, "docs", "VISION.md"), `(?i)^##\s+The Vision`)
+	description, err := extractSection(filepath.Join(rootDir, "docs", "VISION.md"), descriptionHeaderRe)
 	if err != nil {
 		return "", fmt.Errorf("reading description: %w", err)
 	}
 	data.Description = stripLeadingHeading(description)
-
-	conventions, err := extractConventions(filepath.Join(rootDir, "docs", "ARCHITECTURE.md"))
-	if err != nil {
-		return "", fmt.Errorf("reading conventions: %w", err)
-	}
-	data.Conventions = conventions
 
 	contextSections, err := scanContextFiles(filepath.Join(rootDir, "docs", "context"))
 	if err != nil {
@@ -225,7 +218,10 @@ func countFiles(dir, pattern string) (int, error) {
 	return count, nil
 }
 
-var principlesHeaderRe = regexp.MustCompile(`(?i)^##\s+Design Principles`)
+var (
+	principlesHeaderRe  = regexp.MustCompile(`(?i)^##\s+Design Principles`)
+	descriptionHeaderRe = regexp.MustCompile(`(?i)^##\s+The Vision`)
+)
 
 func extractPrinciples(visionPath string) (string, error) {
 	f, err := os.Open(visionPath)
@@ -264,15 +260,13 @@ func extractPrinciples(visionPath string) (string, error) {
 var milestonesHeaderRe = regexp.MustCompile(`(?i)^##\s+MVP`)
 
 func extractMilestones(milestonesPath string) (string, error) {
-	return extractSection(milestonesPath, `(?i)^##\s+MVP`)
+	return extractSection(milestonesPath, milestonesHeaderRe)
 }
 
 // extractSection extracts content under the first heading matching the given
-// regex pattern, stopping at the next ## heading or --- separator. The matched
+// compiled regex, stopping at the next ## heading or --- separator. The matched
 // heading line is included in the output.
-func extractSection(path, pattern string) (string, error) {
-	re := regexp.MustCompile(pattern)
-
+func extractSection(path string, re *regexp.Regexp) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -319,27 +313,6 @@ func stripLeadingHeading(s string) string {
 		return ""
 	}
 	return s
-}
-
-// conventionSections lists the ARCHITECTURE.md headings to extract as working conventions.
-var conventionSections = []string{
-	`(?i)^##\s+Package Discipline`,
-	`(?i)^##\s+Error Handling`,
-	`(?i)^##\s+Testing Strategy`,
-}
-
-func extractConventions(archPath string) (string, error) {
-	var sections []string
-	for _, pattern := range conventionSections {
-		content, err := extractSection(archPath, pattern)
-		if err != nil {
-			return "", err
-		}
-		if content != "" {
-			sections = append(sections, content)
-		}
-	}
-	return strings.Join(sections, "\n\n"), nil
 }
 
 func scanContextFiles(contextDir string) ([]contextSection, error) {
