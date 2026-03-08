@@ -50,7 +50,7 @@ func Create(rootDir string, cfg Config, slug string) (string, error) {
 	}
 
 	docDir := filepath.Join(rootDir, "docs", cfg.Subdir)
-	numberRe := regexp.MustCompile(`^` + cfg.Prefix + `-(\d+)`)
+	numberRe := regexp.MustCompile(`^` + regexp.QuoteMeta(cfg.Prefix) + `-(\d+)`)
 
 	const maxRetries = 5
 	for attempt := range maxRetries {
@@ -83,7 +83,7 @@ func Create(rootDir string, cfg Config, slug string) (string, error) {
 
 // NextNumber scans a document directory and returns the next sequential number.
 func NextNumber(docDir string, prefix string) (int, error) {
-	numberRe := regexp.MustCompile(`^` + prefix + `-(\d+)`)
+	numberRe := regexp.MustCompile(`^` + regexp.QuoteMeta(prefix) + `-(\d+)`)
 	return nextNumber(docDir, numberRe)
 }
 
@@ -145,12 +145,14 @@ func writeExclusive(dest string, content []byte) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	if _, err := f.Write(content); err != nil {
-		os.Remove(dest)
+		f.Close()
+		if rerr := os.Remove(dest); rerr != nil {
+			return fmt.Errorf("write failed (%w) and cleanup failed (%v)", err, rerr)
+		}
 		return err
 	}
 
-	return nil
+	return f.Close()
 }
