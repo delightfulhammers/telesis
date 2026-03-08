@@ -92,6 +92,11 @@ func Generate(rootDir string) (string, error) {
 
 var adrNumberRe = regexp.MustCompile(`^ADR-(\d+)`)
 
+type numberedADR struct {
+	path string
+	num  int
+}
+
 func scanADRs(adrDir string) ([]string, int, error) {
 	matches, err := filepath.Glob(filepath.Join(adrDir, "ADR-*.md"))
 	if err != nil {
@@ -101,28 +106,33 @@ func scanADRs(adrDir string) ([]string, int, error) {
 		return nil, 0, nil
 	}
 
-	// Sort numerically by ADR number
-	sort.Slice(matches, func(i, j int) bool {
-		return parseADRNumber(matches[i]) < parseADRNumber(matches[j])
+	// Pre-compute ADR numbers for sorting
+	adrs := make([]numberedADR, len(matches))
+	for i, path := range matches {
+		adrs[i] = numberedADR{path: path, num: parseADRNumber(path)}
+	}
+
+	sort.Slice(adrs, func(i, j int) bool {
+		return adrs[i].num < adrs[j].num
 	})
 
 	// Return up to 5 most recent (highest numbered)
 	start := 0
-	if len(matches) > 5 {
-		start = len(matches) - 5
+	if len(adrs) > 5 {
+		start = len(adrs) - 5
 	}
-	recent := matches[start:]
+	recent := adrs[start:]
 
 	var summaries []string
-	for _, path := range recent {
-		summary, err := extractADRSummary(path)
+	for _, adr := range recent {
+		summary, err := extractADRSummary(adr.path)
 		if err != nil {
-			return nil, 0, fmt.Errorf("reading ADR %s: %w", filepath.Base(path), err)
+			return nil, 0, fmt.Errorf("reading ADR %s: %w", filepath.Base(adr.path), err)
 		}
 		summaries = append(summaries, summary)
 	}
 
-	return summaries, len(matches), nil
+	return summaries, len(adrs), nil
 }
 
 func parseADRNumber(path string) int {

@@ -58,8 +58,26 @@ func Save(rootDir string, cfg *Config) error {
 	header := []byte("# Telesis project configuration\n")
 	content := append(header, data...)
 
-	if err := os.WriteFile(configPath(rootDir), content, 0o644); err != nil {
+	// Atomic write: temp file + rename to prevent partial writes
+	dest := configPath(rootDir)
+	tmp, err := os.CreateTemp(dir, ".config-*.yml")
+	if err != nil {
+		return fmt.Errorf("could not create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("could not write config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("could not close config: %w", err)
+	}
+	if err := os.Rename(tmpPath, dest); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("could not finalize config: %w", err)
 	}
 
 	return nil

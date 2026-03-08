@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -212,6 +213,10 @@ func TestGenerateMissingOptionalFilesOK(t *testing.T) {
 }
 
 func TestGenerateUnreadableADRReturnsError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod-based permission test not reliable on Windows")
+	}
+
 	rootDir := setupProject(t)
 
 	adrDir := filepath.Join(rootDir, "docs", "adr")
