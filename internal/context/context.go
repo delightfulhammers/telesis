@@ -25,11 +25,18 @@ type templateData struct {
 	ProjectStatus     string
 	ProjectRepo       string
 	GeneratedDate     string
+	Description       string
 	MilestonesContent string
 	ADRs              []string
 	ADRCount          int
 	TDDCount          int
 	Principles        string
+	Conventions       string
+	ContextSections   []contextSection
+}
+
+type contextSection struct {
+	Content string
 }
 
 func Generate(rootDir string) (string, error) {
@@ -71,6 +78,24 @@ func Generate(rootDir string) (string, error) {
 		return "", fmt.Errorf("reading vision: %w", err)
 	}
 	data.Principles = principles
+
+	description, err := extractSection(filepath.Join(rootDir, "docs", "VISION.md"), `(?i)^##\s+The Vision`)
+	if err != nil {
+		return "", fmt.Errorf("reading description: %w", err)
+	}
+	data.Description = stripLeadingHeading(description)
+
+	conventions, err := extractConventions(filepath.Join(rootDir, "docs", "ARCHITECTURE.md"))
+	if err != nil {
+		return "", fmt.Errorf("reading conventions: %w", err)
+	}
+	data.Conventions = conventions
+
+	contextSections, err := scanContextFiles(filepath.Join(rootDir, "docs", "context"))
+	if err != nil {
+		return "", fmt.Errorf("reading context files: %w", err)
+	}
+	data.ContextSections = contextSections
 
 	tmplContent, err := templates.FS.ReadFile("claude.md.tmpl")
 	if err != nil {
@@ -239,7 +264,16 @@ func extractPrinciples(visionPath string) (string, error) {
 var milestonesHeaderRe = regexp.MustCompile(`(?i)^##\s+MVP`)
 
 func extractMilestones(milestonesPath string) (string, error) {
-	f, err := os.Open(milestonesPath)
+	return extractSection(milestonesPath, `(?i)^##\s+MVP`)
+}
+
+// extractSection extracts content under the first heading matching the given
+// regex pattern, stopping at the next ## heading or --- separator. The matched
+// heading line is included in the output.
+func extractSection(path, pattern string) (string, error) {
+	re := regexp.MustCompile(pattern)
+
+	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", nil
@@ -254,21 +288,81 @@ func extractMilestones(milestonesPath string) (string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if milestonesHeaderRe.MatchString(line) {
+		if !capturing && re.MatchString(line) {
 			capturing = true
 			result = append(result, line)
 			continue
 		}
 		if capturing {
-			if strings.HasPrefix(line, "## ") || line == "---" {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "## ") || trimmed == "---" {
 				break
 			}
 			result = append(result, line)
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("scanning milestones: %w", err)
+		return "", fmt.Errorf("scanning %s: %w", filepath.Base(path), err)
 	}
 
 	return strings.TrimSpace(strings.Join(result, "\n")), nil
+}
+
+// stripLeadingHeading removes a markdown heading from the first line if present,
+// returning just the body content. Used when the template provides its own heading.
+func stripLeadingHeading(s string) string {
+	lines := strings.SplitN(s, "\n", 2)
+	if len(lines) > 0 && strings.HasPrefix(strings.TrimSpace(lines[0]), "#") {
+		if len(lines) > 1 {
+			return strings.TrimSpace(lines[1])
+		}
+		return ""
+	}
+	return s
+}
+
+// conventionSections lists the ARCHITECTURE.md headings to extract as working conventions.
+var conventionSections = []string{
+	`(?i)^##\s+Package Discipline`,
+	`(?i)^##\s+Error Handling`,
+	`(?i)^##\s+Testing Strategy`,
+}
+
+func extractConventions(archPath string) (string, error) {
+	var sections []string
+	for _, pattern := range conventionSections {
+		content, err := extractSection(archPath, pattern)
+		if err != nil {
+			return "", err
+		}
+		if content != "" {
+			sections = append(sections, content)
+		}
+	}
+	return strings.Join(sections, "\n\n"), nil
+}
+
+func scanContextFiles(contextDir string) ([]contextSection, error) {
+	entries, err := os.ReadDir(contextDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var sections []contextSection
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(contextDir, entry.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", entry.Name(), err)
+		}
+		sections = append(sections, contextSection{
+			Content: strings.TrimSpace(string(content)),
+		})
+	}
+	return sections, nil
 }

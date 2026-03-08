@@ -134,6 +134,7 @@ func createDirectories(rootDir string) error {
 	dirs := []string{
 		filepath.Join(rootDir, "docs", "adr"),
 		filepath.Join(rootDir, "docs", "tdd"),
+		filepath.Join(rootDir, "docs", "context"),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {

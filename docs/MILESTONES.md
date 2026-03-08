@@ -8,7 +8,7 @@
 
 **Goal:** The shortest path to using Telesis to develop Telesis.
 
-**Status:** In Progress — Phase 0 (scaffolding)
+**Status:** In Progress — Phase 5 (self-hosting)
 
 ### Acceptance Criteria
 

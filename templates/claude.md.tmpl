@@ -14,7 +14,13 @@
 {{- end }}
 
 ---
+{{ if .Description }}
+## About This Project
 
+{{ .Description }}
+
+---
+{{ end }}
 ## Quick Start
 
 1. Read `docs/VISION.md` for the foundational why
@@ -53,4 +59,18 @@
 ## Principles
 
 {{ .Principles }}
+
+---
+{{ end }}
+{{ if .Conventions }}
+## Working Conventions
+
+{{ .Conventions }}
+
+---
+{{ end }}
+{{ range .ContextSections }}
+{{ .Content }}
+
+---
 {{ end }}
