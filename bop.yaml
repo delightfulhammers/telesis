@@ -107,7 +107,7 @@ reviewers:
   # Example of explicit model override (uses different model than provider default)
   performance:
     provider: "gemini"
-    model: "gemini-3.1-flash-preview"  # Override: use flash for faster performance checks
+    model: "gemini-3.1-flash-lite-preview"  # Override: use flash for faster performance checks
     weight: 1.0
     persona: |
       You are a performance engineer specializing in system efficiency.
@@ -127,7 +127,7 @@ reviewers:
   # Not included in defaultReviewers - opt-in via --reviewers flag
   observability:
     provider: "gemini"
-    model: "gemini-3.1-flash-preview"  # Smaller model sufficient for pattern-matching
+    model: "gemini-3.1-flash-lite-preview"  # Smaller model sufficient for pattern-matching
     weight: 1.0
     persona: |
       You are a senior observability engineer specializing in production systems.
@@ -212,7 +212,7 @@ verification:
   enabled: true
   # LLM provider for verification (defaults to gemini/gemini-3-flash-preview)
   provider: "gemini"
-  model: "gemini-3.1-flash-preview"
+  model: "gemini-3.1-flash-lite-preview"
   maxTokens: 64000
   depth: "medium"
   costCeiling: 0.50

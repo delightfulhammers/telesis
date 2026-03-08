@@ -236,9 +236,37 @@ Other content here.
 	output, err := context.Generate(rootDir)
 	require.NoError(t, err)
 
+	assert.Contains(t, output, "## About This Project")
 	assert.Contains(t, output, "development intelligence platform")
 	assert.Contains(t, output, "operating layer")
+	assert.NotContains(t, output, "## The Vision")
 	assert.NotContains(t, output, "Other content here")
+}
+
+func TestGenerateDescriptionStopsAtTopLevelHeading(t *testing.T) {
+	rootDir := setupProject(t)
+
+	vision := `# Vision
+
+## The Vision
+
+Description content here.
+
+# Appendix
+
+Appendix content should not appear.
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(rootDir, "docs", "VISION.md"),
+		[]byte(vision),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "Description content here")
+	assert.NotContains(t, output, "Appendix content should not appear")
 }
 
 func TestGenerateIncludesContextFiles(t *testing.T) {

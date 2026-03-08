@@ -78,11 +78,11 @@ func Generate(rootDir string) (string, error) {
 	}
 	data.Principles = principles
 
-	description, err := extractSection(filepath.Join(rootDir, "docs", "VISION.md"), descriptionHeaderRe)
+	description, err := extractSection(filepath.Join(rootDir, "docs", "VISION.md"), descriptionHeaderRe, false)
 	if err != nil {
 		return "", fmt.Errorf("reading description: %w", err)
 	}
-	data.Description = stripLeadingHeading(description)
+	data.Description = description
 
 	contextSections, err := scanContextFiles(filepath.Join(rootDir, "docs", "context"))
 	if err != nil {
@@ -224,49 +224,19 @@ var (
 )
 
 func extractPrinciples(visionPath string) (string, error) {
-	f, err := os.Open(visionPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", nil
-		}
-		return "", err
-	}
-	defer f.Close()
-
-	var capturing bool
-	var result []string
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if principlesHeaderRe.MatchString(line) {
-			capturing = true
-			continue
-		}
-		if capturing {
-			if strings.HasPrefix(line, "## ") || strings.HasPrefix(line, "---") {
-				break
-			}
-			result = append(result, line)
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("scanning vision: %w", err)
-	}
-
-	return strings.TrimSpace(strings.Join(result, "\n")), nil
+	return extractSection(visionPath, principlesHeaderRe, false)
 }
 
 var milestonesHeaderRe = regexp.MustCompile(`(?i)^##\s+MVP`)
 
 func extractMilestones(milestonesPath string) (string, error) {
-	return extractSection(milestonesPath, milestonesHeaderRe)
+	return extractSection(milestonesPath, milestonesHeaderRe, true)
 }
 
 // extractSection extracts content under the first heading matching the given
-// compiled regex, stopping at the next ## heading or --- separator. The matched
-// heading line is included in the output.
-func extractSection(path string, re *regexp.Regexp) (string, error) {
+// compiled regex, stopping at the next # or ## heading or --- separator.
+// When includeHeading is true, the matched heading line is included in the output.
+func extractSection(path string, re *regexp.Regexp, includeHeading bool) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -284,12 +254,14 @@ func extractSection(path string, re *regexp.Regexp) (string, error) {
 		line := scanner.Text()
 		if !capturing && re.MatchString(line) {
 			capturing = true
-			result = append(result, line)
+			if includeHeading {
+				result = append(result, line)
+			}
 			continue
 		}
 		if capturing {
 			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "## ") || trimmed == "---" {
+			if isSectionBoundary(trimmed) {
 				break
 			}
 			result = append(result, line)
@@ -302,17 +274,19 @@ func extractSection(path string, re *regexp.Regexp) (string, error) {
 	return strings.TrimSpace(strings.Join(result, "\n")), nil
 }
 
-// stripLeadingHeading removes a markdown heading from the first line if present,
-// returning just the body content. Used when the template provides its own heading.
-func stripLeadingHeading(s string) string {
-	lines := strings.SplitN(s, "\n", 2)
-	if len(lines) > 0 && strings.HasPrefix(strings.TrimSpace(lines[0]), "#") {
-		if len(lines) > 1 {
-			return strings.TrimSpace(lines[1])
-		}
-		return ""
+// isSectionBoundary returns true if the line marks the start of a new
+// top-level section: a # or ## heading, or a --- horizontal rule.
+func isSectionBoundary(trimmed string) bool {
+	if trimmed == "---" {
+		return true
 	}
-	return s
+	if strings.HasPrefix(trimmed, "# ") && !strings.HasPrefix(trimmed, "##") {
+		return true
+	}
+	if strings.HasPrefix(trimmed, "## ") {
+		return true
+	}
+	return false
 }
 
 func scanContextFiles(contextDir string) ([]contextSection, error) {
