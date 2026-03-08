@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/delightfulhammers/telesis/internal/config"
@@ -35,8 +36,20 @@ var readmeStubs = map[string]string{
 	"docs/tdd/README.md": "# Technical Design Documents (TDDs)\n\nThis directory contains TDD files created by `telesis tdd new <slug>`.\n\nEach TDD details the design of a specific component or subsystem.\n",
 }
 
+var docTemplates *template.Template
+
+func init() {
+	var err error
+	docTemplates, err = template.ParseFS(templates.FS, "*.tmpl")
+	if err != nil {
+		panic(fmt.Sprintf("parsing embedded templates: %v", err))
+	}
+}
+
 // Scaffold initializes a new Telesis project structure at rootDir.
-// It creates the config, document stubs, directory structure, and initial CLAUDE.md.
+// It creates the document stubs, directory structure, initial CLAUDE.md,
+// and config file. The config is written last so that a partial failure
+// does not leave the project in an "already initialized" state.
 func Scaffold(rootDir string, cfg *config.Config) error {
 	if err := validateInput(cfg); err != nil {
 		return err
@@ -50,24 +63,25 @@ func Scaffold(rootDir string, cfg *config.Config) error {
 		return fmt.Errorf("project already initialized (run `telesis context` to regenerate CLAUDE.md)")
 	}
 
-	if cfg.Project.Status == "" {
-		cfg.Project.Status = "active"
-	}
-
-	if err := config.Save(rootDir, cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
-	}
+	local := applyDefaults(cfg)
 
 	if err := createDirectories(rootDir); err != nil {
 		return err
 	}
 
-	if err := renderDocStubs(rootDir, cfg); err != nil {
+	if err := renderDocStubs(rootDir, local); err != nil {
 		return err
 	}
 
 	if err := writeREADMEStubs(rootDir); err != nil {
 		return err
+	}
+
+	// Config must be saved before CLAUDE.md generation (context.Generate reads it),
+	// but this is safe because generateCLAUDEMD is the last fallible step — if it
+	// fails, config exists but the user can simply run `telesis context` to retry.
+	if err := config.Save(rootDir, local); err != nil {
+		return fmt.Errorf("saving config: %w", err)
 	}
 
 	if err := generateCLAUDEMD(rootDir); err != nil {
@@ -81,7 +95,31 @@ func validateInput(cfg *config.Config) error {
 	if cfg.Project.Name == "" {
 		return fmt.Errorf("project name is required")
 	}
+	fields := map[string]string{
+		"name":     cfg.Project.Name,
+		"owner":    cfg.Project.Owner,
+		"language": cfg.Project.Language,
+		"repo":     cfg.Project.Repo,
+	}
+	for field, val := range fields {
+		if strings.ContainsAny(val, "\x00\n\r") {
+			return fmt.Errorf("project %s contains invalid characters (newlines or null bytes)", field)
+		}
+		if strings.Contains(val, "{{") {
+			return fmt.Errorf("project %s contains invalid character sequence '{{' ", field)
+		}
+	}
 	return nil
+}
+
+func applyDefaults(cfg *config.Config) *config.Config {
+	local := &config.Config{
+		Project: cfg.Project,
+	}
+	if local.Project.Status == "" {
+		local.Project.Status = "active"
+	}
+	return local
 }
 
 func createDirectories(rootDir string) error {
@@ -141,21 +179,10 @@ func generateCLAUDEMD(rootDir string) error {
 }
 
 func renderTemplate(name string, data templateData) ([]byte, error) {
-	tmplContent, err := templates.FS.ReadFile(name)
-	if err != nil {
-		return nil, fmt.Errorf("reading template %s: %w", name, err)
-	}
-
-	tmpl, err := template.New(name).Parse(string(tmplContent))
-	if err != nil {
-		return nil, fmt.Errorf("parsing template %s: %w", name, err)
-	}
-
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := docTemplates.ExecuteTemplate(&buf, name, data); err != nil {
 		return nil, fmt.Errorf("executing template %s: %w", name, err)
 	}
-
 	return buf.Bytes(), nil
 }
 
@@ -171,23 +198,27 @@ func writeFileAtomic(dest string, content []byte) error {
 	}
 	tmpPath := tmp.Name()
 
+	success := false
+	defer func() {
+		if !success {
+			os.Remove(tmpPath)
+		}
+	}()
+
 	if _, err := tmp.Write(content); err != nil {
 		tmp.Close()
-		os.Remove(tmpPath)
 		return fmt.Errorf("writing temp file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("closing temp file: %w", err)
 	}
 	if err := os.Chmod(tmpPath, 0o644); err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("setting permissions: %w", err)
 	}
 	if err := os.Rename(tmpPath, dest); err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("renaming temp file: %w", err)
 	}
 
+	success = true
 	return nil
 }

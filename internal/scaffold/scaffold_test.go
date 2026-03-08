@@ -153,23 +153,78 @@ func TestScaffoldDefaultsStatusToActive(t *testing.T) {
 	assert.Equal(t, "active", loaded.Project.Status)
 }
 
-func TestScaffoldIsIdempotentContent(t *testing.T) {
+func TestScaffoldDoesNotMutateCallerConfig(t *testing.T) {
+	rootDir := t.TempDir()
+
+	cfg := &config.Config{
+		Project: config.Project{
+			Name:     "TestProject",
+			Language: "Go",
+		},
+	}
+
+	err := scaffold.Scaffold(rootDir, cfg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "", cfg.Project.Status, "caller's config should not be mutated")
+}
+
+func TestScaffoldDocStubsAreNonEmpty(t *testing.T) {
 	rootDir := t.TempDir()
 
 	err := scaffold.Scaffold(rootDir, testConfig())
 	require.NoError(t, err)
 
-	// Read all generated files
 	docs := []string{"docs/VISION.md", "docs/PRD.md", "docs/ARCHITECTURE.md", "docs/MILESTONES.md"}
-	contents := make(map[string]string)
 	for _, doc := range docs {
 		data, err := os.ReadFile(filepath.Join(rootDir, doc))
 		require.NoError(t, err)
-		contents[doc] = string(data)
+		assert.NotEmpty(t, string(data), "%s should not be empty", doc)
+	}
+}
+
+func TestScaffoldRejectsInvalidInput(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		wantErr string
+	}{
+		{
+			name: "rejects newline in project name",
+			cfg: &config.Config{
+				Project: config.Project{Name: "Bad\nName"},
+			},
+			wantErr: "invalid characters",
+		},
+		{
+			name: "rejects null byte in owner",
+			cfg: &config.Config{
+				Project: config.Project{Name: "Good", Owner: "Bad\x00Owner"},
+			},
+			wantErr: "invalid characters",
+		},
+		{
+			name: "rejects template injection in name",
+			cfg: &config.Config{
+				Project: config.Project{Name: "{{ .Exploit }}"},
+			},
+			wantErr: "{{",
+		},
+		{
+			name: "rejects template injection in repo",
+			cfg: &config.Config{
+				Project: config.Project{Name: "Good", Repo: "{{ .Exploit }}"},
+			},
+			wantErr: "{{",
+		},
 	}
 
-	// Verify templates rendered consistently (no random or time-varying content other than CLAUDE.md)
-	for doc, content := range contents {
-		assert.NotEmpty(t, content, "%s should not be empty", doc)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rootDir := t.TempDir()
+			err := scaffold.Scaffold(rootDir, tt.cfg)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
 	}
 }
