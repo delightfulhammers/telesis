@@ -212,6 +212,148 @@ func TestGenerateMissingOptionalFilesOK(t *testing.T) {
 	assert.Contains(t, output, "No ADRs on record yet")
 }
 
+func TestGenerateExtractsDescription(t *testing.T) {
+	rootDir := setupProject(t)
+
+	vision := `# Vision
+
+## The Vision
+
+Telesis is a **development intelligence platform** — the control system around autonomous coding agents.
+
+It is the operating layer between the human and the agents.
+
+## What Makes It Different
+
+Other content here.
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(rootDir, "docs", "VISION.md"),
+		[]byte(vision),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "## About This Project")
+	assert.Contains(t, output, "development intelligence platform")
+	assert.Contains(t, output, "operating layer")
+	assert.NotContains(t, output, "## The Vision")
+	assert.NotContains(t, output, "Other content here")
+}
+
+func TestGenerateDescriptionStopsAtTopLevelHeading(t *testing.T) {
+	rootDir := setupProject(t)
+
+	vision := `# Vision
+
+## The Vision
+
+Description content here.
+
+# Appendix
+
+Appendix content should not appear.
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(rootDir, "docs", "VISION.md"),
+		[]byte(vision),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "Description content here")
+	assert.NotContains(t, output, "Appendix content should not appear")
+}
+
+func TestGenerateIncludesContextFiles(t *testing.T) {
+	rootDir := setupProject(t)
+
+	contextDir := filepath.Join(rootDir, "docs", "context")
+	require.NoError(t, os.MkdirAll(contextDir, 0o755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(contextDir, "working-conventions.md"),
+		[]byte("## Working Conventions\n\nAlways use gofmt.\n"),
+		0o644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(contextDir, "bop-relationship.md"),
+		[]byte("## Relationship to Bop\n\nBop is the reviewer agent.\n"),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "Always use gofmt")
+	assert.Contains(t, output, "Bop is the reviewer agent")
+}
+
+func TestGenerateContextFilesSortedAlphabetically(t *testing.T) {
+	rootDir := setupProject(t)
+
+	contextDir := filepath.Join(rootDir, "docs", "context")
+	require.NoError(t, os.MkdirAll(contextDir, 0o755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(contextDir, "z-last.md"),
+		[]byte("## Last Section\n\nLast content.\n"),
+		0o644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(contextDir, "a-first.md"),
+		[]byte("## First Section\n\nFirst content.\n"),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	idxFirst := strings.Index(output, "First content")
+	idxLast := strings.Index(output, "Last content")
+	assert.Greater(t, idxFirst, -1, "first content should be present")
+	assert.Greater(t, idxLast, -1, "last content should be present")
+	assert.Less(t, idxFirst, idxLast, "a-first.md should appear before z-last.md")
+}
+
+func TestGenerateNoContextDirOK(t *testing.T) {
+	rootDir := setupProject(t)
+	// No docs/context/ directory — should succeed without error
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "# TestProject — Claude Context")
+}
+
+func TestGenerateIgnoresNonMarkdownInContextDir(t *testing.T) {
+	rootDir := setupProject(t)
+
+	contextDir := filepath.Join(rootDir, "docs", "context")
+	require.NoError(t, os.MkdirAll(contextDir, 0o755))
+
+	require.NoError(t, os.WriteFile(
+		filepath.Join(contextDir, "notes.txt"),
+		[]byte("This should not appear.\n"),
+		0o644,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(contextDir, "valid.md"),
+		[]byte("## Valid Section\n\nThis should appear.\n"),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "This should appear")
+	assert.NotContains(t, output, "This should not appear")
+}
+
 func TestGenerateUnreadableADRReturnsError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("chmod-based permission test not reliable on Windows")

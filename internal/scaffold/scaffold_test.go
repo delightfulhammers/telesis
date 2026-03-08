@@ -57,6 +57,7 @@ func TestScaffoldCreatesDocStructure(t *testing.T) {
 	expectedDirs := []string{
 		"docs/adr",
 		"docs/tdd",
+		"docs/context",
 	}
 	for _, d := range expectedDirs {
 		info, err := os.Stat(filepath.Join(rootDir, d))
