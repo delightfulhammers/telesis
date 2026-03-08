@@ -28,7 +28,7 @@ providers:
     enabled: true
     defaultModel: "gemini-3.1-pro-preview"
     apiKey: "${GEMINI_API_KEY}"
-    timeout: "180s"  # Gemini 3 Pro is a reasoning model that may need extra time
+    timeout: "180s"  # Gemini 3.1 Pro is a reasoning model that may need extra time
 
   # Ollama provider (local LLM)
   # ollama:
@@ -212,7 +212,7 @@ verification:
   enabled: true
   # LLM provider for verification (defaults to gemini/gemini-3-flash-preview)
   provider: "gemini"
-  model: "gemini-3-flash-preview"
+  model: "gemini-3.1-flash-preview"
   maxTokens: 64000
   depth: "medium"
   costCeiling: 0.50
