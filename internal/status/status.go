@@ -103,7 +103,8 @@ func extractActiveMilestone(path string) (string, error) {
 			continue
 		}
 		if capturing {
-			if strings.HasPrefix(line, "## ") || line == "---" {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "## ") || trimmed == "---" {
 				break
 			}
 			lines = append(lines, line)

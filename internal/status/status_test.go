@@ -91,38 +91,114 @@ func TestGetStatusReadsContextTimestamp(t *testing.T) {
 	claudePath := filepath.Join(rootDir, "CLAUDE.md")
 	require.NoError(t, os.WriteFile(claudePath, []byte("# Test\n"), 0o644))
 
+	knownTime := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(claudePath, knownTime, knownTime))
+
 	s, err := status.GetStatus(rootDir)
 	require.NoError(t, err)
 
-	assert.False(t, s.ContextGeneratedAt.IsZero())
-	assert.WithinDuration(t, time.Now(), s.ContextGeneratedAt, 5*time.Second)
+	assert.True(t, knownTime.Equal(s.ContextGeneratedAt),
+		"expected %v, got %v", knownTime, s.ContextGeneratedAt)
 }
 
 func TestGetStatusExtractsMilestone(t *testing.T) {
-	rootDir := setupProject(t)
-
-	milestones := `# Milestones
+	tests := []struct {
+		name        string
+		content     string
+		wantContain string
+		wantExclude string
+	}{
+		{
+			name: "basic extraction",
+			content: `# Milestones
 
 ## MVP v0.1.0
 
 **Goal:** Build the first version.
 
-**Done when:**
-
 1. Feature A works
-2. Feature B works
-`
-	require.NoError(t, os.WriteFile(
-		filepath.Join(rootDir, "docs", "MILESTONES.md"),
-		[]byte(milestones),
-		0o644,
-	))
+`,
+			wantContain: "Build the first version",
+		},
+		{
+			name: "stops at next heading",
+			content: `# Milestones
 
-	s, err := status.GetStatus(rootDir)
-	require.NoError(t, err)
+## MVP v0.1.0
 
-	assert.Contains(t, s.ActiveMilestone, "MVP v0.1.0")
-	assert.Contains(t, s.ActiveMilestone, "Build the first version")
+MVP content here.
+
+## Future Work
+
+This should not appear.
+`,
+			wantContain: "MVP content here",
+			wantExclude: "should not appear",
+		},
+		{
+			name: "stops at separator",
+			content: `# Milestones
+
+## MVP v0.1.0
+
+MVP content here.
+
+---
+
+Other section.
+`,
+			wantContain: "MVP content here",
+			wantExclude: "Other section",
+		},
+		{
+			name: "no matching header",
+			content: `# Milestones
+
+## Phase 1
+
+Not an MVP heading.
+`,
+			wantContain: "",
+		},
+		{
+			name: "handles whitespace around separator",
+			content: `# Milestones
+
+## MVP v0.1.0
+
+MVP content.
+
+  ---
+
+After separator.
+`,
+			wantContain: "MVP content",
+			wantExclude: "After separator",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rootDir := setupProject(t)
+			require.NoError(t, os.WriteFile(
+				filepath.Join(rootDir, "docs", "MILESTONES.md"),
+				[]byte(tt.content),
+				0o644,
+			))
+
+			s, err := status.GetStatus(rootDir)
+			require.NoError(t, err)
+
+			if tt.wantContain != "" {
+				assert.Contains(t, s.ActiveMilestone, tt.wantContain)
+			} else {
+				assert.Empty(t, s.ActiveMilestone)
+			}
+			if tt.wantExclude != "" {
+				assert.NotContains(t, s.ActiveMilestone, tt.wantExclude)
+			}
+		})
+	}
 }
 
 func TestGetStatusMissingOptionalFiles(t *testing.T) {
