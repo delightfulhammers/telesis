@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run bop code review
-        uses: delightfulhammers/bop@v0.12.0
+        uses: delightfulhammers/bop/action@v0.12.0
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
