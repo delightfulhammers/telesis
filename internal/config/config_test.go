@@ -47,6 +47,22 @@ func TestLoadNonExistent(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestLoadEmptyConfigReturnsError(t *testing.T) {
+	rootDir := t.TempDir()
+
+	dir := filepath.Join(rootDir, ".telesis")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "config.yml"),
+		[]byte("# Telesis project configuration\n"),
+		0o644,
+	))
+
+	_, err := config.Load(rootDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "project.name")
+}
+
 func TestSaveCreatesDirectory(t *testing.T) {
 	rootDir := t.TempDir()
 

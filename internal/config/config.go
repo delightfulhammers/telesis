@@ -41,7 +41,18 @@ func Load(rootDir string) (*Config, error) {
 		return nil, fmt.Errorf("could not parse config: %w", err)
 	}
 
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
+}
+
+func (c *Config) validate() error {
+	if c.Project.Name == "" {
+		return fmt.Errorf("config missing required field: project.name")
+	}
+	return nil
 }
 
 func Save(rootDir string, cfg *Config) error {
