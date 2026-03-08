@@ -14,19 +14,19 @@ providers:
   # OpenAI provider (GPT models)
   openai:
     enabled: true
-    defaultModel: "gpt-5.2"
+    defaultModel: "gpt-5.4"
     apiKey: "${OPENAI_API_KEY}"
 
   # Anthropic provider (Claude models)
   anthropic:
     enabled: true
-    defaultModel: "claude-sonnet-4-5"
+    defaultModel: "claude-sonnet-4-6"
     apiKey: "${ANTHROPIC_API_KEY}"
 
   # Google Gemini provider
   gemini:
     enabled: true
-    defaultModel: "gemini-3-pro-preview"
+    defaultModel: "gemini-3.1-pro-preview"
     apiKey: "${GEMINI_API_KEY}"
     timeout: "180s"  # Gemini 3 Pro is a reasoning model that may need extra time
 
@@ -43,7 +43,7 @@ providers:
 # The 'model' field is optional - if not specified, uses the provider's defaultModel.
 reviewers:
   # Security-focused reviewer using Claude for nuanced vulnerability detection
-  # Note: model omitted - uses anthropic's defaultModel (claude-sonnet-4-5-20250929)
+  # Note: model omitted - uses anthropic's defaultModel (claude-sonnet-4-6)
   security:
     provider: "anthropic"
     weight: 1.5  # Higher weight for security findings
@@ -87,7 +87,7 @@ reviewers:
       - documentation
 
   # Architecture/maintainability reviewer using GPT for code quality analysis
-  # Note: model omitted - uses openai's defaultModel (gpt-5.2)
+  # Note: model omitted - uses openai's defaultModel (gpt-5.4)
   architecture:
     provider: "openai"
     weight: 1.0
@@ -107,7 +107,7 @@ reviewers:
   # Example of explicit model override (uses different model than provider default)
   performance:
     provider: "gemini"
-    model: "gemini-3-flash-preview"  # Override: use flash for faster performance checks
+    model: "gemini-3.1-flash-preview"  # Override: use flash for faster performance checks
     weight: 1.0
     persona: |
       You are a performance engineer specializing in system efficiency.
@@ -127,7 +127,7 @@ reviewers:
   # Not included in defaultReviewers - opt-in via --reviewers flag
   observability:
     provider: "gemini"
-    model: "gemini-3-flash-preview"  # Smaller model sufficient for pattern-matching
+    model: "gemini-3.1-flash-preview"  # Smaller model sufficient for pattern-matching
     weight: 1.0
     persona: |
       You are a senior observability engineer specializing in production systems.
@@ -195,7 +195,7 @@ output:
 planning:
   enabled: false
   provider: "openai"
-  model: "gpt-5.2-mini"
+  model: "gpt-5.4-mini"
   maxQuestions: 5
   timeout: "30s"
 

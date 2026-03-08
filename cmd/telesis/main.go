@@ -1,7 +1,7 @@
 package main
 
-import "fmt"
+import "github.com/delightfulhammers/telesis/internal/cli"
 
 func main() {
-	fmt.Println("telesis: not yet implemented")
+	cli.Execute()
 }
