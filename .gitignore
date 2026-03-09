@@ -2,6 +2,13 @@
 /telesis
 *.exe
 
+# Node
+node_modules/
+dist/
+
+# Bun build artifacts
+*.bun-build
+
 # Go build artifacts
 *.test
 *.out

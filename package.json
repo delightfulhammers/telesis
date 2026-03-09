@@ -1,0 +1,29 @@
+{
+  "name": "telesis",
+  "version": "0.2.0",
+  "description": "Development intelligence platform",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile telesis",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "format": "prettier --write 'src/**/*.ts'"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "js-yaml": "^4.1.0",
+    "mustache": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/mustache": "^4.2.6",
+    "@types/node": "^22.13.0",
+    "bun-types": "^1.2.5",
+    "prettier": "^3.5.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.9"
+  }
+}
