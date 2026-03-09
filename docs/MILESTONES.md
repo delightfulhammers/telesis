@@ -8,7 +8,7 @@
 
 **Goal:** The shortest path to using Telesis to develop Telesis.
 
-**Status:** In Progress — Phase 5 (self-hosting)
+**Status:** Complete
 
 ### Acceptance Criteria
 
@@ -32,13 +32,7 @@
 
 ### Phase 5 Notes
 
-The generated `CLAUDE.md` template must reach parity with the hand-written bootstrap version before it can replace it. Sections currently in the hand-written CLAUDE.md that the template does not yet generate:
-
-- Working Conventions (language/runtime, package discipline, error handling, testing, file generation, ADR discipline, PR expectations, scope discipline)
-- Relationship to Bop
-- "What On Track Looks Like" guidance
-
-These sections contain critical guidance for Claude Code sessions. The template should either extract them from `docs/ARCHITECTURE.md` and `docs/VISION.md`, or support a freeform "additional context" section in the config. This must be resolved before acceptance criterion #7 can be considered fully met.
+Template parity was achieved by introducing `docs/context/` — freeform markdown files that are included verbatim in the generated `CLAUDE.md`. The three sections that were missing from the template (Working Conventions, Relationship to Bop, What On Track Looks Like) now live in `docs/context/` and are included automatically by `telesis context`.
 
 ---
 
