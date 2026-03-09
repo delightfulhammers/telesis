@@ -23,8 +23,14 @@ export interface CompletionResponse {
   readonly durationMs: number;
 }
 
-export interface StreamEvent {
-  readonly type: "text" | "done";
-  readonly text?: string;
-  readonly response?: CompletionResponse;
+export interface StreamTextEvent {
+  readonly type: "text";
+  readonly text: string;
 }
+
+export interface StreamDoneEvent {
+  readonly type: "done";
+  readonly response: CompletionResponse;
+}
+
+export type StreamEvent = StreamTextEvent | StreamDoneEvent;

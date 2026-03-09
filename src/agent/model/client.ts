@@ -74,15 +74,10 @@ const buildParams = (
 };
 
 const isTransientError = (err: unknown): boolean => {
+  // SDK wraps network errors in APIConnectionError/APITimeoutError
+  if (err instanceof Anthropic.APIConnectionError) return true;
   if (err instanceof Anthropic.APIError) {
     return err.status === 429 || err.status >= 500;
-  }
-  // Network errors (ECONNRESET, ETIMEDOUT, etc.) are transient
-  if (err instanceof Error && "code" in err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    return (
-      code === "ECONNRESET" || code === "ETIMEDOUT" || code === "ENOTFOUND"
-    );
   }
   return false;
 };
@@ -123,7 +118,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     request: CompletionRequest,
   ): Promise<CompletionResponse> => {
     const params = buildParams(request, defaultModel);
-    const start = Date.now();
+    const start = performance.now();
 
     let response: Anthropic.Message;
     try {
@@ -134,7 +129,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
       response = (await sdk.messages.create(params)) as Anthropic.Message;
     }
 
-    const result = toCompletionResponse(response, Date.now() - start);
+    const result = toCompletionResponse(response, performance.now() - start);
     logTelemetry(params.model, result.usage, result.durationMs);
     return result;
   };
@@ -143,7 +138,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     request: CompletionRequest,
   ): AsyncIterable<StreamEvent> {
     const params = buildParams(request, defaultModel);
-    const start = Date.now();
+    const start = performance.now();
 
     let stream;
     try {
@@ -175,7 +170,10 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     }
 
     const finalMessage = await streamIterable.finalMessage();
-    const result = toCompletionResponse(finalMessage, Date.now() - start);
+    const result = toCompletionResponse(
+      finalMessage,
+      performance.now() - start,
+    );
     logTelemetry(params.model, result.usage, result.durationMs);
 
     yield { type: "done", response: result };

@@ -211,6 +211,30 @@ describe("ModelClient", () => {
       expect(mockSdk.messages.create).toHaveBeenCalledTimes(2);
     });
 
+    it("retries on APIConnectionError", async () => {
+      const mockSdk = {
+        messages: {
+          create: vi
+            .fn()
+            .mockRejectedValueOnce(
+              new Anthropic.APIConnectionError({
+                message: "Connection reset",
+              }),
+            )
+            .mockResolvedValueOnce({
+              content: [{ type: "text", text: "recovered" }],
+              usage: { input_tokens: 10, output_tokens: 5 },
+            }),
+        },
+      };
+      const { client } = makeClientWithMock(mockSdk);
+
+      const response = await client.complete(defaultRequest);
+
+      expect(response.content).toBe("recovered");
+      expect(mockSdk.messages.create).toHaveBeenCalledTimes(2);
+    });
+
     it("succeeds on retry after transient failure", async () => {
       const mockSdk = {
         messages: {
