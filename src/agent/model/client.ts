@@ -118,7 +118,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     request: CompletionRequest,
   ): Promise<CompletionResponse> => {
     const params = buildParams(request, defaultModel);
-    const start = performance.now();
+    let start = performance.now();
 
     let response: Anthropic.Message;
     try {
@@ -126,6 +126,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     } catch (err) {
       if (!isTransientError(err)) throw err;
       await sleep(RETRY_DELAY_MS);
+      start = performance.now();
       response = (await sdk.messages.create(params)) as Anthropic.Message;
     }
 
@@ -138,7 +139,6 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     request: CompletionRequest,
   ): AsyncIterable<StreamEvent> {
     const params = buildParams(request, defaultModel);
-    const start = performance.now();
 
     let stream;
     try {
@@ -159,7 +159,17 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
       finalMessage: () => Promise<Anthropic.Message>;
     };
 
-    for await (const event of streamIterable) {
+    // Accumulate only network wait time, excluding time the generator
+    // is suspended at yield (consumer processing time).
+    let networkMs = 0;
+    const iterator = streamIterable[Symbol.asyncIterator]();
+
+    for (;;) {
+      const iterStart = performance.now();
+      const { value: event, done } = await iterator.next();
+      networkMs += performance.now() - iterStart;
+      if (done) break;
+
       if (
         event.type === "content_block_delta" &&
         event.delta?.type === "text_delta" &&
@@ -169,11 +179,11 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
       }
     }
 
+    const finalStart = performance.now();
     const finalMessage = await streamIterable.finalMessage();
-    const result = toCompletionResponse(
-      finalMessage,
-      performance.now() - start,
-    );
+    networkMs += performance.now() - finalStart;
+
+    const result = toCompletionResponse(finalMessage, networkMs);
     logTelemetry(params.model, result.usage, result.durationMs);
 
     yield { type: "done", response: result };
