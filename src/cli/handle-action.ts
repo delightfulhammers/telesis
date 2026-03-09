@@ -8,7 +8,8 @@ export const handleAction =
     try {
       fn(...args);
     } catch (err) {
-      console.error(`Error: ${(err as Error).message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Error: ${message}`);
       process.exit(1);
     }
   };

@@ -1,4 +1,11 @@
-import { writeFileSync, renameSync, unlinkSync } from "node:fs";
+import {
+  writeFileSync,
+  renameSync,
+  unlinkSync,
+  openSync,
+  closeSync,
+  constants,
+} from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
 import { generate } from "../context/context.js";
@@ -20,14 +27,33 @@ export const contextCommand = new Command("context")
         `.CLAUDE-${process.pid}-${++contextCounter}.md`,
       );
 
+      const fd = openSync(
+        tmpPath,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+        0o666,
+      );
+
       try {
-        writeFileSync(tmpPath, output, { mode: 0o666 });
+        writeFileSync(fd, output);
+      } catch (err) {
+        closeSync(fd);
+        try {
+          unlinkSync(tmpPath);
+        } catch {
+          /* cleanup best-effort */
+        }
+        throw err;
+      }
+
+      closeSync(fd);
+
+      try {
         renameSync(tmpPath, claudePath);
       } catch (err) {
         try {
           unlinkSync(tmpPath);
         } catch {
-          // cleanup best-effort
+          /* cleanup best-effort */
         }
         throw err;
       }
