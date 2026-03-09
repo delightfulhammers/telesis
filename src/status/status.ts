@@ -1,8 +1,4 @@
-import {
-  readdirSync,
-  statSync as fsStatSync,
-  existsSync,
-} from "node:fs";
+import { readdirSync, statSync as fsStatSync, type Dirent } from "node:fs";
 import { join } from "node:path";
 import { load } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
@@ -17,9 +13,13 @@ export interface Status {
 }
 
 const countFiles = (dir: string, pattern: RegExp): number => {
-  if (!existsSync(dir)) return 0;
-
-  const entries = readdirSync(dir, { withFileTypes: true });
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw err;
+  }
 
   return entries.filter(
     (entry) => !entry.isDirectory() && pattern.test(entry.name),
@@ -38,15 +38,9 @@ const contextTimestamp = (path: string): Date | null => {
 export const getStatus = (rootDir: string): Status => {
   const cfg = load(rootDir);
 
-  const adrCount = countFiles(
-    join(rootDir, "docs", "adr"),
-    /^ADR-.*\.md$/,
-  );
+  const adrCount = countFiles(join(rootDir, "docs", "adr"), /^ADR-.*\.md$/);
 
-  const tddCount = countFiles(
-    join(rootDir, "docs", "tdd"),
-    /^TDD-.*\.md$/,
-  );
+  const tddCount = countFiles(join(rootDir, "docs", "tdd"), /^TDD-.*\.md$/);
 
   const activeMilestone = extractActiveMilestone(
     join(rootDir, "docs", "MILESTONES.md"),

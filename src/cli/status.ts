@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { getStatus } from "../status/status.js";
 import { projectRoot } from "./project-root.js";
+import { handleAction } from "./handle-action.js";
 
 const firstLine = (s: string): string => {
   const idx = s.indexOf("\n");
@@ -14,26 +15,28 @@ const formatDate = (d: Date): string => {
 
 export const statusCommand = new Command("status")
   .description("Print current project state")
-  .action(() => {
-    const rootDir = projectRoot();
-    const s = getStatus(rootDir);
+  .action(
+    handleAction(() => {
+      const rootDir = projectRoot();
+      const s = getStatus(rootDir);
 
-    console.log(`Project:    ${s.projectName}`);
-    console.log(`Status:     ${s.projectStatus}`);
-    console.log(`ADRs:       ${s.adrCount}`);
-    console.log(`TDDs:       ${s.tddCount}`);
+      console.log(`Project:    ${s.projectName}`);
+      console.log(`Status:     ${s.projectStatus}`);
+      console.log(`ADRs:       ${s.adrCount}`);
+      console.log(`TDDs:       ${s.tddCount}`);
 
-    if (s.activeMilestone) {
-      console.log(`Milestone:  ${firstLine(s.activeMilestone)}`);
-    } else {
-      console.log("Milestone:  (none)");
-    }
+      if (s.activeMilestone) {
+        console.log(`Milestone:  ${firstLine(s.activeMilestone)}`);
+      } else {
+        console.log("Milestone:  (none)");
+      }
 
-    if (s.contextGeneratedAt) {
-      console.log(
-        `CLAUDE.md:  last generated ${formatDate(s.contextGeneratedAt)}`,
-      );
-    } else {
-      console.log("CLAUDE.md:  not yet generated");
-    }
-  });
+      if (s.contextGeneratedAt) {
+        console.log(
+          `CLAUDE.md:  last generated ${formatDate(s.contextGeneratedAt)}`,
+        );
+      } else {
+        console.log("CLAUDE.md:  not yet generated");
+      }
+    }),
+  );

@@ -1,8 +1,4 @@
-import {
-  readFileSync,
-  readdirSync,
-  existsSync,
-} from "node:fs";
+import { readFileSync, readdirSync, type Dirent } from "node:fs";
 import { join, basename } from "node:path";
 import { load } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
@@ -22,6 +18,9 @@ const ADR_TITLE_RE = /^#\s+ADR-\d+:\s*(.+)/;
 const PRINCIPLES_HEADER_RE = /^##\s+Design Principles/i;
 const DESCRIPTION_HEADER_RE = /^##\s+The Vision/i;
 
+const isENOENT = (err: unknown): boolean =>
+  (err as NodeJS.ErrnoException).code === "ENOENT";
+
 const isSectionBoundary = (trimmed: string): boolean => {
   if (trimmed === "---") return true;
   if (trimmed.startsWith("# ") && !trimmed.startsWith("##")) return true;
@@ -34,9 +33,13 @@ const extractSection = (
   re: RegExp,
   includeHeading: boolean,
 ): string => {
-  if (!existsSync(path)) return "";
-
-  const content = readFileSync(path, "utf-8");
+  let content: string;
+  try {
+    content = readFileSync(path, "utf-8");
+  } catch (err) {
+    if (isENOENT(err)) return "";
+    throw err;
+  }
   const lines = content.split("\n");
 
   let capturing = false;
@@ -88,12 +91,14 @@ const extractADRSummary = (path: string): string => {
   return name;
 };
 
-const scanADRs = (
-  adrDir: string,
-): { summaries: string[]; count: number } => {
-  if (!existsSync(adrDir)) return { summaries: [], count: 0 };
-
-  const entries = readdirSync(adrDir, { withFileTypes: true });
+const scanADRs = (adrDir: string): { summaries: string[]; count: number } => {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(adrDir, { withFileTypes: true });
+  } catch (err) {
+    if (isENOENT(err)) return { summaries: [], count: 0 };
+    throw err;
+  }
 
   const adrs: NumberedADR[] = entries
     .filter((entry) => !entry.isDirectory() && /^ADR-.*\.md$/.test(entry.name))
@@ -116,9 +121,13 @@ const scanADRs = (
 };
 
 const countFiles = (dir: string, pattern: RegExp): number => {
-  if (!existsSync(dir)) return 0;
-
-  const entries = readdirSync(dir, { withFileTypes: true });
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    if (isENOENT(err)) return 0;
+    throw err;
+  }
 
   return entries.filter(
     (entry) => !entry.isDirectory() && pattern.test(entry.name),
@@ -126,9 +135,13 @@ const countFiles = (dir: string, pattern: RegExp): number => {
 };
 
 const scanContextFiles = (contextDir: string): ContextSection[] => {
-  if (!existsSync(contextDir)) return [];
-
-  const entries = readdirSync(contextDir, { withFileTypes: true });
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(contextDir, { withFileTypes: true });
+  } catch (err) {
+    if (isENOENT(err)) return [];
+    throw err;
+  }
 
   return entries
     .filter((entry) => !entry.isDirectory() && entry.name.endsWith(".md"))

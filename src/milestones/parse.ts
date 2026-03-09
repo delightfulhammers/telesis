@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 const MILESTONE_HEADING_RE = /^##\s+\S/;
 const STATUS_IN_PROGRESS_RE = /^\*\*Status:\*\*\s+In Progress/i;
@@ -14,9 +14,13 @@ interface MilestoneSection {
  * last "Status: Complete" section.
  */
 export const extractActiveMilestone = (path: string): string => {
-  if (!existsSync(path)) return "";
-
-  const content = readFileSync(path, "utf-8");
+  let content: string;
+  try {
+    content = readFileSync(path, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return "";
+    throw err;
+  }
   const lines = content.split("\n");
 
   const sections: MilestoneSection[] = [];
