@@ -120,22 +120,17 @@ describe("runInterview", () => {
     expect(state.complete).toBe(true);
   });
 
-  it("ends interview when max turns reached", async () => {
-    const client = makeMockClient([
-      "Q1?",
-      "Q2?",
-      "Q3?",
-      "Q4 (should not appear)",
-    ]);
+  it("ends interview when max turns reached without extra model call", async () => {
+    const client = makeMockClient(["Q1?", "Q2?", "Q3?"]);
     const io = makeMockIO(["A1", "A2", "A3"]);
 
     const state = await runInterview(makeOptions({ client, io, maxTurns: 3 }));
 
     expect(state.complete).toBe(true);
     expect(state.turnCount).toBe(3);
-    // 3 assistant responses + 3 user inputs = 6 turns, but last
-    // assistant response triggers maxTurns exit after user turn 3
-    expect(state.turns.length).toBeLessThanOrEqual(7);
+    // 3 assistant + 3 user = 6 turns, no extra model call
+    expect(state.turns).toHaveLength(6);
+    expect(client.completeStream).toHaveBeenCalledTimes(3);
   });
 
   it("streams assistant text to output", async () => {

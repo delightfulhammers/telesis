@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rename } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export interface ProjectContext {
@@ -45,6 +45,43 @@ export const markComplete = (state: InterviewState): InterviewState => ({
   complete: true,
 });
 
+const isValidTurn = (val: unknown): val is Turn => {
+  if (!val || typeof val !== "object") return false;
+  const obj = val as Record<string, unknown>;
+  return (
+    (obj.role === "user" || obj.role === "assistant") &&
+    typeof obj.content === "string"
+  );
+};
+
+const validateState = (raw: unknown, filePath: string): InterviewState => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`Invalid interview state at ${filePath}: not an object`);
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.sessionId !== "string") {
+    throw new Error(
+      `Invalid interview state at ${filePath}: missing sessionId`,
+    );
+  }
+  if (typeof obj.complete !== "boolean") {
+    throw new Error(
+      `Invalid interview state at ${filePath}: missing or invalid complete`,
+    );
+  }
+  if (typeof obj.turnCount !== "number") {
+    throw new Error(
+      `Invalid interview state at ${filePath}: missing or invalid turnCount`,
+    );
+  }
+  if (!Array.isArray(obj.turns) || !obj.turns.every(isValidTurn)) {
+    throw new Error(
+      `Invalid interview state at ${filePath}: invalid turns array`,
+    );
+  }
+  return raw as InterviewState;
+};
+
 export const saveState = async (
   rootDir: string,
   state: InterviewState,
@@ -52,22 +89,31 @@ export const saveState = async (
   const resolvedRoot = resolve(rootDir);
   const dir = join(resolvedRoot, ".telesis");
   await mkdir(dir, { recursive: true });
-  await writeFile(
-    join(resolvedRoot, STATE_PATH),
-    JSON.stringify(state, null, 2) + "\n",
-  );
+  const finalPath = join(resolvedRoot, STATE_PATH);
+  const tmpPath = finalPath + ".tmp";
+  await writeFile(tmpPath, JSON.stringify(state, null, 2) + "\n");
+  await rename(tmpPath, finalPath);
 };
 
 export const loadState = async (
   rootDir: string,
 ): Promise<InterviewState | null> => {
   const resolvedRoot = resolve(rootDir);
+  const filePath = join(resolvedRoot, STATE_PATH);
   let data: string;
   try {
-    data = await readFile(join(resolvedRoot, STATE_PATH), "utf-8");
+    data = await readFile(filePath, "utf-8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
   }
-  return JSON.parse(data) as InterviewState;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(data);
+  } catch (err) {
+    throw new Error(
+      `Failed to parse interview state at ${filePath}: ${(err as Error).message}`,
+    );
+  }
+  return validateState(raw, filePath);
 };

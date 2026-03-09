@@ -143,13 +143,46 @@ describe("InterviewState", () => {
       expect(content.split("\n").length).toBeGreaterThan(2);
     });
 
-    it("throws on malformed JSON in state file", async () => {
+    it("throws on malformed JSON with file path in message", async () => {
       const rootDir = makeTempDir();
       const dir = join(rootDir, ".telesis");
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, "interview-state.json"), "{bad json");
 
-      await expect(loadState(rootDir)).rejects.toThrow();
+      await expect(loadState(rootDir)).rejects.toThrow(
+        /Failed to parse interview state/,
+      );
+    });
+
+    it("throws on valid JSON with invalid state shape", async () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "interview-state.json"),
+        JSON.stringify({ sessionId: 123, complete: "yes" }),
+      );
+
+      await expect(loadState(rootDir)).rejects.toThrow(
+        /Invalid interview state/,
+      );
+    });
+
+    it("throws on turns with invalid role", async () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "interview-state.json"),
+        JSON.stringify({
+          sessionId: "s1",
+          turns: [{ role: "system", content: "hi" }],
+          complete: false,
+          turnCount: 0,
+        }),
+      );
+
+      await expect(loadState(rootDir)).rejects.toThrow(/invalid turns array/);
     });
   });
 });

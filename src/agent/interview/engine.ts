@@ -46,6 +46,16 @@ export const runInterview = async (
   );
 
   for (;;) {
+    // Check max turns before prompting the model for another question
+    if (state.turnCount >= maxTurns) {
+      io.writeOutput(
+        `\nReached maximum of ${maxTurns} turns. Proceeding with collected context.\n`,
+      );
+      state = markComplete(state);
+      await saveState(rootDir, state);
+      break;
+    }
+
     // Build messages from conversation history
     const messages: Message[] = state.turns.map((t) => ({
       role: t.role,
@@ -70,18 +80,11 @@ export const runInterview = async (
 
     state = addTurn(state, { role: "assistant", content: assistantText });
 
+    // Persist after assistant turn so it survives interruption during user input
+    await saveState(rootDir, state);
+
     // Check if model signaled completion
     if (hasCompletionSignal(assistantText)) {
-      state = markComplete(state);
-      await saveState(rootDir, state);
-      break;
-    }
-
-    // Check max turns
-    if (state.turnCount >= maxTurns) {
-      io.writeOutput(
-        `\nReached maximum of ${maxTurns} turns. Proceeding with collected context.\n`,
-      );
       state = markComplete(state);
       await saveState(rootDir, state);
       break;
