@@ -8,14 +8,10 @@ const exitWithError = (err: unknown): never => {
 
 /**
  * Wraps a CLI action handler (sync or async) so that thrown errors print a
- * clean message instead of exposing a raw stack trace.
+ * clean message instead of exposing a raw stack trace. The .catch guard
+ * ensures unhandled rejections are captured even if the caller doesn't await.
  */
 export const handleAction =
   <T extends unknown[]>(fn: (...args: T) => void | Promise<void>) =>
-  async (...args: T): Promise<void> => {
-    try {
-      await Promise.resolve(fn(...args));
-    } catch (err) {
-      exitWithError(err);
-    }
-  };
+  (...args: T): Promise<void> =>
+    Promise.resolve(fn(...args)).catch(exitWithError);

@@ -94,16 +94,20 @@ describe("TelemetryLogger", () => {
   });
 
   it("logs to stderr and does not throw on write failure", () => {
-    const rootDir = "/nonexistent/path/that/cannot/exist";
-    const logger = createTelemetryLogger(rootDir);
+    const rootDir = makeTempDir();
+    chmodSync(rootDir, 0o444);
 
     const stderrSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(() => logger.log(makeRecord())).not.toThrow();
-    expect(stderrSpy).toHaveBeenCalledWith(
-      expect.stringContaining("telemetry write failed"),
-    );
-
-    stderrSpy.mockRestore();
+    try {
+      const logger = createTelemetryLogger(rootDir);
+      expect(() => logger.log(makeRecord())).not.toThrow();
+      expect(stderrSpy).toHaveBeenCalledWith(
+        expect.stringContaining("telemetry write failed"),
+      );
+    } finally {
+      chmodSync(rootDir, 0o755);
+      stderrSpy.mockRestore();
+    }
   });
 });

@@ -1,5 +1,5 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ModelCallRecord } from "./types.js";
 
 export interface TelemetryLogger {
@@ -7,11 +7,19 @@ export interface TelemetryLogger {
 }
 
 export const createTelemetryLogger = (rootDir: string): TelemetryLogger => {
-  const telemetryPath = join(rootDir, ".telesis", "telemetry.jsonl");
+  const resolvedRoot = resolve(rootDir);
+  const telesisDir = join(resolvedRoot, ".telesis");
+  const telemetryPath = join(telesisDir, "telemetry.jsonl");
+
+  try {
+    mkdirSync(telesisDir, { recursive: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`telemetry write failed: ${message}`);
+  }
 
   const log = (record: ModelCallRecord): void => {
     try {
-      mkdirSync(join(rootDir, ".telesis"), { recursive: true });
       appendFileSync(telemetryPath, JSON.stringify(record) + "\n");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

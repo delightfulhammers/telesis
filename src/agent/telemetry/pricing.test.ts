@@ -72,9 +72,10 @@ describe("pricing", () => {
 
       const pricing = loadPricing(rootDir);
 
-      expect(pricing.models["claude-sonnet-4-20250514"]).toBeDefined();
+      expect(pricing).not.toBeNull();
+      expect(pricing!.models["claude-sonnet-4-20250514"]).toBeDefined();
       expect(
-        pricing.models["claude-sonnet-4-20250514"].inputPer1MTokens,
+        pricing!.models["claude-sonnet-4-20250514"].inputPer1MTokens,
       ).toBeGreaterThan(0);
     });
 
@@ -82,6 +83,42 @@ describe("pricing", () => {
       const rootDir = makeTempDir();
       const pricing = loadPricing(rootDir);
       expect(pricing).toBeNull();
+    });
+
+    it("returns null for invalid YAML content", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "pricing.yml"), "- just a list\n");
+
+      expect(loadPricing(rootDir)).toBeNull();
+    });
+
+    it("returns null when lastUpdated is missing", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "pricing.yml"),
+        "models:\n  test-model:\n    provider: test\n    inputPer1MTokens: 1\n    outputPer1MTokens: 2\n",
+      );
+
+      expect(loadPricing(rootDir)).toBeNull();
+    });
+
+    it("skips model entries with invalid pricing fields", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "pricing.yml"),
+        'lastUpdated: "2026-03-09"\nmodels:\n  valid-model:\n    provider: test\n    inputPer1MTokens: 3\n    outputPer1MTokens: 15\n  bad-model:\n    provider: test\n    inputPer1MTokens: "not a number"\n    outputPer1MTokens: 15\n',
+      );
+
+      const pricing = loadPricing(rootDir);
+      expect(pricing).not.toBeNull();
+      expect(pricing!.models["valid-model"]).toBeDefined();
+      expect(pricing!.models["bad-model"]).toBeUndefined();
     });
   });
 

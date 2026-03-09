@@ -30,15 +30,29 @@ export interface ModelClient {
 }
 
 const extractUsage = (usage: Anthropic.Usage): TokenUsage => {
-  // Cache token fields exist on the Usage type but TypeScript's strict mode
-  // doesn't allow direct property access via `in` checks without a cast.
-  const raw = usage as unknown as Record<string, number | undefined>;
+  const raw = usage as unknown as Record<string, unknown>;
+  const numOrUndef = (key: string): number | undefined => {
+    const val = raw[key];
+    return typeof val === "number" ? val : undefined;
+  };
   return {
     inputTokens: usage.input_tokens,
     outputTokens: usage.output_tokens,
-    cacheReadTokens: raw.cache_read_input_tokens,
-    cacheWriteTokens: raw.cache_creation_input_tokens,
+    cacheReadTokens: numOrUndef("cache_read_input_tokens"),
+    cacheWriteTokens: numOrUndef("cache_creation_input_tokens"),
   };
+};
+
+const toCompletionResponse = (
+  message: Anthropic.Message,
+  durationMs: number,
+): CompletionResponse => {
+  const content = message.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+  const usage = extractUsage(message.usage);
+  return { content, usage, durationMs };
 };
 
 const buildParams = (
@@ -57,6 +71,20 @@ const buildParams = (
     params.system = request.system;
   }
   return params;
+};
+
+const isTransientError = (err: unknown): boolean => {
+  if (err instanceof Anthropic.APIError) {
+    return err.status === 429 || err.status >= 500;
+  }
+  // Network errors (ECONNRESET, ETIMEDOUT, etc.) are transient
+  if (err instanceof Error && "code" in err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    return (
+      code === "ECONNRESET" || code === "ETIMEDOUT" || code === "ENOTFOUND"
+    );
+  }
+  return false;
 };
 
 const sleep = (ms: number): Promise<void> =>
@@ -100,21 +128,15 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     let response: Anthropic.Message;
     try {
       response = (await sdk.messages.create(params)) as Anthropic.Message;
-    } catch {
+    } catch (err) {
+      if (!isTransientError(err)) throw err;
       await sleep(RETRY_DELAY_MS);
       response = (await sdk.messages.create(params)) as Anthropic.Message;
     }
 
-    const durationMs = Date.now() - start;
-    const content = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("");
-    const usage = extractUsage(response.usage);
-
-    logTelemetry(params.model, usage, durationMs);
-
-    return { content, usage, durationMs };
+    const result = toCompletionResponse(response, Date.now() - start);
+    logTelemetry(params.model, result.usage, result.durationMs);
+    return result;
   };
 
   const completeStream = async function* (
@@ -123,13 +145,18 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     const params = buildParams(request, defaultModel);
     const start = Date.now();
 
-    const stream = await sdk.messages.create({
-      ...params,
-      stream: true,
-    });
+    let stream;
+    try {
+      stream = await sdk.messages.create({ ...params, stream: true });
+    } catch (err) {
+      if (!isTransientError(err)) throw err;
+      await sleep(RETRY_DELAY_MS);
+      stream = await sdk.messages.create({ ...params, stream: true });
+    }
 
     // Both the real SDK stream and our test mock expose an async iterator
-    // and a finalMessage() method. The cast through unknown bridges the type gap.
+    // and a finalMessage() method. The cast through unknown bridges the
+    // type gap — this is intentionally inside the SDK adapter boundary.
     const streamIterable = stream as unknown as AsyncIterable<{
       type: string;
       delta?: { type: string; text?: string };
@@ -148,19 +175,10 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     }
 
     const finalMessage = await streamIterable.finalMessage();
-    const durationMs = Date.now() - start;
-    const content = finalMessage.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("");
-    const usage = extractUsage(finalMessage.usage);
+    const result = toCompletionResponse(finalMessage, Date.now() - start);
+    logTelemetry(params.model, result.usage, result.durationMs);
 
-    logTelemetry(params.model, usage, durationMs);
-
-    yield {
-      type: "done",
-      response: { content, usage, durationMs },
-    };
+    yield { type: "done", response: result };
   };
 
   return { complete, completeStream };
