@@ -40,6 +40,26 @@ const makeMockClient = (responses: string[]): ModelClient => {
   };
 };
 
+const makeChunkedMockClient = (responses: string[][]): ModelClient => {
+  let callIndex = 0;
+  return {
+    complete: vi.fn(),
+    completeStream: vi.fn(() => {
+      const chunks = responses[callIndex++] ?? ["No more responses"];
+      const fullText = chunks.join("");
+      return (async function* () {
+        for (const chunk of chunks) {
+          yield { type: "text", text: chunk } as StreamEvent;
+        }
+        yield {
+          type: "done",
+          response: makeCompletionResponse(fullText),
+        } as StreamEvent;
+      })();
+    }),
+  };
+};
+
 const makeMockIO = (
   userInputs: string[],
 ): InterviewIO & { output: string[] } => {
@@ -217,5 +237,50 @@ describe("runInterview", () => {
       .calls;
     const prompts = calls.map((c: [CompletionRequest]) => c[0].system);
     expect(new Set(prompts).size).toBe(1);
+  });
+
+  it("concatenates multi-chunk streamed text into a single assistant turn", async () => {
+    const client = makeChunkedMockClient([
+      ["What ", "are you ", "building?"],
+      ['Done.\n```json\n{"interview', 'Complete": true}\n```'],
+    ]);
+    const io = makeMockIO(["A CLI tool"]);
+
+    const state = await runInterview(makeOptions({ client, io }));
+
+    expect(state.turns[0].content).toBe("What are you building?");
+    expect(state.complete).toBe(true);
+    expect(state.turns).toHaveLength(3); // assistant + user + assistant
+  });
+
+  it("detects completion signal split across stream chunks", async () => {
+    const client = makeChunkedMockClient([
+      [
+        "I have enough info.\n```json\n{",
+        '"interviewComplete"',
+        ": true}\n```",
+      ],
+    ]);
+    const io = makeMockIO([]);
+
+    const state = await runInterview(makeOptions({ client, io }));
+
+    expect(state.complete).toBe(true);
+    expect(io.readInput).not.toHaveBeenCalled();
+  });
+
+  it("outputs each chunk individually to the IO writer", async () => {
+    const client = makeChunkedMockClient([
+      ['Done.\n```json\n{"interviewComplete": true}\n```'],
+    ]);
+    const io = makeMockIO([]);
+
+    await runInterview(makeOptions({ client, io }));
+
+    // writeOutput receives the chunk text, plus separators
+    const textCalls = (io.writeOutput as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: [string]) => c[0])
+      .filter((t: string) => !t.includes("───") && !t.includes("/done"));
+    expect(textCalls.some((t: string) => t.includes("Done."))).toBe(true);
   });
 });
