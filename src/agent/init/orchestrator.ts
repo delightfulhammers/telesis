@@ -5,6 +5,7 @@ import type { InterviewState } from "../interview/state.js";
 import type { InterviewOptions } from "../interview/engine.js";
 import type { GenerateOptions } from "../generate/generator.js";
 import type { DocumentType, GeneratedDocs } from "../generate/types.js";
+import { DOCUMENT_ORDER } from "../generate/types.js";
 import type { Config } from "../../config/config.js";
 import { save as saveConfig } from "../../config/config.js";
 import { bootstrapPricing } from "../telemetry/pricing.js";
@@ -97,26 +98,27 @@ export const runInit = async (deps: InitDeps): Promise<InitResult> => {
 
   // Extract config and generate documents concurrently — both depend only
   // on the interview state and write to non-overlapping filesystem paths.
-  const documentsGenerated: DocumentType[] = [];
-  const [config] = await Promise.all([
-    extractConfig(configClient, state).then((cfg) => {
-      saveConfig(rootDir, cfg);
-      return cfg;
-    }),
+  // Config and docs are persisted after both succeed to avoid partial state.
+  const [config, generatedDocs] = await Promise.all([
+    extractConfig(configClient, state),
     generateDocuments({
       client: generateClient,
       state,
       rootDir,
-      onDocGenerated: (docType, content) => {
-        documentsGenerated.push(docType);
-        onDocGenerated?.(docType, content);
-      },
+      onDocGenerated,
     }),
   ]);
+
+  saveConfig(rootDir, config);
 
   // Generate CLAUDE.md
   const claudeContent = generateContext(rootDir);
   writeClaudeMd(rootDir, claudeContent);
+
+  // Derive documentsGenerated from the return value, not callback side effects
+  const documentsGenerated = DOCUMENT_ORDER.filter(
+    (dt) => generatedDocs[dt] !== undefined,
+  );
 
   return {
     turnCount: state.turnCount,
