@@ -151,21 +151,25 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
       stream = await sdk.messages.create({ ...params, stream: true });
     }
 
-    // Both the real SDK stream and our test mock expose an async iterator
-    // and a finalMessage() method. The cast through unknown bridges the
-    // type gap — this is intentionally inside the SDK adapter boundary.
+    // The SDK returns Stream<RawMessageStreamEvent> — an async iterable of
+    // raw SSE events. We extract text deltas and accumulate usage from the
+    // message_start and message_delta events to build the final response.
     const streamIterable = stream as unknown as AsyncIterable<{
       type: string;
+      message?: Anthropic.Message;
       delta?: { type: string; text?: string };
-    }> & {
-      finalMessage: () => Promise<Anthropic.Message>;
-    };
+      usage?: { output_tokens: number };
+    }>;
 
     // durationMs measures network wait time only — time the generator is
     // suspended at yield (consumer processing) is excluded.
     let networkMs = 0;
     const iterator = streamIterable[Symbol.asyncIterator]();
     let completed = false;
+    let accumulatedText = "";
+    let startUsage: Anthropic.Usage | undefined;
+    let sawMessageDelta = false;
+    let finalOutputTokens = 0;
 
     try {
       for (;;) {
@@ -174,20 +178,40 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
         networkMs += performance.now() - iterStart;
         if (done) break;
 
-        if (
+        if (event.type === "message_start" && event.message) {
+          startUsage = event.message.usage;
+        } else if (
           event.type === "content_block_delta" &&
           event.delta?.type === "text_delta" &&
           event.delta.text
         ) {
+          accumulatedText += event.delta.text;
           yield { type: "text", text: event.delta.text };
+        } else if (event.type === "message_delta" && event.usage) {
+          sawMessageDelta = true;
+          finalOutputTokens = event.usage.output_tokens;
         }
       }
 
-      const finalStart = performance.now();
-      const finalMessage = await streamIterable.finalMessage();
-      networkMs += performance.now() - finalStart;
+      if (!startUsage) {
+        console.warn(
+          "telesis: message_start event missing from stream; input token count will be inaccurate",
+        );
+      }
+      if (!sawMessageDelta) {
+        console.warn(
+          "telesis: message_delta event missing from stream; output token count will be inaccurate",
+        );
+      }
+      const usage = startUsage
+        ? extractUsage({ ...startUsage, output_tokens: finalOutputTokens })
+        : { inputTokens: 0, outputTokens: finalOutputTokens };
 
-      const result = toCompletionResponse(finalMessage, networkMs);
+      const result: CompletionResponse = {
+        content: accumulatedText,
+        usage,
+        durationMs: networkMs,
+      };
       logTelemetry(params.model, result.usage, result.durationMs);
 
       yield { type: "done", response: result };

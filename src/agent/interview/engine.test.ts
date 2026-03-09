@@ -210,17 +210,19 @@ describe("runInterview", () => {
     const calls = (client.completeStream as ReturnType<typeof vi.fn>).mock
       .calls;
 
-    // First call: no messages (empty conversation)
+    // First call: only the seed message (no conversation history yet)
     const firstRequest = calls[0][0] as CompletionRequest;
     expect(firstRequest.system).toBeDefined();
-    expect(firstRequest.messages).toHaveLength(0);
+    expect(firstRequest.messages).toHaveLength(1);
+    expect(firstRequest.messages[0].role).toBe("user"); // seed
 
-    // Second call: has assistant + user turns
+    // Second call: seed prepended + assistant + user from real conversation
     const secondRequest = calls[1][0] as CompletionRequest;
-    expect(secondRequest.messages).toHaveLength(2);
-    expect(secondRequest.messages[0].role).toBe("assistant");
-    expect(secondRequest.messages[1].role).toBe("user");
-    expect(secondRequest.messages[1].content).toBe("A1");
+    expect(secondRequest.messages).toHaveLength(3);
+    expect(secondRequest.messages[0].role).toBe("user"); // seed
+    expect(secondRequest.messages[1].role).toBe("assistant");
+    expect(secondRequest.messages[2].role).toBe("user");
+    expect(secondRequest.messages[2].content).toBe("A1");
   });
 
   it("uses the same system prompt for every turn", async () => {

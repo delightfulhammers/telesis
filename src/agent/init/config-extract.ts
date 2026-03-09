@@ -8,7 +8,7 @@ const EXTRACTION_PROMPT = `You are extracting structured project metadata from a
 
 From the conversation below, extract these fields:
 
-- **name**: The project name (required)
+- **name**: The project name (required). If the developer did not state an explicit name, infer a short, lowercase, hyphenated name from what the project does (e.g., "tic-tac-toe", "expense-tracker").
 - **owner**: The organization or individual who owns the project
 - **language**: The primary programming language(s)
 - **repo**: The repository URL (if mentioned)
@@ -20,7 +20,7 @@ Return ONLY a JSON object with these fields. No explanation, no markdown formatt
 Example:
 {"name": "myproject", "owner": "Acme Corp", "language": "TypeScript", "repo": "github.com/acme/myproject"}
 
-If a field was not mentioned in the conversation, use an empty string.`;
+If a field (other than name) was not mentioned in the conversation, use an empty string. The name field must always have a value.`;
 
 const formatConversation = (state: InterviewState): string =>
   state.turns

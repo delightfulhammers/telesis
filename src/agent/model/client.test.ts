@@ -48,27 +48,31 @@ const makeMockSdk = (response: {
 
 const makeStreamMockSdk = (
   textChunks: string[],
-  finalMessage: {
-    content: Array<{ type: string; text: string }>;
-    usage: {
-      input_tokens: number;
-      output_tokens: number;
-      cache_read_input_tokens?: number;
-      cache_creation_input_tokens?: number;
-    };
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
   },
 ) => ({
   messages: {
     create: vi.fn().mockResolvedValue({
       [Symbol.asyncIterator]: async function* () {
+        yield {
+          type: "message_start",
+          message: { usage },
+        };
         for (const text of textChunks) {
           yield {
             type: "content_block_delta",
             delta: { type: "text_delta", text },
           };
         }
+        yield {
+          type: "message_delta",
+          usage: { output_tokens: usage.output_tokens },
+        };
       },
-      finalMessage: async () => finalMessage,
     }),
   },
 });
@@ -283,10 +287,10 @@ describe("ModelClient", () => {
 
   describe("completeStream", () => {
     it("yields text chunks and a done event with full response", async () => {
-      const mockSdk = makeStreamMockSdk(["Hello, ", "world!"], {
-        content: [{ type: "text", text: "Hello, world!" }],
-        usage: { input_tokens: 50, output_tokens: 25 },
-      });
+      const mockSdk = makeStreamMockSdk(
+        ["Hello, ", "world!"],
+        { input_tokens: 50, output_tokens: 25 },
+      );
       const { client } = makeClientWithMock(mockSdk);
 
       const events = [];
@@ -303,10 +307,10 @@ describe("ModelClient", () => {
     });
 
     it("logs telemetry after stream completes", async () => {
-      const mockSdk = makeStreamMockSdk(["text"], {
-        content: [{ type: "text", text: "text" }],
-        usage: { input_tokens: 100, output_tokens: 50 },
-      });
+      const mockSdk = makeStreamMockSdk(
+        ["text"],
+        { input_tokens: 100, output_tokens: 50 },
+      );
       const { client, rootDir } = makeClientWithMock(mockSdk, {
         sessionId: "sess-456",
         component: "generate:vision",
@@ -333,14 +337,18 @@ describe("ModelClient", () => {
       const successStream = {
         [Symbol.asyncIterator]: async function* () {
           yield {
+            type: "message_start",
+            message: { usage: { input_tokens: 10, output_tokens: 0 } },
+          };
+          yield {
             type: "content_block_delta",
             delta: { type: "text_delta", text: "ok" },
           };
+          yield {
+            type: "message_delta",
+            usage: { output_tokens: 5 },
+          };
         },
-        finalMessage: async () => ({
-          content: [{ type: "text", text: "ok" }],
-          usage: { input_tokens: 10, output_tokens: 5 },
-        }),
       };
       const mockSdk = {
         messages: {
@@ -386,19 +394,22 @@ describe("ModelClient", () => {
         messages: {
           create: vi.fn().mockResolvedValue({
             [Symbol.asyncIterator]: async function* () {
-              yield { type: "message_start" };
+              yield {
+                type: "message_start",
+                message: { usage: { input_tokens: 10, output_tokens: 0 } },
+              };
               yield { type: "content_block_start" };
               yield {
                 type: "content_block_delta",
                 delta: { type: "text_delta", text: "hello" },
               };
               yield { type: "content_block_stop" };
+              yield {
+                type: "message_delta",
+                usage: { output_tokens: 5 },
+              };
               yield { type: "message_stop" };
             },
-            finalMessage: async () => ({
-              content: [{ type: "text", text: "hello" }],
-              usage: { input_tokens: 10, output_tokens: 5 },
-            }),
           }),
         },
       };
@@ -412,6 +423,72 @@ describe("ModelClient", () => {
       expect(events).toHaveLength(2);
       expect(events[0]).toEqual({ type: "text", text: "hello" });
       expect(events[1].type).toBe("done");
+    });
+
+    it("warns when message_start event is missing from stream", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const mockSdk = {
+        messages: {
+          create: vi.fn().mockResolvedValue({
+            [Symbol.asyncIterator]: async function* () {
+              yield {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "hi" },
+              };
+              yield {
+                type: "message_delta",
+                usage: { output_tokens: 3 },
+              };
+            },
+          }),
+        },
+      };
+      const { client } = makeClientWithMock(mockSdk);
+
+      const events = [];
+      for await (const event of client.completeStream(defaultRequest)) {
+        events.push(event);
+      }
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("message_start event missing"),
+      );
+      expect(events[1].response?.usage.inputTokens).toBe(0);
+      expect(events[1].response?.usage.outputTokens).toBe(3);
+      warnSpy.mockRestore();
+    });
+
+    it("warns when message_delta event is missing from stream", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const mockSdk = {
+        messages: {
+          create: vi.fn().mockResolvedValue({
+            [Symbol.asyncIterator]: async function* () {
+              yield {
+                type: "message_start",
+                message: { usage: { input_tokens: 20, output_tokens: 0 } },
+              };
+              yield {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "hi" },
+              };
+            },
+          }),
+        },
+      };
+      const { client } = makeClientWithMock(mockSdk);
+
+      const events = [];
+      for await (const event of client.completeStream(defaultRequest)) {
+        events.push(event);
+      }
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("message_delta event missing"),
+      );
+      expect(events[1].response?.usage.inputTokens).toBe(20);
+      expect(events[1].response?.usage.outputTokens).toBe(0);
+      warnSpy.mockRestore();
     });
   });
 });

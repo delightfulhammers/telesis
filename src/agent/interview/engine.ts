@@ -12,6 +12,8 @@ import { buildInterviewSystemPrompt, hasCompletionSignal } from "./prompts.js";
 
 const DEFAULT_MAX_TURNS = 20;
 const DONE_SENTINEL = "/done";
+const SEED_MESSAGE =
+  "I'd like to initialize a new project. Please begin the interview.";
 
 export interface InterviewIO {
   readonly readInput: () => Promise<string>;
@@ -41,6 +43,11 @@ export const runInterview = async (
   let state = createInitialState(sessionId);
   await ensureStateDir(rootDir);
 
+  // The Anthropic API requires messages to start with a user-role message.
+  // Rather than polluting state.turns with a synthetic turn (transport
+  // concern), we prepend a seed message when building the API request.
+  const seedMessage: Message = { role: "user", content: SEED_MESSAGE };
+
   io.writeOutput(
     "\nI'll ask you a few questions about your project, then generate your\n" +
       "project documents. Type /done at any time to proceed with what we have.\n\n" +
@@ -58,11 +65,13 @@ export const runInterview = async (
       break;
     }
 
-    // Build messages from conversation history
-    const messages: Message[] = state.turns.map((t) => ({
+    // Build messages: prepend seed so every API call starts with a user
+    // message, then append the real conversation history.
+    const historyMessages: Message[] = state.turns.map((t) => ({
       role: t.role,
       content: t.content,
     }));
+    const messages: Message[] = [seedMessage, ...historyMessages];
 
     // Get assistant response via streaming
     let assistantText = "";
