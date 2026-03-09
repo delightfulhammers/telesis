@@ -7,6 +7,9 @@ const TELEMETRY_PATH = ".telesis/telemetry.jsonl";
 const isFiniteNonNeg = (val: unknown): val is number =>
   typeof val === "number" && Number.isFinite(val) && val >= 0;
 
+const isOptionalFiniteNonNeg = (val: unknown): boolean =>
+  val === undefined || isFiniteNonNeg(val);
+
 const isValidRecord = (val: unknown): val is ModelCallRecord => {
   if (!val || typeof val !== "object") return false;
   const obj = val as Record<string, unknown>;
@@ -19,7 +22,9 @@ const isValidRecord = (val: unknown): val is ModelCallRecord => {
     isFiniteNonNeg(obj.inputTokens) &&
     isFiniteNonNeg(obj.outputTokens) &&
     isFiniteNonNeg(obj.durationMs) &&
-    typeof obj.sessionId === "string"
+    typeof obj.sessionId === "string" &&
+    isOptionalFiniteNonNeg(obj.cacheReadTokens) &&
+    isOptionalFiniteNonNeg(obj.cacheWriteTokens)
   );
 };
 

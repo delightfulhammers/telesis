@@ -58,9 +58,8 @@ export const getStatus = (rootDir: string): Status => {
   const totalInputTokens = records.reduce((sum, r) => sum + r.inputTokens, 0);
   const totalOutputTokens = records.reduce((sum, r) => sum + r.outputTokens, 0);
 
-  const pricing = loadPricing(rootDir);
-  const estimatedCost =
-    pricing && records.length > 0 ? calculateCost(records, pricing) : null;
+  const pricing = records.length > 0 ? loadPricing(rootDir) : null;
+  const estimatedCost = pricing ? calculateCost(records, pricing) : null;
 
   return {
     projectName: cfg.project.name,

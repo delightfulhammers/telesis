@@ -113,6 +113,23 @@ describe("loadTelemetryRecords", () => {
     expect(loaded[0].cacheWriteTokens).toBe(75);
   });
 
+  it("rejects records with invalid optional cache fields", () => {
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    const record = {
+      ...makeRecord({ id: "bad-cache" }),
+      cacheReadTokens: "not-a-number",
+    };
+    writeFileSync(
+      join(rootDir, ".telesis", "telemetry.jsonl"),
+      JSON.stringify(record) + "\n",
+    );
+
+    const loaded = loadTelemetryRecords(rootDir);
+
+    expect(loaded).toHaveLength(0);
+  });
+
   // JSON.stringify(NaN) and JSON.stringify(Infinity) produce null,
   // so these tests verify that null numeric fields are rejected.
   it("rejects records with null numeric fields (NaN serialized as null)", () => {
