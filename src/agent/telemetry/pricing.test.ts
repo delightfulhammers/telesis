@@ -1,12 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { bootstrapPricing, loadPricing, calculateCost } from "./pricing.js";
 import type { ModelCallRecord } from "./types.js";
+import { useTempDir } from "../../test-utils.js";
 
-const makeTempDir = (): string =>
-  mkdtempSync(join(tmpdir(), "telesis-pricing-test-"));
+const makeTempDir = useTempDir("pricing-test");
 
 const makeRecord = (
   overrides: Partial<ModelCallRecord> = {},

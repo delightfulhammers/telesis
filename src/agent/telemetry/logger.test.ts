@@ -1,12 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, readFileSync, mkdirSync, chmodSync } from "node:fs";
+import { readFileSync, mkdirSync, chmodSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { createTelemetryLogger } from "./logger.js";
 import type { ModelCallRecord } from "./types.js";
+import { useTempDir } from "../../test-utils.js";
 
-const makeTempDir = (): string =>
-  mkdtempSync(join(tmpdir(), "telesis-telemetry-test-"));
+const makeTempDir = useTempDir("telemetry-test");
 
 const makeRecord = (
   overrides: Partial<ModelCallRecord> = {},

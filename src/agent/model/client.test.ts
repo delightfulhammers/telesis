@@ -1,14 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import Anthropic from "@anthropic-ai/sdk";
 import { createModelClient } from "./client.js";
 import { createTelemetryLogger } from "../telemetry/logger.js";
 import type { CompletionRequest } from "./types.js";
+import { useTempDir } from "../../test-utils.js";
 
-const makeTempDir = (): string =>
-  mkdtempSync(join(tmpdir(), "telesis-model-test-"));
+const makeTempDir = useTempDir("model-test");
 
 const makeClientWithMock = (
   mockSdk: { messages: { create: ReturnType<typeof vi.fn> } },

@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { scaffold } from "./scaffold.js";
 import { load } from "../config/config.js";
 import type { Config } from "../config/config.js";
+import { useTempDir } from "../test-utils.js";
 
-const makeTempDir = (): string =>
-  mkdtempSync(join(tmpdir(), "telesis-scaffold-test-"));
+const makeTempDir = useTempDir("scaffold-test");
 
 const testConfig = (): Config => ({
   project: {
