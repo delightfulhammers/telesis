@@ -33,8 +33,8 @@ from "plain CLI tool" to "development intelligence platform."
 - Does not validate existing documents
 - Does not orchestrate other agents
 - Does not integrate with GitHub, Linear, or any external tool
-- Does not replace the Go CLI's document management commands (adr, tdd, context, status)
-  — those remain Go for now per ADR-001
+- Does not replace the CLI's existing document management commands (adr, tdd, context, status)
+  — those are already implemented
 
 ---
 
@@ -127,14 +127,13 @@ record. Easy to tail, grep, and import into any analysis tool.
 
 ### 4. CLI Entrypoint
 
-The TypeScript agent layer exposes a CLI entrypoint that the developer invokes as
-`telesis init` (or, during the transition period, as a separate `telesis-agent init`
-binary). This entrypoint:
+The `telesis init` command invokes the agent layer directly (no subprocess boundary — see
+ADR-002). This entrypoint:
 
 - Sets up the telemetry session
 - Instantiates and runs the interview engine
 - Hands off to the document generator
-- Invokes the Go CLI's `telesis context` as a subprocess to generate CLAUDE.md
+- Calls `context.generate()` directly to produce CLAUDE.md
 - Reports a summary: documents generated, turns taken, tokens used, estimated cost
 
 ---
@@ -319,31 +318,25 @@ Visual structure:
 ## Package Structure
 
 ```
-agent/                         ← new top-level directory
-  src/
-    index.ts                   ← CLI entrypoint
-    interview/
-      engine.ts                ← conversation loop
-      state.ts                 ← InterviewState types + serialization
-      prompts.ts               ← interview system prompt
-    generate/
-      generator.ts             ← DocumentGenerator implementation
-      prompts/
-        vision.txt
-        prd.txt
-        architecture.txt
-        milestones.txt
-    model/
-      client.ts                ← ModelClient implementation
-      types.ts                 ← CompletionRequest/Response types
-    telemetry/
-      logger.ts                ← JSONL append logic
-      types.ts                 ← ModelCallRecord type
-      pricing.ts               ← cost derivation from token counts + pricing.yml
-    config/
-      reader.ts                ← .telesis/config.yml read/write (mirrors Go config pkg)
-  package.json
-  tsconfig.json
+src/agent/                     ← agent layer within the unified codebase
+  interview/
+    engine.ts                  ← conversation loop
+    state.ts                   ← InterviewState types + serialization
+    prompts.ts                 ← interview system prompt
+  generate/
+    generator.ts               ← DocumentGenerator implementation
+    prompts/
+      vision.txt
+      prd.txt
+      architecture.txt
+      milestones.txt
+  model/
+    client.ts                  ← ModelClient implementation
+    types.ts                   ← CompletionRequest/Response types
+  telemetry/
+    logger.ts                  ← JSONL append logic
+    types.ts                   ← ModelCallRecord type
+    pricing.ts                 ← cost derivation from token counts + pricing.yml
 ```
 
 ---
@@ -374,12 +367,11 @@ agent/                         ← new top-level directory
    this kind of ongoing document refinement as a component of the feedback and control
    loop. The init agent produces the substrate; the system evolves it.
 
-3. **Go CLI subprocess invocation.** Acceptable for now. The init agent calls `telesis
-   context` as a subprocess. If this becomes friction, CLAUDE.md generation can be ported
-   to TypeScript. Deferred.
+3. **Context generation.** With the TypeScript rewrite (ADR-002), the init agent calls
+   `context.generate()` directly — no subprocess boundary.
 
-4. **Pricing.yml bootstrapping.** The init agent owns pricing.yml. It creates the file
-   with current defaults on first run if absent. The Go CLI does not own it.
+4. **Pricing.yml bootstrapping.** The agent layer owns pricing.yml. It creates the file
+   with current defaults on first run if absent.
 
 5. **Model selection.** Both interview and generation default to claude-sonnet. The
    interview is where project intent is extracted — thin or misunderstood interviews

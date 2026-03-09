@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { create, nextNumber } from "./tdd.js";
@@ -18,9 +24,7 @@ describe("tdd", () => {
     const rootDir = setupTDDDir();
     const path = create(rootDir, "config-loader");
 
-    expect(path).toBe(
-      join(rootDir, "docs", "tdd", "TDD-001-config-loader.md"),
-    );
+    expect(path).toBe(join(rootDir, "docs", "tdd", "TDD-001-config-loader.md"));
     expect(existsSync(path)).toBe(true);
 
     const content = readFileSync(path, "utf-8");
@@ -46,10 +50,7 @@ describe("tdd", () => {
     const rootDir = setupTDDDir();
     const tddDir = join(rootDir, "docs", "tdd");
 
-    writeFileSync(
-      join(tddDir, "TDD-010-existing.md"),
-      "# TDD-010: existing\n",
-    );
+    writeFileSync(join(tddDir, "TDD-010-existing.md"), "# TDD-010: existing\n");
 
     const path = create(rootDir, "next");
     expect(path).toContain("TDD-011-next.md");

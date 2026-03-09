@@ -8,13 +8,13 @@
 
 The shortest path to using Telesis to develop Telesis.
 
-A Go CLI that initializes and maintains a structured project context layer — the persistent memory and intent layer that keeps Claude Code sessions coherent across time, sessions, and contributors.
+A CLI tool that initializes and maintains a structured project context layer — the persistent memory and intent layer that keeps Claude Code sessions coherent across time, sessions, and contributors.
 
 ---
 
 ## What It Is
 
-A Go CLI that manages a standard set of project documents and generates a `CLAUDE.md` injection file from them.
+A TypeScript CLI (compiled to a single binary with Bun) that manages a standard set of project documents and generates a `CLAUDE.md` injection file from them.
 
 No swarm. No orchestration. No drift detection. Just the memory layer.
 

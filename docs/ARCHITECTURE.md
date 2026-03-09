@@ -1,26 +1,22 @@
 # Telesis — Architecture
 *By Delightful Hammers*
-*Last updated: 2026-03-08*
+*Last updated: 2026-03-09*
 
 ---
 
 ## System Overview
 
-Telesis is a two-layer system:
+Telesis is a single TypeScript codebase compiled to a static binary with Bun.
 
-- **Go CLI (`telesis`)** — manages structured project documentation and generates the
-  `CLAUDE.md` context injection file. Single static binary. No AI logic.
-- **TypeScript agent layer (`agent/`)** — handles all AI-native capabilities: model
-  calls, conversation management, structured document generation, telemetry, and
-  eventual agent orchestration.
+The CLI layer handles structured project documentation — initialization, context generation,
+ADR/TDD management, and status reporting. The agent layer (v0.2.0+) handles all AI-native
+capabilities: model calls, conversation management, structured document generation, and
+telemetry.
 
-The two layers communicate through the shared filesystem (`.telesis/`, `docs/`) and via
-subprocess invocation (the agent calls `telesis context` to regenerate `CLAUDE.md` after
-document generation). There are no cross-language imports. The seam is designed, not
-accidental.
+Both layers share types directly through imports. There is no subprocess boundary, no
+filesystem-mediated communication between layers — just function calls.
 
-The repository follows a monorepo-ready layout to accommodate future additions (additional
-agent binaries, shared TypeScript packages) without restructuring.
+See ADR-002 for why the original Go CLI was rewritten in TypeScript.
 
 ---
 
@@ -28,113 +24,92 @@ agent binaries, shared TypeScript packages) without restructuring.
 
 ```
 telesis/
-  cmd/
-    telesis/
-      main.go              ← Go entry point; calls cli.Execute()
-  internal/                ← Go business logic (no AI, no model calls)
-    cli/                   ← Cobra command definitions
-      root.go
-      init.go              ← invokes agent as subprocess for v0.2.0+
-      context.go
-      adr.go
-      tdd.go
-      status.go            ← reads telemetry for cost reporting (v0.2.0+)
-    config/                ← .telesis/config.yml read/write
-    context/               ← CLAUDE.md generation from doc tree
-    scaffold/              ← project initialization and file generation
-    adr/                   ← ADR file management
-    tdd/                   ← TDD file management
-    status/                ← project status aggregation
-  templates/               ← embedded Go document templates (go:embed)
-  agent/                   ← TypeScript agent layer
-    src/
-      index.ts             ← CLI entrypoint
+  src/
+    index.ts              ← CLI entrypoint; wires Commander commands
+    cli/                  ← Commander command definitions
+      init.ts             ← invokes agent layer for v0.2.0+
+      context.ts
+      adr.ts
+      tdd.ts
+      status.ts           ← reads telemetry for cost reporting (v0.2.0+)
+      handle-action.ts    ← shared error handling for CLI actions
+      project-root.ts     ← project root detection
+    config/               ← .telesis/config.yml read/write
+    context/              ← CLAUDE.md generation from doc tree
+    scaffold/             ← project initialization and file generation
+    adr/                  ← ADR file management
+    tdd/                  ← TDD file management
+    status/               ← project status aggregation
+    milestones/           ← milestone parsing
+    docgen/               ← shared document generation utilities
+    templates/            ← embedded document templates (.md.tmpl)
+    agent/                ← AI agent layer (v0.2.0+)
       interview/
-        engine.ts          ← conversation loop
-        state.ts           ← InterviewState types + serialization
-        prompts.ts         ← interview system prompt
+        engine.ts         ← conversation loop
+        state.ts          ← InterviewState types + serialization
+        prompts.ts        ← interview system prompt
       generate/
-        generator.ts       ← DocumentGenerator implementation
-        prompts/           ← per-document generation prompts
-          vision.txt
-          prd.txt
-          architecture.txt
-          milestones.txt
+        generator.ts      ← DocumentGenerator implementation
+        prompts/          ← per-document generation prompts
       model/
-        client.ts          ← ModelClient abstraction (only Anthropic SDK import)
-        types.ts           ← CompletionRequest/Response types
+        client.ts         ← ModelClient abstraction (only Anthropic SDK import)
+        types.ts          ← CompletionRequest/Response types
       telemetry/
-        logger.ts          ← JSONL append logic
-        types.ts           ← ModelCallRecord type
-        pricing.ts         ← cost derivation from tokens + pricing.yml
-      config/
-        reader.ts          ← .telesis/config.yml read/write
-    package.json
-    tsconfig.json
+        logger.ts         ← JSONL append logic
+        types.ts          ← ModelCallRecord type
+        pricing.ts        ← cost derivation from tokens + pricing.yml
   docs/
     VISION.md
     PRD.md
     ARCHITECTURE.md
     MILESTONES.md
-    adr/                   ← ADR-NNN-slug.md
-    tdd/                   ← TDD-NNN-slug.md
-    context/               ← additional CLAUDE.md sections (freeform .md files)
+    adr/                  ← ADR-NNN-slug.md
+    tdd/                  ← TDD-NNN-slug.md
+    context/              ← additional CLAUDE.md sections (freeform .md files)
   .telesis/
-    config.yml             ← project metadata
-    telemetry.jsonl        ← append-only model call log (v0.2.0+)
-    interview-state.json   ← interview session state (v0.2.0+)
-    pricing.yml            ← model pricing config for cost derivation (v0.2.0+)
-  CLAUDE.md                ← generated by `telesis context`
-  go.mod
-  go.sum
+    config.yml            ← project metadata
+    telemetry.jsonl       ← append-only model call log (v0.2.0+)
+    interview-state.json  ← interview session state (v0.2.0+)
+    pricing.yml           ← model pricing config for cost derivation (v0.2.0+)
+  CLAUDE.md               ← generated by `telesis context`
+  package.json
+  tsconfig.json
+  vitest.config.ts
 ```
 
 ---
 
-## Go CLI Dependencies
+## Dependencies
 
-Minimal by design:
+**Runtime:**
+- **`commander`** — CLI framework (command parsing, help text, subcommands)
+- **`js-yaml`** — YAML read/write for `.telesis/config.yml`
+- **`mustache`** — template rendering for document generation
 
-- **`cobra`** — CLI framework (command parsing, help text, subcommands)
-- **`viper`** — config file management (YAML read/write for `.telesis/config.yml`)
-- **`go:embed`** — template embedding (zero runtime file dependencies)
+**Agent layer (v0.2.0+):**
+- **`@anthropic-ai/sdk`** — primary model provider (imported only in `agent/model/client.ts`)
 
-No other external dependencies unless strictly necessary.
-
----
-
-## TypeScript Agent Dependencies
-
-- **`@anthropic-ai/sdk`** — primary model provider (imported only in `model/client.ts`)
-- **`ai` (Vercel AI SDK)** — provider abstraction layer for future multi-provider support
-- **`@modelcontextprotocol/sdk`** — MCP client for future coding assistant integration
-- **`pino`** — structured logging foundation
-
-Dev dependencies:
-- **`typescript`**, **`tsx`** — language and dev-time execution
-- **`@types/node`** — Node.js type definitions
+**Dev:**
+- **`typescript`** — type checking (`tsc --noEmit` for linting)
+- **`vitest`** — test framework
+- **`prettier`** — code formatting
+- **`bun-types`** — Bun API type definitions
 
 ---
 
-## Go Package Discipline
+## Package Discipline
 
-- **`cmd/telesis/`** contains only the entry point. A single `main.go` that calls `cli.Execute()`.
-- **`internal/cli/`** contains Cobra command wiring — flag parsing, calling into business
-  logic packages, printing output. This is the only package that imports Cobra.
-- **`internal/{config,context,scaffold,adr,tdd,status}`** contain business logic. They
-  know nothing about the CLI framework.
-- **Nothing in `internal/` imports from `cmd/`.**
-- **`templates/`** is embedded at compile time via `go:embed`. No runtime file I/O for
-  templates.
-
-## TypeScript Package Discipline
-
-- **`model/client.ts`** is the only file that imports `@anthropic-ai/sdk` directly.
-  Everything else calls `ModelClient`.
-- **`telemetry/`** is wired at construction time. Callers never think about it.
-- **`agent/src/`** packages know nothing about the Go CLI or Cobra.
-- The agent reads and writes `.telesis/` and `docs/` directly — the shared filesystem
-  is the interface.
+- **`src/cli/`** contains Commander command definitions — flag parsing, calling into business
+  logic packages, printing output. This is the only directory that imports Commander.
+- **`src/{config,context,scaffold,adr,tdd,status,milestones,docgen}`** contain business
+  logic. They know nothing about the CLI framework.
+- **`src/agent/model/client.ts`** is the only file that imports `@anthropic-ai/sdk` directly.
+  All other code calls `ModelClient`. This is a hard rule — it keeps provider coupling
+  contained.
+- **`src/agent/`** packages (`interview/`, `generate/`, `telemetry/`) know nothing about the
+  CLI entrypoint. `src/cli/init.ts` wires them together.
+- **`src/templates/`** contains Mustache templates imported at build time via Bun file imports.
+  No runtime file I/O for templates.
 
 ---
 
@@ -143,29 +118,28 @@ Dev dependencies:
 ### `telesis init` (v0.2.0+)
 
 ```
-internal/cli/init.go
-  → spawn agent/src/index.ts as subprocess
-    → telemetry.SessionStart()
-    → interview/engine.ts (multi-turn conversation loop)
-      → model/client.ts → Anthropic API
-        → telemetry/logger.ts → .telesis/telemetry.jsonl
-      → serialize state → .telesis/interview-state.json
-    → generate/generator.ts
-      → generate vision   → model/client.ts → write docs/VISION.md
-      → generate prd      → model/client.ts → write docs/PRD.md
-      → generate arch     → model/client.ts → write docs/ARCHITECTURE.md
-      → generate milestones → model/client.ts → write docs/MILESTONES.md
-    → config/reader.ts → write .telesis/config.yml
-    → spawn `telesis context` as subprocess → write CLAUDE.md
-    → print summary: docs generated, turns taken, tokens used, estimated cost
+src/cli/init.ts
+  → agent/telemetry → SessionStart()
+  → agent/interview/engine.ts (multi-turn conversation loop)
+    → agent/model/client.ts → Anthropic API
+      → agent/telemetry/logger.ts → .telesis/telemetry.jsonl
+    → serialize state → .telesis/interview-state.json
+  → agent/generate/generator.ts
+    → generate vision   → model/client.ts → write docs/VISION.md
+    → generate prd      → model/client.ts → write docs/PRD.md
+    → generate arch     → model/client.ts → write docs/ARCHITECTURE.md
+    → generate milestones → model/client.ts → write docs/MILESTONES.md
+  → config/ → write .telesis/config.yml
+  → context/ → generate CLAUDE.md (direct function call)
+  → print summary: docs generated, turns taken, tokens used, estimated cost
 ```
 
 ### `telesis context`
 
 ```
-internal/cli/context.go
-  → internal/context.Generate(rootDir)
-    → internal/config.Load(rootDir)
+src/cli/context.ts
+  → context.generate(rootDir)
+    → config.load(rootDir)
     → scan docs/adr/ for ADR summaries
     → count docs/tdd/ TDD files
     → extract milestone from docs/MILESTONES.md
@@ -179,9 +153,9 @@ internal/cli/context.go
 ### `telesis adr new <slug>`
 
 ```
-internal/cli/adr.go (parse slug)
-  → internal/adr.Create(rootDir, slug)
-    → internal/adr.NextNumber(adrDir)
+src/cli/adr.ts (parse slug)
+  → adr.create(rootDir, slug)
+    → adr.nextNumber(adrDir)
       → scan docs/adr/ for highest existing number
     → render adr.md.tmpl with number + slug
     → write docs/adr/ADR-NNN-slug.md
@@ -192,9 +166,9 @@ internal/cli/adr.go (parse slug)
 ### `telesis status` (v0.2.0+)
 
 ```
-internal/cli/status.go
-  → internal/status.GetStatus(rootDir)
-    → internal/config.Load(rootDir)
+src/cli/status.ts
+  → status.getStatus(rootDir)
+    → config.load(rootDir)
     → count ADRs, TDDs
     → read milestone info
     → check CLAUDE.md timestamp
@@ -207,18 +181,12 @@ internal/cli/status.go
 
 ## Error Handling
 
-### Go
-
-- Business logic packages (`internal/`) return errors. They never call `log.Fatal` or
-  `os.Exit`.
-- CLI commands (`internal/cli/`) catch errors and handle exit behavior.
+- Business logic packages (`src/`) return errors or throw. They never call `process.exit`.
+- CLI commands (`src/cli/`) catch errors via `handleAction` and handle exit behavior.
 - User-facing error messages are actionable: *"run `telesis init` first"*, not
   *"config not found"*.
-
-### TypeScript
-
-- Model call failures: retry once with exponential backoff, then surface the error with
-  the raw API response. Never silently swallow API errors.
+- Model call failures (agent layer): retry once with exponential backoff, then surface the
+  error with the raw API response. Never silently swallow API errors.
 - Telemetry write failures: log to stderr, do not abort the operation.
 - Partial generation: if document generation fails mid-sequence, successfully generated
   documents are written and the failure is reported clearly.
@@ -227,7 +195,7 @@ internal/cli/status.go
 
 ## Telemetry and Cost Model
 
-Every model call in the TypeScript layer is logged to `.telesis/telemetry.jsonl` as an
+Every model call in the agent layer is logged to `.telesis/telemetry.jsonl` as an
 append-only record:
 
 ```typescript
@@ -252,9 +220,10 @@ when pricing changes. The `telesis status` command computes cost on read.
 
 ---
 
-## Go Template System
+## Template System
 
-All Go-generated files use templates embedded via `go:embed` in the `templates/` package.
+All generated files use Mustache templates in `src/templates/`, imported at build time via
+Bun file imports.
 
 Templates:
 - `vision.md.tmpl` — VISION.md skeleton
@@ -263,7 +232,6 @@ Templates:
 - `milestones.md.tmpl` — MILESTONES.md skeleton
 - `adr.md.tmpl` — individual ADR
 - `tdd.md.tmpl` — individual TDD
-- `config.yml.tmpl` — .telesis/config.yml
 - `claude.md.tmpl` — generated CLAUDE.md
 
 The `telesis context` command is idempotent — same inputs always produce the same output.
@@ -285,9 +253,9 @@ The `docs/context/` directory holds project-specific sections for the generated 
 Any markdown file placed there becomes a section in the output. Working conventions,
 project relationships, and other curated guidance for Claude Code sessions belong here.
 
-## TypeScript Prompt System
+## Agent Prompt System
 
-Each document type has a generation system prompt in `agent/src/generate/prompts/` as
+Each document type has a generation system prompt in `src/agent/generate/prompts/` as
 plain text files, loaded at build time. Prompt files are versioned — the prompt version
 is stored alongside generated document metadata for future re-generation compatibility.
 
@@ -295,34 +263,26 @@ is stored alongside generated document metadata for future re-generation compati
 
 ## Key Design Decisions
 
-- **Go CLI stays Go (for now).** The existing Go CLI is stable and correct. The agent
-  layer is additive. A future milestone will evaluate rewriting the CLI in TypeScript
-  once the agent layer is proven. See ADR-001.
-- **TypeScript for all AI-native logic.** Richer ecosystem, first-class MCP/ACP support,
-  proven patterns from Pi/OpenClaw/ClawPort. See ADR-001.
-- **Filesystem as the inter-layer interface.** The Go CLI and TypeScript agent communicate
-  through `.telesis/` and `docs/`. No IPC, no RPC for now. Clean and simple.
-- **Monorepo-ready layout.** `cmd/telesis/` and `agent/` can grow into `packages/` with
-  a monorepo tool (Turborepo, Nx) if multiple TypeScript packages emerge.
-- **Cobra commands in `internal/cli/`** — keeps `cmd/telesis/main.go` trivial, isolates
-  the Cobra dependency, enables clean ports-and-adapters separation.
-- **`internal/scaffold/` instead of `internal/init/`** — avoids collision with Go's
-  `init()` function convention.
+- **Single TypeScript codebase.** The original Go CLI was rewritten in TypeScript once it
+  was clear the two-language overhead wasn't justified for the amount of Go code involved.
+  Bun's `--compile` provides single-binary distribution. See ADR-002.
+- **Commander.js for CLI.** Similar command/subcommand model to the original Cobra
+  structure. Straightforward migration path.
+- **Bun for compilation.** `bun build --compile` produces a single static binary, closing
+  the distribution gap that originally justified Go.
+- **Filesystem as the shared state.** `.telesis/` and `docs/` are the canonical project
+  state. The CLI reads and writes them. The agent layer reads and writes them. No database.
+- **`src/scaffold/` for initialization.** The name avoids any collision with language-level
+  `init` conventions.
 
 ---
 
 ## Testing Strategy
 
-### Go
-
-- Unit tests for all `internal/` packages. Table-driven where applicable.
-- Integration tests for CLI commands against temp directories.
-- Don't test Cobra wiring — test the underlying business logic functions.
+- Unit tests for all `src/` business logic packages using Vitest.
+- Test files colocated with source: `config.ts` → `config.test.ts`.
 - All tests operate on temp directories to avoid polluting the real filesystem.
-
-### TypeScript
-
-- Unit tests for `model/`, `telemetry/`, `config/`, `generate/` packages.
-- Integration tests for the interview engine and document generator using recorded
-  fixtures (not live model calls) to keep tests fast and deterministic.
-- Live model call tests are tagged separately and run explicitly, not in CI by default.
+- Integration tests for the interview engine and document generator use recorded fixtures
+  (not live model calls) to keep tests fast and deterministic.
+- Live model call tests are in a separate `tests/live/` directory, tagged, and run
+  explicitly (`pnpm test:live`). Never run in CI by default.

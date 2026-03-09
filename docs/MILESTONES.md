@@ -1,6 +1,6 @@
 # Telesis — Milestones
 *By Delightful Hammers*
-*Last updated: 2026-03-08*
+*Last updated: 2026-03-09*
 
 ---
 
@@ -48,9 +48,10 @@ and generates substantive first-draft project documents from that conversation.
 
 ### What Changes
 
-The existing Go CLI (`telesis`) is unchanged. A new TypeScript agent layer (`agent/`) is
-introduced alongside it. The `telesis init` experience becomes: run the agent, answer
-questions, receive real documents — not skeletons.
+The CLI has been rewritten from Go to TypeScript/Bun (ADR-002). The agent layer lives
+under `src/agent/` within the unified codebase — no subprocess boundary, direct function
+calls. The `telesis init` experience becomes: run the agent, answer questions, receive
+real documents — not skeletons.
 
 ### Acceptance Criteria
 
@@ -79,8 +80,8 @@ questions, receive real documents — not skeletons.
 3. **Phase 2 — Interview engine:** conversation loop, state serialization, system prompt
 4. **Phase 3 — Document generator:** per-document generation calls, generation prompts,
    sequential generation with accumulated context
-5. **Phase 4 — CLI entrypoint + Go integration:** wire `telesis init` to invoke agent,
-   subprocess call to `telesis context`, summary output
+5. **Phase 4 — CLI integration:** wire `telesis init` to invoke the agent, call
+   `telesis context` to generate CLAUDE.md, summary output
 6. **Phase 5 — Status integration:** update `telesis status` to read telemetry and
    report token usage and estimated cost
 7. **Phase 6 — Validation:** initialize a real project with the agent, evaluate document

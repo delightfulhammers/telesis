@@ -1,6 +1,6 @@
 # ADR-001 — TypeScript for Agent and Orchestration Layer
 
-**Status:** Proposed
+**Status:** Superseded by ADR-002
 **Date:** 2026-03-08
 **Author:** Delightful Hammers
 

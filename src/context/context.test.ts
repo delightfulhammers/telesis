@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  chmodSync,
-} from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { platform } from "node:process";
@@ -66,10 +61,7 @@ describe("context.generate", () => {
     const rootDir = setupProject();
     const tddDir = join(rootDir, "docs", "tdd");
 
-    writeFileSync(
-      join(tddDir, "TDD-001-config.md"),
-      "# TDD-001: Config\n",
-    );
+    writeFileSync(join(tddDir, "TDD-001-config.md"), "# TDD-001: Config\n");
 
     const output = generate(rootDir);
     expect(output).toContain("1 component designs");
@@ -351,10 +343,7 @@ Appendix content should not appear.
     const contextDir = join(rootDir, "docs", "context");
     mkdirSync(contextDir, { recursive: true });
 
-    writeFileSync(
-      join(contextDir, "notes.txt"),
-      "This should not appear.\n",
-    );
+    writeFileSync(join(contextDir, "notes.txt"), "This should not appear.\n");
     writeFileSync(
       join(contextDir, "valid.md"),
       "## Valid Section\n\nThis should appear.\n",

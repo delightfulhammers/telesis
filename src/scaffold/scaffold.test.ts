@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  mkdtempSync,
-  readFileSync,
-  existsSync,
-  statSync,
-} from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { scaffold } from "./scaffold.js";
@@ -166,7 +161,13 @@ describe("scaffold", () => {
       {
         name: "rejects newline in project name",
         cfg: {
-          project: { name: "Bad\nName", owner: "", language: "", status: "", repo: "" },
+          project: {
+            name: "Bad\nName",
+            owner: "",
+            language: "",
+            status: "",
+            repo: "",
+          },
         },
         wantErr: "invalid characters",
       },

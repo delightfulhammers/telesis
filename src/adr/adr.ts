@@ -1,4 +1,7 @@
-import { create as docCreate, nextNumber as docNextNumber } from "../docgen/docgen.js";
+import {
+  create as docCreate,
+  nextNumber as docNextNumber,
+} from "../docgen/docgen.js";
 import type { DocConfig } from "../docgen/docgen.js";
 
 const ADR_CONFIG: DocConfig = {

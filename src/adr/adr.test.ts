@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { create, nextNumber } from "./adr.js";
@@ -47,10 +53,7 @@ describe("adr", () => {
     const rootDir = setupADRDir();
     const adrDir = join(rootDir, "docs", "adr");
 
-    writeFileSync(
-      join(adrDir, "ADR-005-existing.md"),
-      "# ADR-005: existing\n",
-    );
+    writeFileSync(join(adrDir, "ADR-005-existing.md"), "# ADR-005: existing\n");
 
     const path = create(rootDir, "next");
     expect(path).toContain("ADR-006-next.md");
