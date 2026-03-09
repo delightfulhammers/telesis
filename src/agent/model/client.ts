@@ -191,6 +191,11 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
         }
       }
 
+      if (!startUsage) {
+        console.warn(
+          "telesis: message_start event missing from stream; input token count will be inaccurate",
+        );
+      }
       const usage = startUsage
         ? extractUsage({ ...startUsage, output_tokens: finalOutputTokens })
         : { inputTokens: 0, outputTokens: finalOutputTokens };

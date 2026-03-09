@@ -424,5 +424,38 @@ describe("ModelClient", () => {
       expect(events[0]).toEqual({ type: "text", text: "hello" });
       expect(events[1].type).toBe("done");
     });
+
+    it("warns when message_start event is missing from stream", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const mockSdk = {
+        messages: {
+          create: vi.fn().mockResolvedValue({
+            [Symbol.asyncIterator]: async function* () {
+              yield {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "hi" },
+              };
+              yield {
+                type: "message_delta",
+                usage: { output_tokens: 3 },
+              };
+            },
+          }),
+        },
+      };
+      const { client } = makeClientWithMock(mockSdk);
+
+      const events = [];
+      for await (const event of client.completeStream(defaultRequest)) {
+        events.push(event);
+      }
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("message_start event missing"),
+      );
+      expect(events[1].response?.usage.inputTokens).toBe(0);
+      expect(events[1].response?.usage.outputTokens).toBe(3);
+      warnSpy.mockRestore();
+    });
   });
 });
