@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { create, validateSlug, nextNumber } from "./docgen.js";
@@ -135,6 +141,17 @@ describe("docgen", () => {
 
       const num = nextNumber(adrDir, "ADR");
       expect(num).toBe(1);
+    });
+
+    it("ignores subdirectories matching prefix pattern", () => {
+      const rootDir = setupDocDir("adr");
+      const adrDir = join(rootDir, "docs", "adr");
+
+      writeFileSync(join(adrDir, "ADR-001-first.md"), "# ADR-001: first\n");
+      mkdirSync(join(adrDir, "ADR-999-assets"));
+
+      const num = nextNumber(adrDir, "ADR");
+      expect(num).toBe(2);
     });
   });
 });

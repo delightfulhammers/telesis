@@ -5,6 +5,7 @@ import {
   closeSync,
   unlinkSync,
   constants,
+  type Dirent,
 } from "node:fs";
 import { join } from "node:path";
 import { renderTemplate } from "../templates/index.js";
@@ -32,15 +33,17 @@ export const validateSlug = (slug: string): void => {
 export const nextNumber = (docDir: string, prefix: string): number => {
   const numberRe = new RegExp(`^${escapeRegExp(prefix)}-(\\d+)`);
 
-  let entries: string[];
+  let entries: Dirent[];
   try {
-    entries = readdirSync(docDir);
+    entries = readdirSync(docDir, { withFileTypes: true });
   } catch {
     throw new Error(`reading directory: ${docDir}`);
   }
 
   let highest = 0;
-  for (const name of entries) {
+  for (const entry of entries) {
+    if (entry.isDirectory()) continue;
+    const name = entry.name;
     const m = numberRe.exec(name);
     if (m?.[1]) {
       const n = parseInt(m[1], 10);
@@ -69,7 +72,11 @@ const writeExclusive = (dest: string, content: string): void => {
   // O_EXCL ensures the file doesn't already exist
   let fd: number;
   try {
-    fd = openSync(dest, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o666);
+    fd = openSync(
+      dest,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+      0o666,
+    );
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code === "EEXIST") {
