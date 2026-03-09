@@ -210,12 +210,13 @@ describe("runInterview", () => {
     const calls = (client.completeStream as ReturnType<typeof vi.fn>).mock
       .calls;
 
-    // First call: no messages (empty conversation)
+    // First call: seed message (API requires at least one user message)
     const firstRequest = calls[0][0] as CompletionRequest;
     expect(firstRequest.system).toBeDefined();
-    expect(firstRequest.messages).toHaveLength(0);
+    expect(firstRequest.messages).toHaveLength(1);
+    expect(firstRequest.messages[0].role).toBe("user");
 
-    // Second call: has assistant + user turns
+    // Second call: has assistant + user turns from actual conversation
     const secondRequest = calls[1][0] as CompletionRequest;
     expect(secondRequest.messages).toHaveLength(2);
     expect(secondRequest.messages[0].role).toBe("assistant");

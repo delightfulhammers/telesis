@@ -12,6 +12,8 @@ import { buildInterviewSystemPrompt, hasCompletionSignal } from "./prompts.js";
 
 const DEFAULT_MAX_TURNS = 20;
 const DONE_SENTINEL = "/done";
+const SEED_MESSAGE =
+  "I'd like to initialize a new project. Please begin the interview.";
 
 export interface InterviewIO {
   readonly readInput: () => Promise<string>;
@@ -58,11 +60,18 @@ export const runInterview = async (
       break;
     }
 
-    // Build messages from conversation history
-    const messages: Message[] = state.turns.map((t) => ({
+    // Build messages from conversation history.
+    // The Anthropic API requires at least one message starting with the user
+    // role. On the first call (no turns yet) we seed with a synthetic user
+    // message so the model knows to begin the interview.
+    const historyMessages: Message[] = state.turns.map((t) => ({
       role: t.role,
       content: t.content,
     }));
+    const messages: Message[] =
+      historyMessages.length === 0
+        ? [{ role: "user", content: SEED_MESSAGE }]
+        : historyMessages;
 
     // Get assistant response via streaming
     let assistantText = "";
