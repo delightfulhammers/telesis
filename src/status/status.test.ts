@@ -179,4 +179,114 @@ No status marker here.
     const rootDir = makeTempDir();
     expect(() => getStatus(rootDir)).toThrow("telesis init");
   });
+
+  it("reports zero tokens when no telemetry exists", () => {
+    const rootDir = setupProject();
+
+    const s = getStatus(rootDir);
+    expect(s.totalInputTokens).toBe(0);
+    expect(s.totalOutputTokens).toBe(0);
+    expect(s.modelCallCount).toBe(0);
+    expect(s.estimatedCost).toBeNull();
+  });
+
+  it("aggregates token counts from telemetry", () => {
+    const rootDir = setupProject();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    const records = [
+      {
+        id: "1",
+        timestamp: "2026-03-09T10:00:00Z",
+        component: "interview",
+        model: "claude-sonnet-4-20250514",
+        provider: "anthropic",
+        inputTokens: 1000,
+        outputTokens: 500,
+        durationMs: 1500,
+        sessionId: "s1",
+      },
+      {
+        id: "2",
+        timestamp: "2026-03-09T10:01:00Z",
+        component: "generate",
+        model: "claude-sonnet-4-20250514",
+        provider: "anthropic",
+        inputTokens: 2000,
+        outputTokens: 1000,
+        durationMs: 2500,
+        sessionId: "s1",
+      },
+    ];
+    writeFileSync(
+      join(rootDir, ".telesis", "telemetry.jsonl"),
+      records.map((r) => JSON.stringify(r)).join("\n") + "\n",
+    );
+
+    const s = getStatus(rootDir);
+    expect(s.totalInputTokens).toBe(3000);
+    expect(s.totalOutputTokens).toBe(1500);
+    expect(s.modelCallCount).toBe(2);
+  });
+
+  it("computes estimated cost when pricing is available", () => {
+    const rootDir = setupProject();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+
+    // Write a telemetry record
+    const record = {
+      id: "1",
+      timestamp: "2026-03-09T10:00:00Z",
+      component: "interview",
+      model: "claude-sonnet-4-20250514",
+      provider: "anthropic",
+      inputTokens: 1_000_000,
+      outputTokens: 100_000,
+      durationMs: 5000,
+      sessionId: "s1",
+    };
+    writeFileSync(
+      join(rootDir, ".telesis", "telemetry.jsonl"),
+      JSON.stringify(record) + "\n",
+    );
+
+    // Write pricing config
+    const pricingYml = [
+      "lastUpdated: '2026-03-09'",
+      "models:",
+      "  claude-sonnet-4-20250514:",
+      "    provider: anthropic",
+      "    inputPer1MTokens: 3.0",
+      "    outputPer1MTokens: 15.0",
+    ].join("\n");
+    writeFileSync(join(rootDir, ".telesis", "pricing.yml"), pricingYml);
+
+    const s = getStatus(rootDir);
+    // 1M input * $3/M + 100K output * $15/M = $3 + $1.50 = $4.50
+    expect(s.estimatedCost).toBeCloseTo(4.5, 2);
+  });
+
+  it("returns null cost when pricing is unavailable", () => {
+    const rootDir = setupProject();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+
+    const record = {
+      id: "1",
+      timestamp: "2026-03-09T10:00:00Z",
+      component: "interview",
+      model: "claude-sonnet-4-20250514",
+      provider: "anthropic",
+      inputTokens: 1000,
+      outputTokens: 500,
+      durationMs: 1500,
+      sessionId: "s1",
+    };
+    writeFileSync(
+      join(rootDir, ".telesis", "telemetry.jsonl"),
+      JSON.stringify(record) + "\n",
+    );
+
+    const s = getStatus(rootDir);
+    expect(s.totalInputTokens).toBe(1000);
+    expect(s.estimatedCost).toBeNull();
+  });
 });

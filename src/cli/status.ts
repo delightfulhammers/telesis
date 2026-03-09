@@ -8,6 +8,8 @@ const firstLine = (s: string): string => {
   return idx >= 0 ? s.slice(0, idx) : s;
 };
 
+const formatNumber = (n: number): string => n.toLocaleString("en-US");
+
 const formatDate = (d: Date): string => {
   const pad = (n: number): string => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
@@ -37,6 +39,15 @@ export const statusCommand = new Command("status")
         );
       } else {
         console.log("CLAUDE.md:  not yet generated");
+      }
+
+      if (s.modelCallCount > 0) {
+        console.log(
+          `Tokens:     ${formatNumber(s.totalInputTokens)} in / ${formatNumber(s.totalOutputTokens)} out (${s.modelCallCount} call${s.modelCallCount === 1 ? "" : "s"})`,
+        );
+        if (s.estimatedCost !== null) {
+          console.log(`Est. cost:  $${s.estimatedCost.toFixed(4)}`);
+        }
       }
     }),
   );
