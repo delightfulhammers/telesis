@@ -2,6 +2,8 @@ import { readdirSync, statSync as fsStatSync, type Dirent } from "node:fs";
 import { join } from "node:path";
 import { load } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
+import { loadTelemetryRecords } from "../agent/telemetry/reader.js";
+import { loadPricing, calculateCost } from "../agent/telemetry/pricing.js";
 
 export interface Status {
   readonly projectName: string;
@@ -10,6 +12,10 @@ export interface Status {
   readonly tddCount: number;
   readonly activeMilestone: string;
   readonly contextGeneratedAt: Date | null;
+  readonly totalInputTokens: number;
+  readonly totalOutputTokens: number;
+  readonly modelCallCount: number;
+  readonly estimatedCost: number | null;
 }
 
 const countFiles = (dir: string, pattern: RegExp): number => {
@@ -48,6 +54,14 @@ export const getStatus = (rootDir: string): Status => {
 
   const contextGeneratedAt = contextTimestamp(join(rootDir, "CLAUDE.md"));
 
+  const records = loadTelemetryRecords(rootDir);
+  const totalInputTokens = records.reduce((sum, r) => sum + r.inputTokens, 0);
+  const totalOutputTokens = records.reduce((sum, r) => sum + r.outputTokens, 0);
+
+  const pricing = loadPricing(rootDir);
+  const estimatedCost =
+    pricing && records.length > 0 ? calculateCost(records, pricing) : null;
+
   return {
     projectName: cfg.project.name,
     projectStatus: cfg.project.status,
@@ -55,5 +69,9 @@ export const getStatus = (rootDir: string): Status => {
     tddCount,
     activeMilestone,
     contextGeneratedAt,
+    totalInputTokens,
+    totalOutputTokens,
+    modelCallCount: records.length,
+    estimatedCost,
   };
 };
