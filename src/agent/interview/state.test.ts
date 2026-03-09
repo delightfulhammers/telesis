@@ -5,6 +5,7 @@ import {
   createInitialState,
   addTurn,
   markComplete,
+  ensureStateDir,
   saveState,
   loadState,
 } from "./state.js";
@@ -90,6 +91,7 @@ describe("InterviewState", () => {
   describe("saveState / loadState", () => {
     it("round-trips state through filesystem", async () => {
       const rootDir = makeTempDir();
+      await ensureStateDir(rootDir);
       let state = createInitialState("sess-42");
       state = addTurn(state, { role: "assistant", content: "Q1" });
       state = addTurn(state, { role: "user", content: "A1" });
@@ -100,11 +102,11 @@ describe("InterviewState", () => {
       expect(loaded).toEqual(state);
     });
 
-    it("creates .telesis directory if missing", async () => {
+    it("ensureStateDir creates .telesis directory if missing", async () => {
       const rootDir = makeTempDir();
-      const state = createInitialState("sess-1");
 
-      await saveState(rootDir, state);
+      await ensureStateDir(rootDir);
+      await saveState(rootDir, createInitialState("sess-1"));
 
       const content = readFileSync(
         join(rootDir, ".telesis", "interview-state.json"),
@@ -115,7 +117,7 @@ describe("InterviewState", () => {
 
     it("overwrites existing state file", async () => {
       const rootDir = makeTempDir();
-      mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+      await ensureStateDir(rootDir);
 
       await saveState(rootDir, createInitialState("sess-1"));
       await saveState(rootDir, createInitialState("sess-2"));
@@ -131,6 +133,7 @@ describe("InterviewState", () => {
 
     it("writes formatted JSON with trailing newline", async () => {
       const rootDir = makeTempDir();
+      await ensureStateDir(rootDir);
       await saveState(rootDir, createInitialState("sess-1"));
 
       const content = readFileSync(

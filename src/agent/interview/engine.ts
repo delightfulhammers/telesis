@@ -5,6 +5,7 @@ import {
   createInitialState,
   addTurn,
   markComplete,
+  ensureStateDir,
   saveState,
 } from "./state.js";
 import { buildInterviewSystemPrompt, hasCompletionSignal } from "./prompts.js";
@@ -38,6 +39,7 @@ export const runInterview = async (
 
   const systemPrompt = buildInterviewSystemPrompt();
   let state = createInitialState(sessionId);
+  await ensureStateDir(rootDir);
 
   io.writeOutput(
     "\nI'll ask you a few questions about your project, then generate your\n" +
@@ -80,15 +82,15 @@ export const runInterview = async (
 
     state = addTurn(state, { role: "assistant", content: assistantText });
 
-    // Persist after assistant turn so it survives interruption during user input
-    await saveState(rootDir, state);
-
-    // Check if model signaled completion
+    // Check completion before persisting so we save the final state in one write
     if (hasCompletionSignal(assistantText)) {
       state = markComplete(state);
       await saveState(rootDir, state);
       break;
     }
+
+    // Persist after assistant turn so it survives interruption during user input
+    await saveState(rootDir, state);
 
     // Read user input
     const input = await io.readInput();

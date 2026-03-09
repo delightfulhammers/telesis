@@ -82,13 +82,15 @@ const validateState = (raw: unknown, filePath: string): InterviewState => {
   return raw as InterviewState;
 };
 
+export const ensureStateDir = async (rootDir: string): Promise<void> => {
+  await mkdir(join(resolve(rootDir), ".telesis"), { recursive: true });
+};
+
 export const saveState = async (
   rootDir: string,
   state: InterviewState,
 ): Promise<void> => {
   const resolvedRoot = resolve(rootDir);
-  const dir = join(resolvedRoot, ".telesis");
-  await mkdir(dir, { recursive: true });
   const finalPath = join(resolvedRoot, STATE_PATH);
   const tmpPath = finalPath + ".tmp";
   await writeFile(tmpPath, JSON.stringify(state, null, 2) + "\n");
