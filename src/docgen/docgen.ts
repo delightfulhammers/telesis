@@ -36,8 +36,8 @@ export const nextNumber = (docDir: string, prefix: string): number => {
   let entries: Dirent[];
   try {
     entries = readdirSync(docDir, { withFileTypes: true });
-  } catch {
-    throw new Error(`reading directory: ${docDir}`);
+  } catch (err) {
+    throw new Error(`reading directory: ${docDir}`, { cause: err });
   }
 
   let highest = 0;
