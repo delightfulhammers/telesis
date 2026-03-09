@@ -96,7 +96,23 @@ describe("extractConfig", () => {
     );
 
     await expect(extractConfig(client, makeState())).rejects.toThrow(
-      "missing required field: name",
+      "Config extraction missing required field: name",
+    );
+  });
+
+  it("throws if model returns JSON null", async () => {
+    const client = makeClient("null");
+
+    await expect(extractConfig(client, makeState())).rejects.toThrow(
+      "Failed to parse config extraction response",
+    );
+  });
+
+  it("throws if model returns JSON array", async () => {
+    const client = makeClient('[{"name": "test"}]');
+
+    await expect(extractConfig(client, makeState())).rejects.toThrow(
+      "Failed to parse config extraction response",
     );
   });
 

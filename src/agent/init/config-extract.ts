@@ -53,14 +53,18 @@ export const extractConfig = async (
 
   const jsonStr = extractJsonFromResponse(response.content);
 
-  let parsed: Record<string, unknown>;
+  let raw: unknown;
   try {
-    parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+    raw = JSON.parse(jsonStr);
   } catch {
-    throw new Error(
-      `Failed to parse config extraction response: ${jsonStr.slice(0, 200)}`,
-    );
+    throw new Error("Failed to parse config extraction response");
   }
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("Failed to parse config extraction response");
+  }
+
+  const parsed = raw as Record<string, unknown>;
 
   if (
     !parsed.name ||

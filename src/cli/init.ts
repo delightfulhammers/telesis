@@ -47,6 +47,13 @@ export const initCommand = new Command("init")
       const sessionId = randomUUID();
       const telemetry = createTelemetryLogger(rootDir);
 
+      if (!process.env.ANTHROPIC_API_KEY) {
+        throw new Error(
+          "ANTHROPIC_API_KEY environment variable is not set. " +
+            "Set it to your Anthropic API key before running telesis init.",
+        );
+      }
+
       const sdk = new Anthropic();
 
       const interviewClient = createModelClient({
