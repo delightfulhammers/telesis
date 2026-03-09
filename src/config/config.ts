@@ -5,6 +5,9 @@ import {
   existsSync,
   renameSync,
   unlinkSync,
+  openSync,
+  closeSync,
+  constants,
 } from "node:fs";
 import { join } from "node:path";
 import * as yaml from "js-yaml";
@@ -41,12 +44,12 @@ export const load = (rootDir: string): Config => {
   try {
     data = readFileSync(path, "utf-8");
   } catch {
-    throw new Error(
-      "could not read config (run `telesis init` first)",
-    );
+    throw new Error("could not read config (run `telesis init` first)");
   }
 
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown> | undefined;
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
   if (!raw || typeof raw !== "object") {
     throw new Error("config missing required field: project.name");
   }
@@ -91,14 +94,33 @@ export const save = (rootDir: string, cfg: Config): void => {
   const dest = configPath(rootDir);
   const tmpPath = join(dir, `.config-${process.pid}-${++configCounter}.yml`);
 
+  const fd = openSync(
+    tmpPath,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+    0o644,
+  );
+
   try {
-    writeFileSync(tmpPath, content, { mode: 0o644 });
+    writeFileSync(fd, content);
+  } catch (err) {
+    closeSync(fd);
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      /* cleanup best-effort */
+    }
+    throw err;
+  }
+
+  closeSync(fd);
+
+  try {
     renameSync(tmpPath, dest);
   } catch (err) {
     try {
       unlinkSync(tmpPath);
     } catch {
-      // cleanup best-effort
+      /* cleanup best-effort */
     }
     throw err;
   }

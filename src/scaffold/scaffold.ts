@@ -84,10 +84,7 @@ const writeFileAtomic = (dest: string, content: string): void => {
   const dir = dirname(dest);
   mkdirSync(dir, { recursive: true, mode: 0o755 });
 
-  const tmpPath = join(
-    dir,
-    `.scaffold-${process.pid}-${++atomicCounter}`,
-  );
+  const tmpPath = join(dir, `.scaffold-${process.pid}-${++atomicCounter}`);
 
   const fd = openSync(
     tmpPath,
@@ -97,11 +94,26 @@ const writeFileAtomic = (dest: string, content: string): void => {
 
   try {
     writeFileSync(fd, content);
+  } catch (err) {
     closeSync(fd);
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      /* cleanup best-effort */
+    }
+    throw err;
+  }
+
+  closeSync(fd);
+
+  try {
     renameSync(tmpPath, dest);
   } catch (err) {
-    try { closeSync(fd); } catch { /* already closed */ }
-    try { unlinkSync(tmpPath); } catch { /* cleanup best-effort */ }
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      /* cleanup best-effort */
+    }
     throw err;
   }
 };
