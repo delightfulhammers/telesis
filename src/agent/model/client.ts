@@ -168,6 +168,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     let completed = false;
     let accumulatedText = "";
     let startUsage: Anthropic.Usage | undefined;
+    let sawMessageDelta = false;
     let finalOutputTokens = 0;
 
     try {
@@ -187,6 +188,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
           accumulatedText += event.delta.text;
           yield { type: "text", text: event.delta.text };
         } else if (event.type === "message_delta" && event.usage) {
+          sawMessageDelta = true;
           finalOutputTokens = event.usage.output_tokens;
         }
       }
@@ -194,6 +196,11 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
       if (!startUsage) {
         console.warn(
           "telesis: message_start event missing from stream; input token count will be inaccurate",
+        );
+      }
+      if (!sawMessageDelta) {
+        console.warn(
+          "telesis: message_delta event missing from stream; output token count will be inaccurate",
         );
       }
       const usage = startUsage
