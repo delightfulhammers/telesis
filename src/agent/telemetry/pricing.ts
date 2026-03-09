@@ -18,16 +18,13 @@ export interface PricingConfig {
 
 const PRICING_PATH = ".telesis/pricing.yml";
 
-const DEFAULT_PRICING: PricingConfig = {
-  lastUpdated: new Date().toISOString().split("T")[0],
-  models: {
-    "claude-sonnet-4-20250514": {
-      provider: "anthropic",
-      inputPer1MTokens: 3.0,
-      outputPer1MTokens: 15.0,
-      cacheReadPer1MTokens: 0.3,
-      cacheWritePer1MTokens: 3.75,
-    },
+const DEFAULT_MODELS: PricingConfig["models"] = {
+  "claude-sonnet-4-20250514": {
+    provider: "anthropic",
+    inputPer1MTokens: 3.0,
+    outputPer1MTokens: 15.0,
+    cacheReadPer1MTokens: 0.3,
+    cacheWritePer1MTokens: 3.75,
   },
 };
 
@@ -36,10 +33,14 @@ export const bootstrapPricing = (rootDir: string): void => {
   const pricingPath = join(resolvedRoot, PRICING_PATH);
 
   mkdirSync(join(resolvedRoot, ".telesis"), { recursive: true });
+  const pricing: PricingConfig = {
+    lastUpdated: new Date().toISOString().split("T")[0],
+    models: DEFAULT_MODELS,
+  };
   const content =
     "# Telesis model pricing — used for cost estimation\n" +
     "# Update manually or via `telesis pricing update` (future)\n" +
-    yaml.dump(DEFAULT_PRICING);
+    yaml.dump(pricing);
 
   try {
     writeFileSync(pricingPath, content, { flag: "wx" });

@@ -165,6 +165,7 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     // suspended at yield (consumer processing) is excluded.
     let networkMs = 0;
     const iterator = streamIterable[Symbol.asyncIterator]();
+    let completed = false;
 
     try {
       for (;;) {
@@ -181,18 +182,21 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
           yield { type: "text", text: event.delta.text };
         }
       }
+
+      const finalStart = performance.now();
+      const finalMessage = await streamIterable.finalMessage();
+      networkMs += performance.now() - finalStart;
+
+      const result = toCompletionResponse(finalMessage, networkMs);
+      logTelemetry(params.model, result.usage, result.durationMs);
+
+      yield { type: "done", response: result };
+      completed = true;
     } finally {
-      await iterator.return?.();
+      if (!completed) {
+        await iterator.return?.();
+      }
     }
-
-    const finalStart = performance.now();
-    const finalMessage = await streamIterable.finalMessage();
-    networkMs += performance.now() - finalStart;
-
-    const result = toCompletionResponse(finalMessage, networkMs);
-    logTelemetry(params.model, result.usage, result.durationMs);
-
-    yield { type: "done", response: result };
   };
 
   return { complete, completeStream };
