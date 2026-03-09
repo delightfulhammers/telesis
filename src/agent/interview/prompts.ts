@@ -39,7 +39,7 @@ Do NOT include this JSON block until you genuinely have enough context. A premat
 - The developer can type /done at any point to skip remaining questions and proceed to generation with whatever context has been collected.
 - Start by introducing yourself briefly and asking what the project is about.`;
 
-const JSON_BLOCK_RE = /\{[^{}]*"interviewComplete"\s*:\s*[^{}]*\}/g;
+const JSON_BLOCK_RE = /\{[^{}]{0,500}"interviewComplete"\s*:\s*[^{}]{0,500}\}/g;
 
 export const hasCompletionSignal = (text: string): boolean => {
   const matches = text.match(JSON_BLOCK_RE);

@@ -101,8 +101,8 @@ export const runInterview = async (
     // Check for /done sentinel
     if (input.trim().toLowerCase() === DONE_SENTINEL) {
       io.writeOutput("Proceeding to document generation.\n");
-      state = markComplete(state);
       state = addTurn(state, { role: "user", content: input });
+      state = markComplete(state);
       await saveState(rootDir, state);
       break;
     }
