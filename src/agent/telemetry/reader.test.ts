@@ -112,4 +112,46 @@ describe("loadTelemetryRecords", () => {
     expect(loaded[0].cacheReadTokens).toBe(50);
     expect(loaded[0].cacheWriteTokens).toBe(75);
   });
+
+  it("rejects records with NaN token counts", () => {
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    const record = { ...makeRecord(), inputTokens: NaN };
+    writeFileSync(
+      join(rootDir, ".telesis", "telemetry.jsonl"),
+      JSON.stringify(record) + "\n",
+    );
+
+    const loaded = loadTelemetryRecords(rootDir);
+
+    expect(loaded).toHaveLength(0);
+  });
+
+  it("rejects records with negative token counts", () => {
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    const record = { ...makeRecord(), outputTokens: -100 };
+    writeFileSync(
+      join(rootDir, ".telesis", "telemetry.jsonl"),
+      JSON.stringify(record) + "\n",
+    );
+
+    const loaded = loadTelemetryRecords(rootDir);
+
+    expect(loaded).toHaveLength(0);
+  });
+
+  it("rejects records with Infinity duration", () => {
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    const record = { ...makeRecord(), durationMs: Infinity };
+    writeFileSync(
+      join(rootDir, ".telesis", "telemetry.jsonl"),
+      JSON.stringify(record) + "\n",
+    );
+
+    const loaded = loadTelemetryRecords(rootDir);
+
+    expect(loaded).toHaveLength(0);
+  });
 });

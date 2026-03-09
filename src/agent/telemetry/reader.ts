@@ -4,6 +4,9 @@ import type { ModelCallRecord } from "./types.js";
 
 const TELEMETRY_PATH = ".telesis/telemetry.jsonl";
 
+const isFiniteNonNeg = (val: unknown): val is number =>
+  typeof val === "number" && Number.isFinite(val) && val >= 0;
+
 const isValidRecord = (val: unknown): val is ModelCallRecord => {
   if (!val || typeof val !== "object") return false;
   const obj = val as Record<string, unknown>;
@@ -13,9 +16,9 @@ const isValidRecord = (val: unknown): val is ModelCallRecord => {
     typeof obj.component === "string" &&
     typeof obj.model === "string" &&
     typeof obj.provider === "string" &&
-    typeof obj.inputTokens === "number" &&
-    typeof obj.outputTokens === "number" &&
-    typeof obj.durationMs === "number" &&
+    isFiniteNonNeg(obj.inputTokens) &&
+    isFiniteNonNeg(obj.outputTokens) &&
+    isFiniteNonNeg(obj.durationMs) &&
     typeof obj.sessionId === "string"
   );
 };
