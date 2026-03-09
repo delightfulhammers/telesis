@@ -63,9 +63,9 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 the flags-only `telesis init` with a conversational agent that interviews the developer
 and generates substantive first-draft project documents from that conversation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Reference:** TDD-001 (Init Agent), ADR-001 (TypeScript agent layer)
+**Reference:** TDD-001 (Init Agent), ADR-001 (TypeScript agent layer), ADR-002 (TypeScript rewrite)
 
 ### What Changes
 
@@ -107,6 +107,19 @@ real documents — not skeletons.
    report token usage and estimated cost
 7. **Phase 6 — Validation:** initialize a real project with the agent, evaluate document
    quality, validate all acceptance criteria
+
+### Phase 6 Notes
+
+Live validation against a sample project (tic-tac-toe webapp) confirmed all 10 acceptance
+criteria. Three runtime bugs were found and fixed during live testing: empty messages array
+on first API call, `finalMessage()` unavailable on raw SDK stream, and config extraction
+failing when project name not explicitly stated.
+
+Document quality assessment identified five areas for improvement, tracked as issues #15–#19:
+generic VISION.md principles, incorrect language normalization (React vs TypeScript),
+ARCHITECTURE.md over-specifying undiscussed implementation details, interview context
+dropped from generated docs, and missing out-of-scope section in PRD. Issue #20 tracks
+building an evaluation suite to measure document quality systematically.
 
 ---
 
