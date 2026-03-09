@@ -99,11 +99,12 @@ describe("runInterview", () => {
     const state = await runInterview(makeOptions({ client, io, rootDir }));
 
     expect(state.complete).toBe(true);
-    expect(state.turns).toHaveLength(5); // 3 assistant + 2 user
-    expect(state.turnCount).toBe(2); // only user turns counted
-    expect(state.turns[0].role).toBe("assistant");
-    expect(state.turns[1].role).toBe("user");
-    expect(state.turns[1].content).toBe("A CLI tool");
+    expect(state.turns).toHaveLength(6); // seed + 3 assistant + 2 user
+    expect(state.turnCount).toBe(2); // only real user turns counted (not seed)
+    expect(state.turns[0].role).toBe("user"); // seed message
+    expect(state.turns[1].role).toBe("assistant");
+    expect(state.turns[2].role).toBe("user");
+    expect(state.turns[2].content).toBe("A CLI tool");
   });
 
   it("ends interview when model signals completion", async () => {
@@ -115,8 +116,8 @@ describe("runInterview", () => {
     const state = await runInterview(makeOptions({ client, io }));
 
     expect(state.complete).toBe(true);
-    expect(state.turns).toHaveLength(1); // just the assistant completion
-    expect(state.turnCount).toBe(0);
+    expect(state.turns).toHaveLength(2); // seed + assistant completion
+    expect(state.turnCount).toBe(0); // seed doesn't count as real user turn
     expect(io.readInput).not.toHaveBeenCalled();
   });
 
@@ -127,8 +128,8 @@ describe("runInterview", () => {
     const state = await runInterview(makeOptions({ client, io }));
 
     expect(state.complete).toBe(true);
-    expect(state.turns).toHaveLength(2); // assistant + user /done
-    expect(state.turns[1].content).toBe("/done");
+    expect(state.turns).toHaveLength(3); // seed + assistant + user /done
+    expect(state.turns[2].content).toBe("/done");
   });
 
   it("handles /done case-insensitively with whitespace", async () => {
@@ -148,8 +149,8 @@ describe("runInterview", () => {
 
     expect(state.complete).toBe(true);
     expect(state.turnCount).toBe(3);
-    // 3 assistant + 3 user = 6 turns, no extra model call
-    expect(state.turns).toHaveLength(6);
+    // seed + 3 assistant + 3 user = 7 turns, no extra model call
+    expect(state.turns).toHaveLength(7);
     expect(client.completeStream).toHaveBeenCalledTimes(3);
   });
 
@@ -216,12 +217,13 @@ describe("runInterview", () => {
     expect(firstRequest.messages).toHaveLength(1);
     expect(firstRequest.messages[0].role).toBe("user");
 
-    // Second call: has assistant + user turns from actual conversation
+    // Second call: seed + assistant + user turns from actual conversation
     const secondRequest = calls[1][0] as CompletionRequest;
-    expect(secondRequest.messages).toHaveLength(2);
-    expect(secondRequest.messages[0].role).toBe("assistant");
-    expect(secondRequest.messages[1].role).toBe("user");
-    expect(secondRequest.messages[1].content).toBe("A1");
+    expect(secondRequest.messages).toHaveLength(3);
+    expect(secondRequest.messages[0].role).toBe("user"); // seed
+    expect(secondRequest.messages[1].role).toBe("assistant");
+    expect(secondRequest.messages[2].role).toBe("user");
+    expect(secondRequest.messages[2].content).toBe("A1");
   });
 
   it("uses the same system prompt for every turn", async () => {
@@ -249,9 +251,9 @@ describe("runInterview", () => {
 
     const state = await runInterview(makeOptions({ client, io }));
 
-    expect(state.turns[0].content).toBe("What are you building?");
+    expect(state.turns[1].content).toBe("What are you building?");
     expect(state.complete).toBe(true);
-    expect(state.turns).toHaveLength(3); // assistant + user + assistant
+    expect(state.turns).toHaveLength(4); // seed + assistant + user + assistant
   });
 
   it("detects completion signal split across stream chunks", async () => {

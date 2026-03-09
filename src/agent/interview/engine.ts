@@ -43,6 +43,13 @@ export const runInterview = async (
   let state = createInitialState(sessionId);
   await ensureStateDir(rootDir);
 
+  // The Anthropic API requires at least one message starting with the user
+  // role. Persist a synthetic seed message as the first turn so every API
+  // call — including the first — has a valid conversation history.
+  // Added directly to turns (not via addTurn) so it doesn't increment
+  // turnCount, which tracks real user turns for the max-turns limit.
+  state = { ...state, turns: [{ role: "user", content: SEED_MESSAGE }] };
+
   io.writeOutput(
     "\nI'll ask you a few questions about your project, then generate your\n" +
       "project documents. Type /done at any time to proceed with what we have.\n\n" +
@@ -60,18 +67,11 @@ export const runInterview = async (
       break;
     }
 
-    // Build messages from conversation history.
-    // The Anthropic API requires at least one message starting with the user
-    // role. On the first call (no turns yet) we seed with a synthetic user
-    // message so the model knows to begin the interview.
-    const historyMessages: Message[] = state.turns.map((t) => ({
+    // Build messages from conversation history
+    const messages: Message[] = state.turns.map((t) => ({
       role: t.role,
       content: t.content,
     }));
-    const messages: Message[] =
-      historyMessages.length === 0
-        ? [{ role: "user", content: SEED_MESSAGE }]
-        : historyMessages;
 
     // Get assistant response via streaming
     let assistantText = "";
