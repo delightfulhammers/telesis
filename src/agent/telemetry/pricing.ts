@@ -52,13 +52,22 @@ export const bootstrapPricing = (rootDir: string): void => {
 const isValidModelPricing = (val: unknown): val is ModelPricing => {
   if (!val || typeof val !== "object") return false;
   const obj = val as Record<string, unknown>;
-  return (
-    typeof obj.provider === "string" &&
-    typeof obj.inputPer1MTokens === "number" &&
-    typeof obj.outputPer1MTokens === "number" &&
-    obj.inputPer1MTokens >= 0 &&
-    obj.outputPer1MTokens >= 0
-  );
+  if (typeof obj.provider !== "string") return false;
+  if (typeof obj.inputPer1MTokens !== "number" || obj.inputPer1MTokens < 0)
+    return false;
+  if (typeof obj.outputPer1MTokens !== "number" || obj.outputPer1MTokens < 0)
+    return false;
+  if (
+    typeof obj.cacheReadPer1MTokens === "number" &&
+    obj.cacheReadPer1MTokens < 0
+  )
+    return false;
+  if (
+    typeof obj.cacheWritePer1MTokens === "number" &&
+    obj.cacheWritePer1MTokens < 0
+  )
+    return false;
+  return true;
 };
 
 const validatePricing = (raw: unknown): PricingConfig | null => {
@@ -96,7 +105,12 @@ export const loadPricing = (rootDir: string): PricingConfig | null => {
     return null;
   }
 
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA });
+  let raw: unknown;
+  try {
+    raw = yaml.load(data, { schema: yaml.JSON_SCHEMA });
+  } catch {
+    return null;
+  }
   return validatePricing(raw);
 };
 

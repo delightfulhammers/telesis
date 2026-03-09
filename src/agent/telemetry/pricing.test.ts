@@ -105,6 +105,30 @@ describe("pricing", () => {
       expect(loadPricing(rootDir)).toBeNull();
     });
 
+    it("returns null for malformed YAML syntax", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "pricing.yml"), "{{bad yaml:\n");
+
+      expect(loadPricing(rootDir)).toBeNull();
+    });
+
+    it("skips model entries with negative cache pricing", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "pricing.yml"),
+        'lastUpdated: "2026-03-09"\nmodels:\n  valid-model:\n    provider: test\n    inputPer1MTokens: 3\n    outputPer1MTokens: 15\n  neg-cache:\n    provider: test\n    inputPer1MTokens: 3\n    outputPer1MTokens: 15\n    cacheWritePer1MTokens: -5\n',
+      );
+
+      const pricing = loadPricing(rootDir);
+      expect(pricing).not.toBeNull();
+      expect(pricing!.models["valid-model"]).toBeDefined();
+      expect(pricing!.models["neg-cache"]).toBeUndefined();
+    });
+
     it("skips model entries with invalid pricing fields", () => {
       const rootDir = makeTempDir();
       const dir = join(rootDir, ".telesis");

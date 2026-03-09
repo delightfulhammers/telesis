@@ -118,6 +118,8 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
     request: CompletionRequest,
   ): Promise<CompletionResponse> => {
     const params = buildParams(request, defaultModel);
+    // durationMs measures the successful API call only, not retry overhead.
+    // On retry, the timer resets so backoff sleep is excluded.
     let start = performance.now();
 
     let response: Anthropic.Message;
@@ -159,24 +161,28 @@ export const createModelClient = (options: ModelClientOptions): ModelClient => {
       finalMessage: () => Promise<Anthropic.Message>;
     };
 
-    // Accumulate only network wait time, excluding time the generator
-    // is suspended at yield (consumer processing time).
+    // durationMs measures network wait time only — time the generator is
+    // suspended at yield (consumer processing) is excluded.
     let networkMs = 0;
     const iterator = streamIterable[Symbol.asyncIterator]();
 
-    for (;;) {
-      const iterStart = performance.now();
-      const { value: event, done } = await iterator.next();
-      networkMs += performance.now() - iterStart;
-      if (done) break;
+    try {
+      for (;;) {
+        const iterStart = performance.now();
+        const { value: event, done } = await iterator.next();
+        networkMs += performance.now() - iterStart;
+        if (done) break;
 
-      if (
-        event.type === "content_block_delta" &&
-        event.delta?.type === "text_delta" &&
-        event.delta.text
-      ) {
-        yield { type: "text", text: event.delta.text };
+        if (
+          event.type === "content_block_delta" &&
+          event.delta?.type === "text_delta" &&
+          event.delta.text
+        ) {
+          yield { type: "text", text: event.delta.text };
+        }
       }
+    } finally {
+      await iterator.return?.();
     }
 
     const finalStart = performance.now();
