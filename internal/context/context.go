@@ -227,10 +227,75 @@ func extractPrinciples(visionPath string) (string, error) {
 	return extractSection(visionPath, principlesHeaderRe, false)
 }
 
-var milestonesHeaderRe = regexp.MustCompile(`(?i)^##\s+MVP`)
+var (
+	milestoneHeadingRe = regexp.MustCompile(`^##\s+\S`)
+	statusInProgressRe = regexp.MustCompile(`(?i)^\*\*Status:\*\*\s+In Progress`)
+	statusCompleteRe   = regexp.MustCompile(`(?i)^\*\*Status:\*\*\s+Complete`)
+)
 
+// extractMilestones finds the active milestone (Status: In Progress) from the
+// milestones file. If no active milestone exists, it falls back to the last
+// completed milestone.
 func extractMilestones(milestonesPath string) (string, error) {
-	return extractSection(milestonesPath, milestonesHeaderRe, true)
+	f, err := os.Open(milestonesPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer f.Close()
+
+	type section struct {
+		lines []string
+	}
+
+	var sections []section
+	var current *section
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		if milestoneHeadingRe.MatchString(trimmed) {
+			s := section{lines: []string{line}}
+			sections = append(sections, s)
+			current = &sections[len(sections)-1]
+			continue
+		}
+
+		if current != nil {
+			if trimmed == "---" {
+				current = nil
+				continue
+			}
+			current.lines = append(current.lines, line)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("scanning %s: %w", filepath.Base(milestonesPath), err)
+	}
+
+	// Prefer "In Progress", fall back to last "Complete"
+	var lastComplete *section
+	for i := range sections {
+		for _, line := range sections[i].lines {
+			trimmed := strings.TrimSpace(line)
+			if statusInProgressRe.MatchString(trimmed) {
+				return strings.TrimSpace(strings.Join(sections[i].lines, "\n")), nil
+			}
+			if statusCompleteRe.MatchString(trimmed) {
+				lastComplete = &sections[i]
+			}
+		}
+	}
+
+	if lastComplete != nil {
+		return strings.TrimSpace(strings.Join(lastComplete.lines, "\n")), nil
+	}
+
+	return "", nil
 }
 
 // extractSection extracts content under the first heading matching the given

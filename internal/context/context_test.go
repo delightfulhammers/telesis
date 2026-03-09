@@ -201,6 +201,97 @@ func TestGenerateSortsADRsNumerically(t *testing.T) {
 	assert.Less(t, idx020, idx100)
 }
 
+func TestGenerateExtractsActiveMilestone(t *testing.T) {
+	rootDir := setupProject(t)
+
+	milestones := `# Milestones
+
+---
+
+## MVP v0.1.0
+
+**Goal:** First milestone.
+
+**Status:** Complete
+
+### Acceptance Criteria
+
+1. Thing one
+2. Thing two
+
+---
+
+## v0.2.0 — AI-Powered Init
+
+**Goal:** Second milestone.
+
+**Status:** In Progress
+
+### Acceptance Criteria
+
+1. New thing one
+2. New thing two
+
+---
+
+## Future Milestones
+
+More stuff here.
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(rootDir, "docs", "MILESTONES.md"),
+		[]byte(milestones),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "v0.2.0 — AI-Powered Init")
+	assert.Contains(t, output, "Second milestone")
+	assert.Contains(t, output, "New thing one")
+	assert.NotContains(t, output, "First milestone")
+	assert.NotContains(t, output, "More stuff here")
+}
+
+func TestGenerateExtractsCompletedMilestoneWhenNoActive(t *testing.T) {
+	rootDir := setupProject(t)
+
+	// When there's no "In Progress" milestone, fall back to the last
+	// "Complete" one so we still show something useful.
+	milestones := `# Milestones
+
+---
+
+## MVP v0.1.0
+
+**Goal:** Only milestone.
+
+**Status:** Complete
+
+### Acceptance Criteria
+
+1. Done thing
+
+---
+
+## Future Milestones
+
+Upcoming stuff.
+`
+	require.NoError(t, os.WriteFile(
+		filepath.Join(rootDir, "docs", "MILESTONES.md"),
+		[]byte(milestones),
+		0o644,
+	))
+
+	output, err := context.Generate(rootDir)
+	require.NoError(t, err)
+
+	assert.Contains(t, output, "MVP v0.1.0")
+	assert.Contains(t, output, "Only milestone")
+}
+
 func TestGenerateMissingOptionalFilesOK(t *testing.T) {
 	rootDir := setupProject(t)
 	// No VISION.md or MILESTONES.md — should succeed with empty sections

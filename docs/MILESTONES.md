@@ -36,12 +36,65 @@ Template parity was achieved by introducing `docs/context/` — freeform markdow
 
 ---
 
+## v0.2.0 — AI-Powered Init
+
+**Goal:** Cross the line from plain CLI tool to development intelligence platform. Replace
+the flags-only `telesis init` with a conversational agent that interviews the developer
+and generates substantive first-draft project documents from that conversation.
+
+**Status:** In Progress
+
+**Reference:** TDD-001 (Init Agent), ADR-001 (TypeScript agent layer)
+
+### What Changes
+
+The existing Go CLI (`telesis`) is unchanged. A new TypeScript agent layer (`agent/`) is
+introduced alongside it. The `telesis init` experience becomes: run the agent, answer
+questions, receive real documents — not skeletons.
+
+### Acceptance Criteria
+
+1. `telesis init` launches the TypeScript init agent and conducts a conversational
+   interview with the developer
+2. The interview collects all required project context: name, owner, purpose, primary
+   language(s), constraints, success criteria, architecture hints, out-of-scope items
+3. The agent generates substantive (non-skeleton) first-draft versions of VISION.md,
+   PRD.md, ARCHITECTURE.md, and MILESTONES.md from the interview
+4. The agent writes `.telesis/config.yml` from collected metadata
+5. The agent invokes `telesis context` to produce the initial `CLAUDE.md`
+6. Every model call is logged to `.telesis/telemetry.jsonl` with token counts and
+   duration
+7. `telesis status` reports total tokens used and estimated cost from telemetry
+8. The agent creates `.telesis/pricing.yml` with current model pricing on first run
+9. A new project initialized with the v0.2.0 `telesis init` produces documents
+   good enough to begin development without significant manual editing
+10. Bop reviews at least one PR on the Telesis repo during this milestone
+
+### Build Sequence
+
+1. **Phase 0 — Agent scaffold:** `agent/` directory, `package.json`, `tsconfig.json`,
+   TypeScript toolchain, `pnpm` workspace configuration
+2. **Phase 1 — Model client + telemetry:** `ModelClient` abstraction, JSONL telemetry
+   logger, `pricing.yml` bootstrap
+3. **Phase 2 — Interview engine:** conversation loop, state serialization, system prompt
+4. **Phase 3 — Document generator:** per-document generation calls, generation prompts,
+   sequential generation with accumulated context
+5. **Phase 4 — CLI entrypoint + Go integration:** wire `telesis init` to invoke agent,
+   subprocess call to `telesis context`, summary output
+6. **Phase 5 — Status integration:** update `telesis status` to read telemetry and
+   report token usage and estimated cost
+7. **Phase 6 — Validation:** initialize a real project with the agent, evaluate document
+   quality, validate all acceptance criteria
+
+---
+
 ## Future Milestones
 
-*(Out of scope for MVP. Tracked here as direction, not commitment.)*
+*(Tracked here as direction, not commitment.)*
 
-- **v0.2.0 — Interactive Init:** Interview-driven `telesis init` with guided prompts
-- **v0.3.0 — Drift Detection:** Compare implementation against spec, flag divergence
-- **v0.4.0 — Session Insight Capture:** Lightweight mechanism for feeding development observations back into project memory (see VISION.md, "The Insight Gap")
+- **v0.3.0 — Drift Detection:** Compare implementation against spec; flag divergence
+- **v0.4.0 — Session Insight Capture:** Lightweight mechanism for feeding development
+  observations back into project memory (see VISION.md, "The Insight Gap")
 - **v0.5.0 — Bop Integration:** ACP server interface, Telesis-driven code review
-- **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development lifecycle
+- **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development
+  lifecycle

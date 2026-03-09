@@ -57,41 +57,61 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## MVP v0.1.0
+## v0.2.0 — AI-Powered Init
 
-**Goal:** The shortest path to using Telesis to develop Telesis.
+**Goal:** Cross the line from plain CLI tool to development intelligence platform. Replace
+the flags-only `telesis init` with a conversational agent that interviews the developer
+and generates substantive first-draft project documents from that conversation.
 
-**Status:** Complete
+**Status:** In Progress
+
+**Reference:** TDD-001 (Init Agent), ADR-001 (TypeScript agent layer)
+
+### What Changes
+
+The existing Go CLI (`telesis`) is unchanged. A new TypeScript agent layer (`agent/`) is
+introduced alongside it. The `telesis init` experience becomes: run the agent, answer
+questions, receive real documents — not skeletons.
 
 ### Acceptance Criteria
 
-1. `telesis init` produces the full document structure
-2. `telesis context` generates a valid `CLAUDE.md` from existing docs
-3. `telesis adr new <slug>` creates a correctly numbered ADR
-4. `telesis tdd new <slug>` creates a correctly numbered TDD
-5. `telesis status` prints current project state
-6. The Telesis repo itself is initialized with `telesis init`
-7. Claude Code sessions on the Telesis repo use the generated `CLAUDE.md`
-8. Bop reviews at least one PR on the Telesis repo
+1. `telesis init` launches the TypeScript init agent and conducts a conversational
+   interview with the developer
+2. The interview collects all required project context: name, owner, purpose, primary
+   language(s), constraints, success criteria, architecture hints, out-of-scope items
+3. The agent generates substantive (non-skeleton) first-draft versions of VISION.md,
+   PRD.md, ARCHITECTURE.md, and MILESTONES.md from the interview
+4. The agent writes `.telesis/config.yml` from collected metadata
+5. The agent invokes `telesis context` to produce the initial `CLAUDE.md`
+6. Every model call is logged to `.telesis/telemetry.jsonl` with token counts and
+   duration
+7. `telesis status` reports total tokens used and estimated cost from telemetry
+8. The agent creates `.telesis/pricing.yml` with current model pricing on first run
+9. A new project initialized with the v0.2.0 `telesis init` produces documents
+   good enough to begin development without significant manual editing
+10. Bop reviews at least one PR on the Telesis repo during this milestone
 
 ### Build Sequence
 
-1. **Phase 0 — Foundation:** Docs, Go module init, project structure
-2. **Phase 1 — Core plumbing:** `internal/config` + `internal/context` + `internal/cli` (root + context commands)
-3. **Phase 2 — Scaffold:** `internal/scaffold` + init command
-4. **Phase 3 — ADR/TDD tooling:** `internal/adr` + `internal/tdd` + commands
-5. **Phase 4 — Status:** `internal/status` + status command
-6. **Phase 5 — Self-hosting:** Run Telesis on itself, validate all acceptance criteria
-
-### Phase 5 Notes
-
-Template parity was achieved by introducing `docs/context/` — freeform markdown files that are included verbatim in the generated `CLAUDE.md`. The three sections that were missing from the template (Working Conventions, Relationship to Bop, What On Track Looks Like) now live in `docs/context/` and are included automatically by `telesis context`.
+1. **Phase 0 — Agent scaffold:** `agent/` directory, `package.json`, `tsconfig.json`,
+   TypeScript toolchain, `pnpm` workspace configuration
+2. **Phase 1 — Model client + telemetry:** `ModelClient` abstraction, JSONL telemetry
+   logger, `pricing.yml` bootstrap
+3. **Phase 2 — Interview engine:** conversation loop, state serialization, system prompt
+4. **Phase 3 — Document generator:** per-document generation calls, generation prompts,
+   sequential generation with accumulated context
+5. **Phase 4 — CLI entrypoint + Go integration:** wire `telesis init` to invoke agent,
+   subprocess call to `telesis context`, summary output
+6. **Phase 5 — Status integration:** update `telesis status` to read telemetry and
+   report token usage and estimated cost
+7. **Phase 6 — Validation:** initialize a real project with the agent, evaluate document
+   quality, validate all acceptance criteria
 
 ---
 
 ## Recent Decisions
 
-*(No ADRs on record yet)*
+- ADR-001-typescripts-agent-orchestration-layer
 
 ---
 
@@ -101,8 +121,8 @@ Template parity was achieved by introducing `docs/context/` — freeform markdow
 - PRD: `docs/PRD.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
-- ADRs: `docs/adr/` (0 decisions on record)
-- TDDs: `docs/tdd/` (0 component designs)
+- ADRs: `docs/adr/` (1 decisions on record)
+- TDDs: `docs/tdd/` (1 component designs)
 
 ---
 
@@ -131,14 +151,20 @@ The provenance trail, the decision log, the living spec — these emerge from th
 
 ## Working Conventions
 
+---
+
+### Go (CLI layer)
+
 **Language and runtime:**
 - Go. Minimum version in `go.mod`. Single static binary output.
 - `cobra` for CLI. `go:embed` for templates. Minimize dependencies.
 
 **Package discipline:**
 - `cmd/telesis/` contains only the entry point. A single `main.go` that calls `cli.Execute()`.
-- `internal/cli/` contains Cobra command wiring — flag parsing, calling into business logic packages, printing output. This is the only package that imports Cobra.
-- `internal/{config,context,scaffold,adr,tdd,status}` contain business logic. They know nothing about the CLI framework.
+- `internal/cli/` contains Cobra command wiring — flag parsing, calling into business logic
+  packages, printing output. This is the only package that imports Cobra.
+- `internal/{config,context,scaffold,adr,tdd,status}` contain business logic. They know
+  nothing about the CLI framework.
 - Nothing in `internal/` imports from `cmd/`.
 - `templates/` is embedded at compile time via `go:embed`. No runtime file I/O for templates.
 
@@ -158,6 +184,68 @@ The provenance trail, the decision log, the living spec — these emerge from th
 - `telesis context` is always idempotent — safe to run repeatedly.
 - Generated files include a header noting they are generated and how to regenerate.
 
+---
+
+### TypeScript (agent layer)
+
+**Language and runtime:**
+- TypeScript targeting Node.js LTS (22.x). ESM modules.
+- `pnpm` for package management.
+- `tsx` for development execution (`pnpm tsx src/index.ts`).
+- `tsc` for production builds. Output to `dist/`.
+
+**Package discipline:**
+- `model/client.ts` is the only file that imports `@anthropic-ai/sdk` directly. All other
+  code calls `ModelClient`. This is a hard rule — it keeps provider coupling contained.
+- `telemetry/` is wired at construction time. Callers never explicitly log — the
+  `ModelClient` handles it transparently.
+- Agent packages (`interview/`, `generate/`, `telemetry/`) know nothing about the CLI
+  entrypoint. `index.ts` wires them together.
+- No package in `agent/src/` imports from the Go layer. The shared interface is the
+  filesystem (`.telesis/`, `docs/`).
+
+**Model calls:**
+- All model calls go through `ModelClient`. Never call the Anthropic SDK directly from
+  business logic.
+- Default model: `claude-sonnet-4-20250514` for both interview and generation.
+  Configurable in `.telesis/config.yml`.
+- Every model call is logged to `.telesis/telemetry.jsonl` automatically via `ModelClient`.
+  This is not optional.
+
+**Telemetry:**
+- Token counts are logged for every model call. Cost is never stored — it is derived at
+  display time from tokens + `.telesis/pricing.yml`.
+- Telemetry write failures log to stderr and do not abort the operation.
+- `.telesis/pricing.yml` is owned by the agent layer. The Go CLI reads it but does not
+  write it.
+
+**Error handling:**
+- Model call failures: retry once with exponential backoff, then throw with the raw API
+  response attached. Never silently swallow API errors.
+- Partial generation failures: write successfully generated documents, report the failure
+  clearly. Do not leave the filesystem in an ambiguous state.
+- Use typed errors where the caller needs to distinguish failure modes. Use plain `Error`
+  for everything else.
+
+**Testing:**
+- Unit tests for `model/`, `telemetry/`, `config/`, `generate/` using `vitest`.
+- Integration tests for interview engine and document generator use recorded fixtures,
+  not live model calls. Fast and deterministic by default.
+- Live model call tests are in a separate `tests/live/` directory, tagged, and run
+  explicitly (`pnpm test:live`). Never run in CI by default.
+- Test files colocated with source: `client.ts` → `client.test.ts`.
+
+**Code style:**
+- Strict TypeScript (`"strict": true` in tsconfig). No `any` without a comment explaining
+  why.
+- Prefer `interface` over `type` for object shapes. Use `type` for unions and aliases.
+- No default exports except at `index.ts` entrypoints. Named exports everywhere else.
+- Async/await throughout. No raw Promise chains.
+
+---
+
+### Shared conventions (both layers)
+
 **ADR discipline:**
 - Significant architectural decisions get an ADR. When in doubt, write one.
 - ADR status: `Proposed` → `Accepted` → `Superseded`.
@@ -169,8 +257,11 @@ The provenance trail, the decision log, the living spec — these emerge from th
 - PR descriptions reference the relevant ADR or TDD when applicable.
 
 **Scope discipline:**
-- If something is not in the MVP done criteria, it is out of scope. Name it and park it; don't let it creep in.
-- Out of scope for MVP: drift detection, milestone validation automation, swarm orchestration, GitHub/Linear/Jira integrations, ACP server, web UI, multi-project management, auth/teams.
+- If something is not in the current milestone's acceptance criteria, it is out of scope.
+  Name it and park it; don't let it creep in.
+- Current out of scope: drift detection, milestone validation automation, swarm
+  orchestration, GitHub/Linear/Jira integrations, ACP server, web UI, multi-project
+  management, auth/teams, OpenClaw TUI integration.
 
 ---
 
