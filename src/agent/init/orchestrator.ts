@@ -95,21 +95,24 @@ export const runInit = async (deps: InitDeps): Promise<InitResult> => {
     sessionId: "init",
   });
 
-  // Extract config from interview
-  const config = await extractConfig(configClient, state);
-  saveConfig(rootDir, config);
-
-  // Generate documents
+  // Extract config and generate documents concurrently — both depend only
+  // on the interview state and write to non-overlapping filesystem paths.
   const documentsGenerated: DocumentType[] = [];
-  await generateDocuments({
-    client: generateClient,
-    state,
-    rootDir,
-    onDocGenerated: (docType, content) => {
-      documentsGenerated.push(docType);
-      onDocGenerated?.(docType, content);
-    },
-  });
+  const [config] = await Promise.all([
+    extractConfig(configClient, state).then((cfg) => {
+      saveConfig(rootDir, cfg);
+      return cfg;
+    }),
+    generateDocuments({
+      client: generateClient,
+      state,
+      rootDir,
+      onDocGenerated: (docType, content) => {
+        documentsGenerated.push(docType);
+        onDocGenerated?.(docType, content);
+      },
+    }),
+  ]);
 
   // Generate CLAUDE.md
   const claudeContent = generateContext(rootDir);

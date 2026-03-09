@@ -158,4 +158,24 @@ describe("extractConfig", () => {
     expect(config.project.language).toBe("true");
     expect(config.project.repo).toBe("");
   });
+
+  it("rejects non-string name", async () => {
+    const client = makeClient(
+      JSON.stringify({ name: 42, owner: "", language: "" }),
+    );
+
+    await expect(extractConfig(client, makeState())).rejects.toThrow(
+      "Config extraction missing required field: name",
+    );
+  });
+
+  it("trims whitespace from name", async () => {
+    const client = makeClient(
+      JSON.stringify({ name: "  myproject  ", owner: "", language: "" }),
+    );
+
+    const config = await extractConfig(client, makeState());
+
+    expect(config.project.name).toBe("myproject");
+  });
 });

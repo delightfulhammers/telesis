@@ -242,4 +242,56 @@ describe("runInit", () => {
     expect(call.state).toBe(fakeInterviewState);
     expect(call.rootDir).toBe(rootDir);
   });
+
+  it("propagates interview failure without writing artifacts", async () => {
+    const rootDir = makeTempDir();
+    const deps = makeDeps(rootDir);
+    (deps.runInterview as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("interview failed"),
+    );
+
+    await expect(runInit(deps)).rejects.toThrow("interview failed");
+
+    expect(deps.extractConfig).not.toHaveBeenCalled();
+    expect(deps.generateDocuments).not.toHaveBeenCalled();
+    expect(existsSync(join(rootDir, ".telesis", "config.yml"))).toBe(false);
+    expect(existsSync(join(rootDir, "CLAUDE.md"))).toBe(false);
+  });
+
+  it("propagates config extraction failure", async () => {
+    const rootDir = makeTempDir();
+    const deps = makeDeps(rootDir);
+    (deps.extractConfig as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("config extraction failed"),
+    );
+
+    await expect(runInit(deps)).rejects.toThrow("config extraction failed");
+
+    expect(existsSync(join(rootDir, ".telesis", "config.yml"))).toBe(false);
+    expect(existsSync(join(rootDir, "CLAUDE.md"))).toBe(false);
+  });
+
+  it("propagates document generation failure", async () => {
+    const rootDir = makeTempDir();
+    const deps = makeDeps(rootDir);
+    (deps.generateDocuments as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("generation failed"),
+    );
+
+    await expect(runInit(deps)).rejects.toThrow("generation failed");
+
+    expect(existsSync(join(rootDir, "CLAUDE.md"))).toBe(false);
+  });
+
+  it("propagates context generation failure", async () => {
+    const rootDir = makeTempDir();
+    const deps = makeDeps(rootDir);
+    (deps.generateContext as ReturnType<typeof vi.fn>).mockImplementation(
+      () => {
+        throw new Error("context generation failed");
+      },
+    );
+
+    await expect(runInit(deps)).rejects.toThrow("context generation failed");
+  });
 });

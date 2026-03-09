@@ -43,10 +43,6 @@ export const initCommand = new Command("init")
   .description("Initialize a new Telesis project with AI-powered interview")
   .action(
     handleAction(async () => {
-      const rootDir = process.cwd();
-      const sessionId = randomUUID();
-      const telemetry = createTelemetryLogger(rootDir);
-
       if (!process.env.ANTHROPIC_API_KEY) {
         throw new Error(
           "ANTHROPIC_API_KEY environment variable is not set. " +
@@ -54,6 +50,9 @@ export const initCommand = new Command("init")
         );
       }
 
+      const rootDir = process.cwd();
+      const sessionId = randomUUID();
+      const telemetry = createTelemetryLogger(rootDir);
       const sdk = new Anthropic();
 
       const interviewClient = createModelClient({

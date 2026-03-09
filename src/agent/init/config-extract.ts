@@ -66,16 +66,15 @@ export const extractConfig = async (
 
   const parsed = raw as Record<string, unknown>;
 
-  if (
-    !parsed.name ||
-    (typeof parsed.name === "string" && !parsed.name.trim())
-  ) {
+  const name = typeof parsed.name === "string" ? parsed.name.trim() : "";
+
+  if (!name) {
     throw new Error("Config extraction missing required field: name");
   }
 
   return {
     project: {
-      name: coerceToString(parsed.name),
+      name,
       owner: coerceToString(parsed.owner),
       language: coerceToString(parsed.language),
       status: "active",
