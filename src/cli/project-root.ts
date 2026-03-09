@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 export const projectRoot = (): string => {
@@ -6,7 +6,7 @@ export const projectRoot = (): string => {
 
   for (;;) {
     if (existsSync(join(dir, ".telesis", "config.yml"))) {
-      return dir;
+      return realpathSync(dir);
     }
     const parent = dirname(dir);
     if (parent === dir) {

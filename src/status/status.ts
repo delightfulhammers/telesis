@@ -1,7 +1,7 @@
 import {
   readFileSync,
   readdirSync,
-  statSync,
+  statSync as fsStatSync,
   existsSync,
 } from "node:fs";
 import { join, basename } from "node:path";
@@ -23,21 +23,11 @@ const STATUS_COMPLETE_RE = /^\*\*Status:\*\*\s+Complete/i;
 const countFiles = (dir: string, pattern: RegExp): number => {
   if (!existsSync(dir)) return 0;
 
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return 0;
-  }
+  const entries = readdirSync(dir, { withFileTypes: true });
 
-  return entries.filter((name) => {
-    try {
-      if (statSync(join(dir, name)).isDirectory()) return false;
-    } catch {
-      return false;
-    }
-    return pattern.test(name);
-  }).length;
+  return entries.filter(
+    (entry) => !entry.isDirectory() && pattern.test(entry.name),
+  ).length;
 };
 
 interface MilestoneSection {
@@ -95,7 +85,7 @@ const extractActiveMilestone = (path: string): string => {
 
 const contextTimestamp = (path: string): Date | null => {
   try {
-    const info = statSync(path);
+    const info = fsStatSync(path);
     return info.mtime;
   } catch {
     return null;

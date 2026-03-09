@@ -41,6 +41,7 @@ const validateInput = (cfg: Config): void => {
     { name: "name", value: cfg.project.name },
     { name: "owner", value: cfg.project.owner },
     { name: "language", value: cfg.project.language },
+    { name: "status", value: cfg.project.status },
     { name: "repo", value: cfg.project.repo },
   ];
 

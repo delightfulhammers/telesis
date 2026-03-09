@@ -3,6 +3,7 @@ import {
   writeFileSync,
   openSync,
   closeSync,
+  unlinkSync,
   constants,
 } from "node:fs";
 import { join } from "node:path";
@@ -84,7 +85,6 @@ const writeExclusive = (dest: string, content: string): void => {
   } catch (writeErr) {
     closeSync(fd);
     try {
-      const { unlinkSync } = require("node:fs");
       unlinkSync(dest);
     } catch {
       // cleanup best-effort

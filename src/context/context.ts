@@ -2,7 +2,6 @@ import {
   readFileSync,
   readdirSync,
   existsSync,
-  statSync,
 } from "node:fs";
 import { join, basename } from "node:path";
 import { load } from "../config/config.js";
@@ -96,21 +95,13 @@ const scanADRs = (
 ): { summaries: string[]; count: number } => {
   if (!existsSync(adrDir)) return { summaries: [], count: 0 };
 
-  let entries: string[];
-  try {
-    entries = readdirSync(adrDir);
-  } catch {
-    return { summaries: [], count: 0 };
-  }
+  const entries = readdirSync(adrDir, { withFileTypes: true });
 
   const adrs: NumberedADR[] = entries
-    .filter((name) => {
-      if (statSync(join(adrDir, name)).isDirectory()) return false;
-      return /^ADR-.*\.md$/.test(name);
-    })
-    .map((name) => ({
-      path: join(adrDir, name),
-      num: parseADRNumber(name),
+    .filter((entry) => !entry.isDirectory() && /^ADR-.*\.md$/.test(entry.name))
+    .map((entry) => ({
+      path: join(adrDir, entry.name),
+      num: parseADRNumber(entry.name),
     }));
 
   if (adrs.length === 0) return { summaries: [], count: 0 };
@@ -129,21 +120,11 @@ const scanADRs = (
 const countFiles = (dir: string, pattern: RegExp): number => {
   if (!existsSync(dir)) return 0;
 
-  let entries: string[];
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return 0;
-  }
+  const entries = readdirSync(dir, { withFileTypes: true });
 
-  return entries.filter((name) => {
-    try {
-      if (statSync(join(dir, name)).isDirectory()) return false;
-    } catch {
-      return false;
-    }
-    return pattern.test(name);
-  }).length;
+  return entries.filter(
+    (entry) => !entry.isDirectory() && pattern.test(entry.name),
+  ).length;
 };
 
 interface MilestoneSection {
@@ -203,22 +184,11 @@ const extractMilestones = (milestonesPath: string): string => {
 const scanContextFiles = (contextDir: string): ContextSection[] => {
   if (!existsSync(contextDir)) return [];
 
-  let entries: string[];
-  try {
-    entries = readdirSync(contextDir);
-  } catch {
-    return [];
-  }
+  const entries = readdirSync(contextDir, { withFileTypes: true });
 
   return entries
-    .filter((name) => {
-      try {
-        if (statSync(join(contextDir, name)).isDirectory()) return false;
-      } catch {
-        return false;
-      }
-      return name.endsWith(".md");
-    })
+    .filter((entry) => !entry.isDirectory() && entry.name.endsWith(".md"))
+    .map((entry) => entry.name)
     .sort()
     .map((name) => ({
       Content: readFileSync(join(contextDir, name), "utf-8").trim(),
@@ -264,7 +234,7 @@ export const generate = (rootDir: string): string => {
     GeneratedDate: generatedDate,
     Description: description,
     MilestonesContent: milestonesContent,
-    ADRs: adrs,
+    ADRs: adrs.length > 0 ? { items: adrs } : false,
     ADRCount: adrCount,
     TDDCount: tddCount,
     Principles: principles,

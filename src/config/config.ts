@@ -44,7 +44,7 @@ export const load = (rootDir: string): Config => {
     );
   }
 
-  const raw = yaml.load(data) as Record<string, unknown> | undefined;
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as Record<string, unknown> | undefined;
   if (!raw || typeof raw !== "object") {
     throw new Error("config missing required field: project.name");
   }
