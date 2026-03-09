@@ -13,6 +13,7 @@
     "format": "prettier --write 'src/**/*.ts'"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "commander": "^13.1.0",
     "js-yaml": "^4.1.0",
     "mustache": "^4.2.0"
