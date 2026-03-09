@@ -95,11 +95,15 @@ const writeFileAtomic = (dest: string, content: string): void => {
   try {
     writeFileSync(fd, content);
   } catch (err) {
-    closeSync(fd);
+    try {
+      closeSync(fd);
+    } catch {
+      /* best-effort */
+    }
     try {
       unlinkSync(tmpPath);
     } catch {
-      /* cleanup best-effort */
+      /* best-effort */
     }
     throw err;
   }

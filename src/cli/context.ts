@@ -36,11 +36,15 @@ export const contextCommand = new Command("context")
       try {
         writeFileSync(fd, output);
       } catch (err) {
-        closeSync(fd);
+        try {
+          closeSync(fd);
+        } catch {
+          /* best-effort */
+        }
         try {
           unlinkSync(tmpPath);
         } catch {
-          /* cleanup best-effort */
+          /* best-effort */
         }
         throw err;
       }

@@ -90,11 +90,15 @@ const writeExclusive = (dest: string, content: string): void => {
   try {
     writeFileSync(fd, content);
   } catch (writeErr) {
-    closeSync(fd);
+    try {
+      closeSync(fd);
+    } catch {
+      /* best-effort */
+    }
     try {
       unlinkSync(dest);
     } catch {
-      // cleanup best-effort
+      /* best-effort */
     }
     throw writeErr;
   }
