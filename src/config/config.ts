@@ -50,8 +50,8 @@ export const load = (rootDir: string): Config => {
   const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
     | Record<string, unknown>
     | undefined;
-  if (!raw || typeof raw !== "object") {
-    throw new Error("config missing required field: project.name");
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("config must be a YAML mapping, not a scalar or list");
   }
 
   const project = raw.project;

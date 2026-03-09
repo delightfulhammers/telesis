@@ -102,24 +102,6 @@ const writeExclusive = (dest: string, content: string): void => {
   closeSync(fd);
 };
 
-const hasSequenceConflict = (
-  docDir: string,
-  prefix: string,
-  num: number,
-  ownFilename: string,
-): boolean => {
-  const padded = String(num).padStart(3, "0");
-  const seqPrefix = `${prefix}-${padded}-`;
-  const entries = readdirSync(docDir, { withFileTypes: true });
-
-  return entries.some(
-    (entry) =>
-      !entry.isDirectory() &&
-      entry.name !== ownFilename &&
-      entry.name.startsWith(seqPrefix),
-  );
-};
-
 export const create = (
   rootDir: string,
   cfg: DocConfig,
@@ -138,25 +120,15 @@ export const create = (
 
     try {
       writeExclusive(dest, content);
+      return dest;
     } catch (err) {
       const e = err as NodeJS.ErrnoException;
       if (e.code === "EEXIST") {
+        // Same-filename collision — retry with next number
         continue;
       }
       throw new Error(`writing ${filename}: ${(err as Error).message}`);
     }
-
-    // Post-write check: verify no other file claimed the same sequence number
-    if (hasSequenceConflict(docDir, cfg.prefix, num, filename)) {
-      try {
-        unlinkSync(dest);
-      } catch {
-        // cleanup best-effort
-      }
-      continue;
-    }
-
-    return dest;
   }
 
   throw new Error(

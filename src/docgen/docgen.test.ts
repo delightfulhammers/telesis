@@ -75,18 +75,16 @@ describe("docgen", () => {
       expect(path).toContain("ADR-002-new-one.md");
     });
 
-    it("skips sequence number already claimed by different slug", () => {
+    it("sequences past existing file with different slug", () => {
       const rootDir = setupDocDir("adr");
       const adrDir = join(rootDir, "docs", "adr");
 
-      // Simulate a concurrent process having claimed ADR-001 with a different slug
       writeFileSync(
         join(adrDir, "ADR-001-other-topic.md"),
         "# ADR-001: other-topic\n",
       );
 
       const path = create(rootDir, adrConfig, "my-topic");
-      // Should get ADR-002, not ADR-001 (nextNumber sees the existing file)
       expect(path).toContain("ADR-002-my-topic.md");
       expect(existsSync(path)).toBe(true);
     });

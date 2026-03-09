@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, statSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  statSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { save, load, exists } from "./config.js";
@@ -43,7 +49,7 @@ describe("config", () => {
     });
   });
 
-  describe("load empty config returns error", () => {
+  describe("load invalid config", () => {
     it("throws when config has no project name", () => {
       const rootDir = makeTempDir();
       const dir = join(rootDir, ".telesis");
@@ -53,7 +59,16 @@ describe("config", () => {
         "# Telesis project configuration\n",
       );
 
-      expect(() => load(rootDir)).toThrow("project.name");
+      expect(() => load(rootDir)).toThrow();
+    });
+
+    it("throws when config is a YAML list", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "config.yml"), "- item1\n- item2\n");
+
+      expect(() => load(rootDir)).toThrow("mapping");
     });
   });
 
@@ -61,7 +76,13 @@ describe("config", () => {
     it("creates .telesis directory if it does not exist", () => {
       const rootDir = makeTempDir();
       const cfg: Config = {
-        project: { name: "TestProject", owner: "", language: "", status: "", repo: "" },
+        project: {
+          name: "TestProject",
+          owner: "",
+          language: "",
+          status: "",
+          repo: "",
+        },
       };
 
       save(rootDir, cfg);
@@ -81,7 +102,13 @@ describe("config", () => {
     it("returns true when config exists", () => {
       const rootDir = makeTempDir();
       save(rootDir, {
-        project: { name: "Test", owner: "", language: "", status: "", repo: "" },
+        project: {
+          name: "Test",
+          owner: "",
+          language: "",
+          status: "",
+          repo: "",
+        },
       });
       expect(exists(rootDir)).toBe(true);
     });
