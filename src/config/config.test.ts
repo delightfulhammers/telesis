@@ -1,18 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  existsSync,
-  statSync,
-} from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { save, load, exists } from "./config.js";
 import type { Config } from "./config.js";
+import { useTempDir } from "../test-utils.js";
 
-const makeTempDir = (): string =>
-  mkdtempSync(join(tmpdir(), "telesis-config-test-"));
+const makeTempDir = useTempDir("config-test");
 
 describe("config", () => {
   describe("save and load", () => {

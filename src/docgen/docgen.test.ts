@@ -1,18 +1,11 @@
 import { describe, it, expect } from "vitest";
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-  existsSync,
-} from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { create, validateSlug, nextNumber } from "./docgen.js";
 import type { DocConfig } from "./docgen.js";
+import { useTempDir } from "../test-utils.js";
 
-const makeTempDir = (): string =>
-  mkdtempSync(join(tmpdir(), "telesis-docgen-test-"));
+const makeTempDir = useTempDir("docgen-test");
 
 const adrConfig: DocConfig = {
   prefix: "ADR",

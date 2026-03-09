@@ -1,17 +1,10 @@
 import { describe, it, expect } from "vitest";
-import {
-  mkdtempSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-  existsSync,
-} from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { create, nextNumber } from "./adr.js";
+import { useTempDir } from "../test-utils.js";
 
-const makeTempDir = (): string =>
-  mkdtempSync(join(tmpdir(), "telesis-adr-test-"));
+const makeTempDir = useTempDir("adr-test");
 
 const setupADRDir = (): string => {
   const dir = makeTempDir();
