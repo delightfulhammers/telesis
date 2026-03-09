@@ -73,7 +73,7 @@ export const runInterview = async (
     // Check if model signaled completion
     if (hasCompletionSignal(assistantText)) {
       state = markComplete(state);
-      saveState(rootDir, state);
+      await saveState(rootDir, state);
       break;
     }
 
@@ -83,7 +83,7 @@ export const runInterview = async (
         `\nReached maximum of ${maxTurns} turns. Proceeding with collected context.\n`,
       );
       state = markComplete(state);
-      saveState(rootDir, state);
+      await saveState(rootDir, state);
       break;
     }
 
@@ -98,12 +98,12 @@ export const runInterview = async (
       io.writeOutput("Proceeding to document generation.\n");
       state = markComplete(state);
       state = addTurn(state, { role: "user", content: input });
-      saveState(rootDir, state);
+      await saveState(rootDir, state);
       break;
     }
 
     state = addTurn(state, { role: "user", content: input });
-    saveState(rootDir, state);
+    await saveState(rootDir, state);
   }
 
   return state;

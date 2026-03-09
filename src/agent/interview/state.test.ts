@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   createInitialState,
@@ -88,23 +88,23 @@ describe("InterviewState", () => {
   });
 
   describe("saveState / loadState", () => {
-    it("round-trips state through filesystem", () => {
+    it("round-trips state through filesystem", async () => {
       const rootDir = makeTempDir();
       let state = createInitialState("sess-42");
       state = addTurn(state, { role: "assistant", content: "Q1" });
       state = addTurn(state, { role: "user", content: "A1" });
 
-      saveState(rootDir, state);
-      const loaded = loadState(rootDir);
+      await saveState(rootDir, state);
+      const loaded = await loadState(rootDir);
 
       expect(loaded).toEqual(state);
     });
 
-    it("creates .telesis directory if missing", () => {
+    it("creates .telesis directory if missing", async () => {
       const rootDir = makeTempDir();
       const state = createInitialState("sess-1");
 
-      saveState(rootDir, state);
+      await saveState(rootDir, state);
 
       const content = readFileSync(
         join(rootDir, ".telesis", "interview-state.json"),
@@ -113,25 +113,25 @@ describe("InterviewState", () => {
       expect(JSON.parse(content).sessionId).toBe("sess-1");
     });
 
-    it("overwrites existing state file", () => {
+    it("overwrites existing state file", async () => {
       const rootDir = makeTempDir();
       mkdirSync(join(rootDir, ".telesis"), { recursive: true });
 
-      saveState(rootDir, createInitialState("sess-1"));
-      saveState(rootDir, createInitialState("sess-2"));
+      await saveState(rootDir, createInitialState("sess-1"));
+      await saveState(rootDir, createInitialState("sess-2"));
 
-      const loaded = loadState(rootDir);
+      const loaded = await loadState(rootDir);
       expect(loaded?.sessionId).toBe("sess-2");
     });
 
-    it("returns null when state file does not exist", () => {
+    it("returns null when state file does not exist", async () => {
       const rootDir = makeTempDir();
-      expect(loadState(rootDir)).toBeNull();
+      expect(await loadState(rootDir)).toBeNull();
     });
 
-    it("writes formatted JSON with trailing newline", () => {
+    it("writes formatted JSON with trailing newline", async () => {
       const rootDir = makeTempDir();
-      saveState(rootDir, createInitialState("sess-1"));
+      await saveState(rootDir, createInitialState("sess-1"));
 
       const content = readFileSync(
         join(rootDir, ".telesis", "interview-state.json"),
@@ -141,6 +141,15 @@ describe("InterviewState", () => {
       expect(content.endsWith("\n")).toBe(true);
       // Formatted = multi-line, not single-line JSON
       expect(content.split("\n").length).toBeGreaterThan(2);
+    });
+
+    it("throws on malformed JSON in state file", async () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "interview-state.json"), "{bad json");
+
+      await expect(loadState(rootDir)).rejects.toThrow();
     });
   });
 });

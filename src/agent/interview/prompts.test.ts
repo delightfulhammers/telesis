@@ -44,5 +44,13 @@ describe("interview prompts", () => {
     it("detects signal without code fence", () => {
       expect(hasCompletionSignal('{"interviewComplete": true}')).toBe(true);
     });
+
+    it("detects signal without spaces around colon", () => {
+      expect(hasCompletionSignal('{"interviewComplete":true}')).toBe(true);
+    });
+
+    it("returns false for interviewComplete set to a string", () => {
+      expect(hasCompletionSignal('{"interviewComplete": "true"}')).toBe(false);
+    });
   });
 });

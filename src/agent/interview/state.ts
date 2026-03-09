@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export interface ProjectContext {
@@ -45,22 +45,29 @@ export const markComplete = (state: InterviewState): InterviewState => ({
   complete: true,
 });
 
-export const saveState = (rootDir: string, state: InterviewState): void => {
+export const saveState = async (
+  rootDir: string,
+  state: InterviewState,
+): Promise<void> => {
   const resolvedRoot = resolve(rootDir);
   const dir = join(resolvedRoot, ".telesis");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
+  await mkdir(dir, { recursive: true });
+  await writeFile(
     join(resolvedRoot, STATE_PATH),
     JSON.stringify(state, null, 2) + "\n",
   );
 };
 
-export const loadState = (rootDir: string): InterviewState | null => {
+export const loadState = async (
+  rootDir: string,
+): Promise<InterviewState | null> => {
   const resolvedRoot = resolve(rootDir);
+  let data: string;
   try {
-    const data = readFileSync(join(resolvedRoot, STATE_PATH), "utf-8");
-    return JSON.parse(data) as InterviewState;
-  } catch {
-    return null;
+    data = await readFile(join(resolvedRoot, STATE_PATH), "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
   }
+  return JSON.parse(data) as InterviewState;
 };

@@ -39,7 +39,17 @@ Do NOT include this JSON block until you genuinely have enough context. A premat
 - The developer can type /done at any point to skip remaining questions and proceed to generation with whatever context has been collected.
 - Start by introducing yourself briefly and asking what the project is about.`;
 
-const COMPLETION_MARKER = '"interviewComplete": true';
+const JSON_BLOCK_RE = /\{[^{}]*"interviewComplete"\s*:\s*[^{}]*\}/g;
 
-export const hasCompletionSignal = (text: string): boolean =>
-  text.includes(COMPLETION_MARKER);
+export const hasCompletionSignal = (text: string): boolean => {
+  const matches = text.match(JSON_BLOCK_RE);
+  if (!matches) return false;
+  return matches.some((block) => {
+    try {
+      const parsed = JSON.parse(block) as Record<string, unknown>;
+      return parsed.interviewComplete === true;
+    } catch {
+      return false;
+    }
+  });
+};
