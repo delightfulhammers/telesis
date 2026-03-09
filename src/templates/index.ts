@@ -7,7 +7,9 @@ import prdTmpl from "./prd.md.tmpl" with { type: "text" };
 import architectureTmpl from "./architecture.md.tmpl" with { type: "text" };
 import milestonesTmpl from "./milestones.md.tmpl" with { type: "text" };
 
-// Disable HTML escaping — we're generating markdown, not HTML
+// Global side effect: disable HTML escaping for all Mustache.render() calls
+// in this process. This is safe because Telesis only generates markdown, never
+// HTML. Mustache's API does not support per-render escape configuration.
 Mustache.escape = (text: string): string => text;
 
 export const templates = {

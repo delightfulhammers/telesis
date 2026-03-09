@@ -5,6 +5,7 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { load } from "../config/config.js";
+import { extractActiveMilestone } from "../milestones/parse.js";
 import { renderTemplate } from "../templates/index.js";
 
 interface ContextSection {
@@ -20,9 +21,6 @@ const ADR_NUMBER_RE = /^ADR-(\d+)/;
 const ADR_TITLE_RE = /^#\s+ADR-\d+:\s*(.+)/;
 const PRINCIPLES_HEADER_RE = /^##\s+Design Principles/i;
 const DESCRIPTION_HEADER_RE = /^##\s+The Vision/i;
-const MILESTONE_HEADING_RE = /^##\s+\S/;
-const STATUS_IN_PROGRESS_RE = /^\*\*Status:\*\*\s+In Progress/i;
-const STATUS_COMPLETE_RE = /^\*\*Status:\*\*\s+Complete/i;
 
 const isSectionBoundary = (trimmed: string): boolean => {
   if (trimmed === "---") return true;
@@ -127,60 +125,6 @@ const countFiles = (dir: string, pattern: RegExp): number => {
   ).length;
 };
 
-interface MilestoneSection {
-  readonly lines: string[];
-}
-
-const extractMilestones = (milestonesPath: string): string => {
-  if (!existsSync(milestonesPath)) return "";
-
-  const content = readFileSync(milestonesPath, "utf-8");
-  const lines = content.split("\n");
-
-  const sections: MilestoneSection[] = [];
-  let current: MilestoneSection | null = null;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (MILESTONE_HEADING_RE.test(trimmed)) {
-      const section: MilestoneSection = { lines: [line] };
-      sections.push(section);
-      current = section;
-      continue;
-    }
-
-    if (current !== null) {
-      if (trimmed === "---") {
-        current = null;
-        continue;
-      }
-      // We need to mutate the lines array — cast to mutable
-      (current.lines as string[]).push(line);
-    }
-  }
-
-  // Prefer "In Progress", fall back to last "Complete"
-  let lastComplete: MilestoneSection | null = null;
-  for (const section of sections) {
-    for (const line of section.lines) {
-      const trimmed = line.trim();
-      if (STATUS_IN_PROGRESS_RE.test(trimmed)) {
-        return section.lines.join("\n").trim();
-      }
-      if (STATUS_COMPLETE_RE.test(trimmed)) {
-        lastComplete = section;
-      }
-    }
-  }
-
-  if (lastComplete !== null) {
-    return lastComplete.lines.join("\n").trim();
-  }
-
-  return "";
-};
-
 const scanContextFiles = (contextDir: string): ContextSection[] => {
   if (!existsSync(contextDir)) return [];
 
@@ -204,7 +148,7 @@ export const generate = (rootDir: string): string => {
 
   const tddCount = countFiles(join(rootDir, "docs", "tdd"), /^TDD-.*\.md$/);
 
-  const milestonesContent = extractMilestones(
+  const milestonesContent = extractActiveMilestone(
     join(rootDir, "docs", "MILESTONES.md"),
   );
 

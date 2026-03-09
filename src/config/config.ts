@@ -12,6 +12,8 @@ import * as yaml from "js-yaml";
 const TELESIS_DIR = ".telesis";
 const CONFIG_FILE = "config.yml";
 
+let configCounter = 0;
+
 export interface Project {
   readonly name: string;
   readonly owner: string;
@@ -49,14 +51,28 @@ export const load = (rootDir: string): Config => {
     throw new Error("config missing required field: project.name");
   }
 
-  const project = (raw.project ?? {}) as Record<string, string>;
+  const project = raw.project;
+  if (!project || typeof project !== "object") {
+    throw new Error("config missing required field: project.name");
+  }
+
+  const p = project as Record<string, unknown>;
+  const str = (key: string): string => {
+    const val = p[key];
+    if (val === undefined || val === null) return "";
+    if (typeof val !== "string") {
+      throw new Error(`config field project.${key} must be a string`);
+    }
+    return val;
+  };
+
   const cfg: Config = {
     project: {
-      name: project.name ?? "",
-      owner: project.owner ?? "",
-      language: project.language ?? "",
-      status: project.status ?? "",
-      repo: project.repo ?? "",
+      name: str("name"),
+      owner: str("owner"),
+      language: str("language"),
+      status: str("status"),
+      repo: str("repo"),
     },
   };
 
@@ -73,7 +89,7 @@ export const save = (rootDir: string, cfg: Config): void => {
 
   // Atomic write: temp file + rename
   const dest = configPath(rootDir);
-  const tmpPath = join(dir, `.config-${process.pid}-${Date.now()}.yml`);
+  const tmpPath = join(dir, `.config-${process.pid}-${++configCounter}.yml`);
 
   try {
     writeFileSync(tmpPath, content, { mode: 0o644 });

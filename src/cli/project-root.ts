@@ -2,11 +2,11 @@ import { existsSync, realpathSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 export const projectRoot = (): string => {
-  let dir = process.cwd();
+  let dir = realpathSync(process.cwd());
 
   for (;;) {
     if (existsSync(join(dir, ".telesis", "config.yml"))) {
-      return realpathSync(dir);
+      return dir;
     }
     const parent = dirname(dir);
     if (parent === dir) {

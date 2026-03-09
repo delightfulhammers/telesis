@@ -1,8 +1,11 @@
 import {
   mkdirSync,
   writeFileSync,
+  openSync,
+  closeSync,
   renameSync,
   unlinkSync,
+  constants,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { save, exists } from "../config/config.js";
@@ -86,15 +89,19 @@ const writeFileAtomic = (dest: string, content: string): void => {
     `.scaffold-${process.pid}-${++atomicCounter}`,
   );
 
+  const fd = openSync(
+    tmpPath,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+    0o666,
+  );
+
   try {
-    writeFileSync(tmpPath, content, { mode: 0o666 });
+    writeFileSync(fd, content);
+    closeSync(fd);
     renameSync(tmpPath, dest);
   } catch (err) {
-    try {
-      unlinkSync(tmpPath);
-    } catch {
-      // cleanup best-effort
-    }
+    try { closeSync(fd); } catch { /* already closed */ }
+    try { unlinkSync(tmpPath); } catch { /* cleanup best-effort */ }
     throw err;
   }
 };
