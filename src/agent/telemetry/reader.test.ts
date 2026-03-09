@@ -113,9 +113,12 @@ describe("loadTelemetryRecords", () => {
     expect(loaded[0].cacheWriteTokens).toBe(75);
   });
 
-  it("rejects records with NaN token counts", () => {
+  // JSON.stringify(NaN) and JSON.stringify(Infinity) produce null,
+  // so these tests verify that null numeric fields are rejected.
+  it("rejects records with null numeric fields (NaN serialized as null)", () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    // NaN → null in JSON; validator rejects null as non-numeric
     const record = { ...makeRecord(), inputTokens: NaN };
     writeFileSync(
       join(rootDir, ".telesis", "telemetry.jsonl"),
@@ -141,9 +144,10 @@ describe("loadTelemetryRecords", () => {
     expect(loaded).toHaveLength(0);
   });
 
-  it("rejects records with Infinity duration", () => {
+  it("rejects records with null duration (Infinity serialized as null)", () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    // Infinity → null in JSON; validator rejects null as non-numeric
     const record = { ...makeRecord(), durationMs: Infinity };
     writeFileSync(
       join(rootDir, ".telesis", "telemetry.jsonl"),
