@@ -4,14 +4,14 @@ import type {
   DriftFinding,
   DriftReport,
   DriftSummary,
-  ScanContext,
 } from "./types.js";
 
 /**
  * Runs the given drift checks against `rootDir` and produces an aggregated report.
  * If `filter` is provided, only checks whose names appear in the filter are run.
  * A shared ScanContext is created once and passed to all checks to avoid redundant
- * filesystem traversals.
+ * filesystem traversals. Context creation is lazy — filesystem errors surface
+ * inside individual checks and are caught by the per-check error handler.
  */
 export const runChecks = (
   checks: readonly DriftCheck[],
@@ -22,13 +22,7 @@ export const runChecks = (
     ? checks.filter((c) => filter.includes(c.name))
     : checks;
 
-  let ctx: ScanContext | undefined;
-  try {
-    ctx = createScanContext(rootDir);
-  } catch {
-    // Filesystem error (e.g. src/ missing, permission denied) —
-    // let each check fall back to its own traversal.
-  }
+  const ctx = createScanContext(rootDir);
 
   const findings: DriftFinding[] = selected.map((check) => {
     try {
