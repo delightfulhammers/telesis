@@ -17,15 +17,22 @@ const isValidNote = (val: unknown): val is Note => {
   );
 };
 
+const MAX_TAG_LENGTH = 64;
+const MAX_TEXT_LENGTH = 4096;
+
 const normalizeTags = (tags: readonly string[]): readonly string[] => {
   const seen = new Set<string>();
   const result: string[] = [];
   for (const tag of tags) {
     const trimmed = tag.trim();
-    if (trimmed.length > 0 && !seen.has(trimmed)) {
-      seen.add(trimmed);
-      result.push(trimmed);
+    if (trimmed.length === 0 || seen.has(trimmed)) continue;
+    if (trimmed.length > MAX_TAG_LENGTH) {
+      throw new Error(
+        `tag exceeds maximum length of ${MAX_TAG_LENGTH} characters: "${trimmed.slice(0, 20)}..."`,
+      );
     }
+    seen.add(trimmed);
+    result.push(trimmed);
   }
   return result;
 };
@@ -38,6 +45,11 @@ export const appendNote = (
   const trimmedText = text.trim();
   if (trimmedText.length === 0) {
     throw new Error("note text cannot be empty");
+  }
+  if (trimmedText.length > MAX_TEXT_LENGTH) {
+    throw new Error(
+      `note text exceeds maximum length of ${MAX_TEXT_LENGTH} characters`,
+    );
   }
 
   const resolvedRoot = resolve(rootDir);

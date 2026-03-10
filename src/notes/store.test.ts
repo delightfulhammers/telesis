@@ -86,6 +86,22 @@ describe("appendNote", () => {
     expect(note.text).toBe("padded text");
   });
 
+  it("rejects oversized text", () => {
+    const rootDir = makeTempDir();
+
+    expect(() => appendNote(rootDir, "x".repeat(5000), [])).toThrow(
+      "maximum length",
+    );
+  });
+
+  it("rejects oversized tags", () => {
+    const rootDir = makeTempDir();
+
+    expect(() => appendNote(rootDir, "text", ["x".repeat(100)])).toThrow(
+      "maximum length",
+    );
+  });
+
   it("trims and deduplicates tags", () => {
     const rootDir = makeTempDir();
 
