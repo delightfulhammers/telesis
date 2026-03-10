@@ -85,6 +85,9 @@ const isTransientError = (err: unknown): boolean => {
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Creates a new Anthropic SDK instance. Keeps the SDK import contained here. */
+export const createSdk = (): Anthropic => new Anthropic();
+
 export const createModelClient = (options: ModelClientOptions): ModelClient => {
   const {
     sdk,

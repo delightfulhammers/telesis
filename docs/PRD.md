@@ -80,6 +80,23 @@ Creates a new TDD from template.
 
 Prints current project state: active milestone, ADR count, TDD count, last context regeneration.
 
+### `telesis eval`
+
+Evaluates quality of generated project documents.
+
+- Runs structural, specificity, actionability, coverage, and consistency evaluators
+- Reports per-document and overall scores
+- `--json` outputs the report as JSON
+
+### `telesis drift`
+
+Detects drift between spec documents and implementation.
+
+- Runs all registered drift checks and prints a formatted pass/fail report
+- `--check <name>` runs only the named check(s)
+- `--json` outputs the report as JSON
+- Exits 0 on all-pass, exits 1 on any error-severity finding
+
 ---
 
 ## CLAUDE.md Format

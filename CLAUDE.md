@@ -57,30 +57,36 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.2.2 — Pricing Provider Key
+## v0.3.0 — Drift Detection
 
-**Goal:** Key pricing lookup by `{provider, model}` instead of model alone, preventing
-incorrect cost attribution if multiple providers share model identifiers.
+**Goal:** Detect when implementation diverges from what the spec documents claim, using
+deterministic/structural checks only (no model calls).
 
 **Status:** Complete
 
-**Reference:** Issue #9
+**Reference:** Planned milestone
 
 ### What Changes
 
-The `PricingConfig.models` structure changes from a flat `Record<model, ModelPricing>` to
-a nested `Record<provider, Record<model, ModelPricing>>`. The `provider` field is removed
-from `ModelPricing` (it is now the map key). `calculateCost` looks up pricing by
-`pricing.models[record.provider]?.[record.model]`, ensuring records are costed against
-their own provider's rates.
+A drift detection subsystem is introduced under `src/drift/`. Six structural checks verify
+falsifiable claims from ARCHITECTURE.md and PRD.md: SDK import containment, Commander import
+containment, no process.exit in business logic, expected directory structure, test colocation,
+and command registration parity between PRD and CLI.
 
 ### Acceptance Criteria
 
-1. `calculateCost` verifies both provider and model before applying pricing rates
-2. Records from an unknown provider contribute zero cost (not matched to another provider)
-3. Records from the same model under different providers are costed at their respective rates
-4. `pricing.yml` uses a nested `provider → model` YAML structure
-5. All existing tests pass with the new structure
+1. `telesis drift` runs all registered checks and prints a formatted pass/fail report
+2. `telesis drift --check <name>` runs only the named check
+3. `telesis drift --json` outputs the report as JSON
+4. `sdk-import-containment` detects `@anthropic-ai/sdk` imports outside `src/agent/model/client.ts`
+5. `commander-import-containment` detects `commander` imports outside `src/cli/` and `src/index.ts`
+6. `no-process-exit` detects `process.exit` calls in business logic packages
+7. `test-colocation` identifies source files missing colocated tests
+8. `expected-directories` verifies the documented directory structure exists
+9. `command-registration` verifies PRD commands match registered CLI commands
+10. Running `telesis drift` on the Telesis repo produces zero errors
+11. `telesis drift` exits 0 on all-pass, exits 1 on any error-severity finding
+12. All drift checks have colocated unit tests
 
 ---
 
@@ -210,7 +216,7 @@ The provenance trail, the decision log, the living spec — these emerge from th
 
 - If something is not in the current milestone's acceptance criteria, it is out of scope.
   Name it and park it; don't let it creep in.
-- Current out of scope: drift detection, milestone validation automation, swarm
+- Current out of scope: milestone validation automation, swarm
   orchestration, GitHub/Linear/Jira integrations, ACP server, web UI, multi-project
   management, auth/teams, OpenClaw TUI integration.
 
