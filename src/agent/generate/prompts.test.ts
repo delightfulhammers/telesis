@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildGenerationPrompt } from "./prompts.js";
 import type { InterviewState } from "../interview/state.js";
 import type { GeneratedDocs } from "./types.js";
+import type { InterviewTopics } from "./topics.js";
 
 const makeState = (
   turns: Array<{ role: "user" | "assistant"; content: string }> = [],
@@ -84,5 +85,62 @@ describe("buildGenerationPrompt", () => {
   it("instructs model to return only markdown", () => {
     const prompt = buildGenerationPrompt("vision", makeState(), {});
     expect(prompt).toContain("ONLY the markdown document");
+  });
+
+  it("includes topics summary when provided", () => {
+    const topics: InterviewTopics = {
+      features: ["task management", "notifications"],
+      preferences: ["functional programming"],
+      technologies: ["TypeScript"],
+      outOfScope: ["mobile app"],
+      successCriteria: [],
+      architectureHints: [],
+    };
+
+    const prompt = buildGenerationPrompt("vision", makeState(), {}, topics);
+    expect(prompt).toContain("Topics from interview");
+    expect(prompt).toContain("- task management");
+    expect(prompt).toContain("- functional programming");
+    expect(prompt).toContain("- TypeScript");
+    expect(prompt).toContain("- mobile app");
+  });
+
+  it("omits topics section when not provided", () => {
+    const prompt = buildGenerationPrompt("vision", makeState(), {});
+    expect(prompt).not.toContain("Topics from interview");
+  });
+
+  it("omits topics section when all categories are empty", () => {
+    const topics: InterviewTopics = {
+      features: [],
+      preferences: [],
+      technologies: [],
+      outOfScope: [],
+      successCriteria: [],
+      architectureHints: [],
+    };
+
+    const prompt = buildGenerationPrompt("vision", makeState(), {}, topics);
+    expect(prompt).not.toContain("Topics from interview");
+  });
+
+  it("places topics before conversation context", () => {
+    const topics: InterviewTopics = {
+      features: ["chat feature"],
+      preferences: [],
+      technologies: [],
+      outOfScope: [],
+      successCriteria: [],
+      architectureHints: [],
+    };
+
+    const state = makeState([
+      { role: "user", content: "I want a chat feature." },
+    ]);
+
+    const prompt = buildGenerationPrompt("prd", state, {}, topics);
+    const topicsIndex = prompt.indexOf("Topics from interview");
+    const contextIndex = prompt.indexOf("Project context");
+    expect(topicsIndex).toBeLessThan(contextIndex);
   });
 });

@@ -1,5 +1,7 @@
 import type { InterviewState } from "../interview/state.js";
 import type { DocumentType, GeneratedDocs } from "./types.js";
+import type { InterviewTopics } from "./topics.js";
+import { formatTopicsSummary } from "./topics.js";
 
 const formatConversation = (state: InterviewState): string =>
   state.turns
@@ -41,6 +43,8 @@ VISION.md captures the project's foundational "why" — its purpose, the problem
 - Write substantive content, not placeholders or skeletons
 - Use clear, direct language — no marketing fluff
 - Ground everything in the interview conversation
+- Ensure every topic from the interview checklist below appears somewhere in the document
+- Principles must be specific to THIS project, derived from the interview — not generic advice
 - Return ONLY the markdown document, no preamble or explanation`,
 
   prd: `You are generating a PRD.md (Product Requirements Document) for a software project.
@@ -54,10 +58,13 @@ PRD.md defines what the project does from a user's perspective — the requireme
 3. **Requirements** — grouped by feature area, with clear acceptance criteria
 4. **Non-functional Requirements** — performance, security, reliability constraints
 5. **Success Criteria** — measurable outcomes that define "done"
+6. **Out of Scope** — items explicitly excluded (include this section if out-of-scope items were discussed)
 
 ## Instructions
 - Write substantive content, not placeholders or skeletons
 - Requirements should be specific and testable
+- Every feature and constraint from the interview checklist must appear in the appropriate section
+- If out-of-scope items were discussed, include an "Out of Scope" section listing them
 - Reference the VISION.md for alignment on purpose and principles
 - Return ONLY the markdown document, no preamble or explanation`,
 
@@ -70,12 +77,14 @@ ARCHITECTURE.md describes how the system is built — its components, their rela
 1. **System Overview** — high-level architecture diagram description
 2. **Components** — each major component with its responsibility
 3. **Data Flow** — how data moves through the system
-4. **Working Conventions** — code organization, naming, testing patterns
+4. **Working Conventions** — code organization, naming, testing patterns, developer preferences
 5. **Key Decisions** — important architectural choices and their rationale
 
 ## Instructions
 - Write substantive content, not placeholders or skeletons
 - Be specific about technology choices, patterns, and conventions
+- Include developer preferences (coding style, paradigm preferences, etc.) in Working Conventions
+- ONLY describe components and technology choices that were explicitly discussed in the interview — do NOT fabricate implementation details
 - Reference VISION.md for principles and PRD.md for requirements
 - Return ONLY the markdown document, no preamble or explanation`,
 
@@ -96,6 +105,7 @@ MILESTONES.md defines the development roadmap — what gets built in what order,
 - Write substantive content, not placeholders or skeletons
 - Make the first milestone achievable and well-scoped
 - Acceptance criteria should be specific and testable
+- Every feature from the interview must be addressed in at least one milestone
 - Reference all previously generated documents for context
 - Return ONLY the markdown document, no preamble or explanation`,
 };
@@ -104,8 +114,14 @@ export const buildGenerationPrompt = (
   docType: DocumentType,
   state: InterviewState,
   previousDocs: GeneratedDocs,
+  topics?: InterviewTopics,
 ): string => {
   const parts = [DOCUMENT_PROMPTS[docType]];
+
+  const topicsSummary = topics ? formatTopicsSummary(topics) : "";
+  if (topicsSummary) {
+    parts.push(`\n\n${topicsSummary}`);
+  }
 
   parts.push(
     `\n\n## Project context (from developer interview)\n\n${formatConversation(state)}`,

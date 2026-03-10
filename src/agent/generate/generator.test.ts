@@ -27,8 +27,21 @@ const makeResponse = (content: string): CompletionResponse => ({
   durationMs: 500,
 });
 
+const EMPTY_TOPICS = JSON.stringify({
+  features: [],
+  preferences: [],
+  technologies: [],
+  outOfScope: [],
+  successCriteria: [],
+  architectureHints: [],
+});
+
 const makeMockClient = (responses: Record<string, string>): ModelClient => ({
   complete: vi.fn(async (request: CompletionRequest) => {
+    // Topics extraction call returns empty topics JSON
+    if (request.messages[0].content.includes("Extract all topics")) {
+      return makeResponse(EMPTY_TOPICS);
+    }
     const docType = request.messages[0].content
       .match(/Generate the (\w+) document/)?.[1]
       ?.toLowerCase();
@@ -111,9 +124,10 @@ describe("generateDocuments", () => {
     await generateDocuments({ client, state: makeState(), rootDir });
 
     const calls = (client.complete as ReturnType<typeof vi.fn>).mock.calls;
-    const firstCall = calls[0][0] as CompletionRequest;
-    expect(firstCall.system).toContain("VISION.md");
-    expect(firstCall.system).toContain("project management CLI");
+    // calls[0] is topics extraction, calls[1] is vision
+    const visionCall = calls[1][0] as CompletionRequest;
+    expect(visionCall.system).toContain("VISION.md");
+    expect(visionCall.system).toContain("project management CLI");
   });
 
   it("passes previously generated docs as context to later generations", async () => {
@@ -128,18 +142,19 @@ describe("generateDocuments", () => {
     await generateDocuments({ client, state: makeState(), rootDir });
 
     const calls = (client.complete as ReturnType<typeof vi.fn>).mock.calls;
+    // calls[0] is topics extraction, calls[1..4] are document generations
 
-    // First call (vision) should NOT have previous docs
-    const visionPrompt = (calls[0][0] as CompletionRequest).system!;
+    // Vision (calls[1]) should NOT have previous docs
+    const visionPrompt = (calls[1][0] as CompletionRequest).system!;
     expect(visionPrompt).not.toContain("Previously generated:");
 
-    // Second call (prd) should have vision
-    const prdPrompt = (calls[1][0] as CompletionRequest).system!;
+    // PRD (calls[2]) should have vision
+    const prdPrompt = (calls[2][0] as CompletionRequest).system!;
     expect(prdPrompt).toContain("Previously generated: VISION.md");
     expect(prdPrompt).toContain("Core vision content.");
 
-    // Fourth call (milestones) should have all three
-    const milestonesPrompt = (calls[3][0] as CompletionRequest).system!;
+    // Milestones (calls[4]) should have all three
+    const milestonesPrompt = (calls[4][0] as CompletionRequest).system!;
     expect(milestonesPrompt).toContain("Previously generated: VISION.md");
     expect(milestonesPrompt).toContain("Previously generated: PRD.md");
     expect(milestonesPrompt).toContain("Previously generated: ARCHITECTURE.md");
@@ -184,7 +199,7 @@ describe("generateDocuments", () => {
     expect(readFileSync(join(rootDir, "docs/VISION.md"), "utf-8")).toBeTruthy();
   });
 
-  it("makes exactly 4 model calls", async () => {
+  it("makes 5 model calls (1 topics extraction + 4 documents)", async () => {
     const rootDir = makeTempDir();
     const client = makeMockClient({
       vision: "# V",
@@ -195,6 +210,6 @@ describe("generateDocuments", () => {
 
     await generateDocuments({ client, state: makeState(), rootDir });
 
-    expect(client.complete).toHaveBeenCalledTimes(4);
+    expect(client.complete).toHaveBeenCalledTimes(5);
   });
 });
