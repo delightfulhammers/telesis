@@ -22,6 +22,7 @@ import { formatReport } from "../../src/eval/format.js";
 import type { InterviewState, Turn } from "../../src/agent/interview/state.js";
 
 const DEFAULT_FIXTURE = "tests/live/fixtures/tic-tac-toe-interview.json";
+const FIXTURES_ROOT = resolve("tests/live/fixtures");
 
 const isValidTurn = (val: unknown): val is Turn => {
   if (!val || typeof val !== "object") return false;
@@ -65,6 +66,13 @@ const main = async (): Promise<void> => {
   }
 
   const fixturePath = resolve(process.argv[2] ?? DEFAULT_FIXTURE);
+  if (
+    fixturePath !== FIXTURES_ROOT &&
+    !fixturePath.startsWith(FIXTURES_ROOT + "/")
+  ) {
+    console.error(`Fixture path must be inside ${FIXTURES_ROOT}`);
+    process.exit(1);
+  }
   console.log(`Loading fixture: ${fixturePath}\n`);
 
   const state = loadFixture(fixturePath);
@@ -73,10 +81,10 @@ const main = async (): Promise<void> => {
   );
 
   const workDir = mkdtempSync(join(tmpdir(), "telesis-validation-"));
-  mkdirSync(join(workDir, ".telesis"), { recursive: true });
-  console.log(`Working directory: ${workDir}\n`);
-
   try {
+    mkdirSync(join(workDir, ".telesis"), { recursive: true });
+    console.log(`Working directory: ${workDir}\n`);
+
     const sdk = new Anthropic({ apiKey });
     const telemetry = createTelemetryLogger(workDir);
     const client = createModelClient({
