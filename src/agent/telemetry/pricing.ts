@@ -4,27 +4,32 @@ import * as yaml from "js-yaml";
 import type { ModelCallRecord } from "./types.js";
 
 export interface ModelPricing {
-  readonly provider: string;
   readonly inputPer1MTokens: number;
   readonly outputPer1MTokens: number;
   readonly cacheReadPer1MTokens?: number;
   readonly cacheWritePer1MTokens?: number;
 }
 
+/** Provider → model → pricing rates. */
+export type PricingModels = Readonly<
+  Record<string, Readonly<Record<string, ModelPricing>>>
+>;
+
 export interface PricingConfig {
   readonly lastUpdated: string;
-  readonly models: Readonly<Record<string, ModelPricing>>;
+  readonly models: PricingModels;
 }
 
 const PRICING_PATH = ".telesis/pricing.yml";
 
 const DEFAULT_MODELS: PricingConfig["models"] = {
-  "claude-sonnet-4-6": {
-    provider: "anthropic",
-    inputPer1MTokens: 3.0,
-    outputPer1MTokens: 15.0,
-    cacheReadPer1MTokens: 0.3,
-    cacheWritePer1MTokens: 3.75,
+  anthropic: {
+    "claude-sonnet-4-6": {
+      inputPer1MTokens: 3.0,
+      outputPer1MTokens: 15.0,
+      cacheReadPer1MTokens: 0.3,
+      cacheWritePer1MTokens: 3.75,
+    },
   },
 };
 
@@ -53,7 +58,6 @@ export const bootstrapPricing = (rootDir: string): void => {
 const isValidModelPricing = (val: unknown): val is ModelPricing => {
   if (!val || typeof val !== "object") return false;
   const obj = val as Record<string, unknown>;
-  if (typeof obj.provider !== "string") return false;
   if (typeof obj.inputPer1MTokens !== "number" || obj.inputPer1MTokens < 0)
     return false;
   if (typeof obj.outputPer1MTokens !== "number" || obj.outputPer1MTokens < 0)
@@ -71,28 +75,29 @@ const isValidModelPricing = (val: unknown): val is ModelPricing => {
   return true;
 };
 
+const isPlainObject = (val: unknown): val is Record<string, unknown> =>
+  !!val && typeof val === "object" && !Array.isArray(val);
+
 const validatePricing = (raw: unknown): PricingConfig | null => {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const obj = raw as Record<string, unknown>;
+  if (!isPlainObject(raw)) return null;
+  if (typeof raw.lastUpdated !== "string") return null;
+  if (!isPlainObject(raw.models)) return null;
 
-  if (typeof obj.lastUpdated !== "string") return null;
-  if (
-    !obj.models ||
-    typeof obj.models !== "object" ||
-    Array.isArray(obj.models)
-  )
-    return null;
-
-  const models: Record<string, ModelPricing> = {};
-  for (const [key, val] of Object.entries(
-    obj.models as Record<string, unknown>,
-  )) {
-    if (isValidModelPricing(val)) {
-      models[key] = val;
+  const models: Record<string, Record<string, ModelPricing>> = {};
+  for (const [provider, providerModels] of Object.entries(raw.models)) {
+    if (!isPlainObject(providerModels)) continue;
+    const validModels: Record<string, ModelPricing> = {};
+    for (const [model, pricing] of Object.entries(providerModels)) {
+      if (isValidModelPricing(pricing)) {
+        validModels[model] = pricing;
+      }
+    }
+    if (Object.keys(validModels).length > 0) {
+      models[provider] = validModels;
     }
   }
 
-  return { lastUpdated: obj.lastUpdated, models };
+  return { lastUpdated: raw.lastUpdated, models };
 };
 
 export const loadPricing = (rootDir: string): PricingConfig | null => {
@@ -138,7 +143,7 @@ export const calculateCost = (
   pricing: PricingConfig,
 ): number =>
   records.reduce((total, record) => {
-    const modelPricing = pricing.models[record.model];
+    const modelPricing = pricing.models[record.provider]?.[record.model];
     if (!modelPricing) return total;
     return total + costForRecord(record, modelPricing);
   }, 0);

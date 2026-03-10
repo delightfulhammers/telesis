@@ -253,10 +253,10 @@ No status marker here.
     const pricingYml = [
       "lastUpdated: '2026-03-09'",
       "models:",
-      "  claude-sonnet-4-6:",
-      "    provider: anthropic",
-      "    inputPer1MTokens: 3.0",
-      "    outputPer1MTokens: 15.0",
+      "  anthropic:",
+      "    claude-sonnet-4-6:",
+      "      inputPer1MTokens: 3.0",
+      "      outputPer1MTokens: 15.0",
     ].join("\n");
     writeFileSync(join(rootDir, ".telesis", "pricing.yml"), pricingYml);
 
