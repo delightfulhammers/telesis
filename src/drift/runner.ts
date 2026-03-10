@@ -4,6 +4,7 @@ import type {
   DriftFinding,
   DriftReport,
   DriftSummary,
+  ScanContext,
 } from "./types.js";
 
 /**
@@ -21,7 +22,13 @@ export const runChecks = (
     ? checks.filter((c) => filter.includes(c.name))
     : checks;
 
-  const ctx = createScanContext(rootDir);
+  let ctx: ScanContext | undefined;
+  try {
+    ctx = createScanContext(rootDir);
+  } catch {
+    // Filesystem error (e.g. src/ missing, permission denied) —
+    // let each check fall back to its own traversal.
+  }
 
   const findings: DriftFinding[] = selected.map((check) => {
     try {

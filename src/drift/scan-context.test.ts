@@ -63,4 +63,15 @@ describe("createScanContext", () => {
 
     expect(all.length).toBeGreaterThan(noCli.length);
   });
+
+  it("normalizes trailing slashes in exclude entries", () => {
+    const dir = makeTempDir();
+    setupSrc(dir);
+
+    const ctx = createScanContext(dir);
+    const files = ctx.srcFiles(["cli/"]);
+
+    expect(files).not.toContain("cli/main.ts");
+    expect(files).toContain("config/config.ts");
+  });
 });

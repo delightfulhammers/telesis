@@ -5,10 +5,12 @@ import type { ScanContext } from "./types.js";
 const filterExcludes = (
   files: readonly string[],
   exclude: readonly string[],
-): readonly string[] =>
-  files.filter(
-    (f) => !exclude.some((ex) => f === ex || f.startsWith(`${ex}/`)),
+): readonly string[] => {
+  const normalized = exclude.map((ex) => ex.replace(/\/+$/, ""));
+  return files.filter(
+    (f) => !normalized.some((ex) => f === ex || f.startsWith(`${ex}/`)),
   );
+};
 
 /**
  * Creates a shared scan context that caches the filesystem walk across checks.
