@@ -42,7 +42,10 @@ const parseMilestones = (content: string): readonly MilestoneInfo[] => {
     if (REFERENCE_RE.test(trimmed)) {
       let match: RegExpExecArray | null;
       while ((match = TDD_NUM_RE.exec(trimmed)) !== null) {
-        if (match[1]) current.tddNumbers.push(parseInt(match[1], 10));
+        if (match[1]) {
+          const n = parseInt(match[1], 10);
+          if (!isNaN(n)) current.tddNumbers.push(n);
+        }
       }
     }
   }
@@ -59,15 +62,20 @@ const extractTddStatus = (content: string): string => {
   return "";
 };
 
-const findTddFile = (tddDir: string, num: number): string | undefined => {
-  let entries: string[];
-  try {
-    entries = readdirSync(tddDir);
-  } catch {
-    return undefined;
-  }
+const findTddFile = (
+  entries: readonly string[],
+  num: number,
+): string | undefined => {
   const pattern = new RegExp(`^TDD-0*${num}\\b`);
   return entries.find((name) => pattern.test(name));
+};
+
+const readTddEntries = (tddDir: string): readonly string[] => {
+  try {
+    return readdirSync(tddDir);
+  } catch {
+    return [];
+  }
 };
 
 export const milestoneTddConsistencyCheck: DriftCheck = {
@@ -102,6 +110,7 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
     }
 
     const milestones = parseMilestones(milestonesContent);
+    const tddEntries = readTddEntries(tddDir);
     const details: string[] = [];
 
     for (const ms of milestones) {
@@ -109,7 +118,7 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
       if (ms.tddNumbers.length === 0) continue;
 
       for (const num of ms.tddNumbers) {
-        const tddFile = findTddFile(tddDir, num);
+        const tddFile = findTddFile(tddEntries, num);
         if (!tddFile) {
           details.push(
             `${ms.name}: references TDD-${String(num).padStart(3, "0")} but file not found in docs/tdd/`,
@@ -118,12 +127,20 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
         }
 
         const tddPath = join(tddDir, tddFile);
-        const tddContent = readFileSync(tddPath, "utf-8");
+        let tddContent: string;
+        try {
+          tddContent = readFileSync(tddPath, "utf-8");
+        } catch (err) {
+          details.push(
+            `${ms.name}: could not read TDD-${String(num).padStart(3, "0")} (${err instanceof Error ? err.message : String(err)})`,
+          );
+          continue;
+        }
         const tddStatus = extractTddStatus(tddContent);
 
-        if (tddStatus === "Draft") {
+        if (tddStatus !== "Accepted") {
           details.push(
-            `${ms.name}: TDD-${String(num).padStart(3, "0")} is still "${tddStatus}" (expected "Accepted")`,
+            `${ms.name}: TDD-${String(num).padStart(3, "0")} status is "${tddStatus || "(empty)"}" (expected "Accepted")`,
           );
         }
       }

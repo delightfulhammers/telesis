@@ -96,4 +96,24 @@ describe("milestone-tdd-consistency", () => {
     expect(result.details).toHaveLength(1);
     expect(result.details[0]).toContain("TDD-002");
   });
+
+  it("warns on unknown TDD status (allowlist, not blocklist)", () => {
+    const dir = setup(
+      "## v0.2.0\n\n**Status:** Complete\n\n**Reference:** TDD-001\n\n---\n",
+      { "TDD-001-init.md": "# TDD-001\n\n**Status:** Superseded\n" },
+    );
+    const result = milestoneTddConsistencyCheck.run(dir);
+    expect(result.passed).toBe(false);
+    expect(result.details[0]).toContain("Superseded");
+  });
+
+  it("warns on empty TDD status", () => {
+    const dir = setup(
+      "## v0.2.0\n\n**Status:** Complete\n\n**Reference:** TDD-001\n\n---\n",
+      { "TDD-001-init.md": "# TDD-001\n\nNo status line here.\n" },
+    );
+    const result = milestoneTddConsistencyCheck.run(dir);
+    expect(result.passed).toBe(false);
+    expect(result.details[0]).toContain("(empty)");
+  });
 });

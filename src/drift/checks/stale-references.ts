@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { DriftCheck, DriftFinding } from "../types.js";
 
 const LIVING_DOCS = [
@@ -13,13 +13,27 @@ const BACKTICK_PATH_RE = /`((?:src|docs)\/[^`\s]+)`/g;
 const RELATIVE_LINK_RE = /\[([^\]]*)\]\((\.[^)]+)\)/g;
 const FENCE_RE = /^```/;
 const TEMPLATE_PATTERN_RE = /[{}<>*]/;
+const FRAGMENT_RE = /#.*$/;
 
 interface StaleRef {
   readonly doc: string;
   readonly path: string;
 }
 
-const scanDoc = (rootDir: string, docRelPath: string): readonly StaleRef[] => {
+const isWithinRoot = (resolvedPath: string, rootDir: string): boolean => {
+  const normalizedRoot = resolve(rootDir);
+  const normalizedPath = resolve(resolvedPath);
+  return (
+    normalizedPath === normalizedRoot ||
+    normalizedPath.startsWith(normalizedRoot + "/")
+  );
+};
+
+const scanDoc = (
+  rootDir: string,
+  docRelPath: string,
+  existsCache: Map<string, boolean>,
+): readonly StaleRef[] => {
   const docPath = join(rootDir, docRelPath);
   let content: string;
   try {
@@ -31,6 +45,14 @@ const scanDoc = (rootDir: string, docRelPath: string): readonly StaleRef[] => {
   const refs: StaleRef[] = [];
   const lines = content.split("\n");
   let inFence = false;
+
+  const checkExists = (absPath: string): boolean => {
+    const cached = existsCache.get(absPath);
+    if (cached !== undefined) return cached;
+    const exists = existsSync(absPath);
+    existsCache.set(absPath, exists);
+    return exists;
+  };
 
   for (const line of lines) {
     if (FENCE_RE.test(line.trim())) {
@@ -47,7 +69,9 @@ const scanDoc = (rootDir: string, docRelPath: string): readonly StaleRef[] => {
       if (TEMPLATE_PATTERN_RE.test(refPath)) continue;
 
       const cleaned = refPath.replace(/\/$/, "");
-      if (!existsSync(join(rootDir, cleaned))) {
+      const absPath = resolve(rootDir, cleaned);
+      if (!isWithinRoot(absPath, rootDir)) continue;
+      if (!checkExists(absPath)) {
         refs.push({ doc: docRelPath, path: refPath });
       }
     }
@@ -58,10 +82,13 @@ const scanDoc = (rootDir: string, docRelPath: string): readonly StaleRef[] => {
       const linkTarget = match[2]!;
       if (TEMPLATE_PATTERN_RE.test(linkTarget)) continue;
 
-      // Resolve relative to the doc's directory
-      const docDir = docRelPath.substring(0, docRelPath.lastIndexOf("/"));
-      const resolved = join(rootDir, docDir, linkTarget);
-      if (!existsSync(resolved)) {
+      const stripped = linkTarget.replace(FRAGMENT_RE, "");
+      if (!stripped) continue;
+
+      const docDir = dirname(docPath);
+      const absPath = resolve(docDir, stripped);
+      if (!isWithinRoot(absPath, rootDir)) continue;
+      if (!checkExists(absPath)) {
         refs.push({ doc: docRelPath, path: linkTarget });
       }
     }
@@ -89,9 +116,10 @@ export const staleReferencesCheck: DriftCheck = {
     const contextDocs = scanContextDir(rootDir);
     const allDocs = [...LIVING_DOCS, ...contextDocs];
     const allRefs: StaleRef[] = [];
+    const existsCache = new Map<string, boolean>();
 
     for (const doc of allDocs) {
-      allRefs.push(...scanDoc(rootDir, doc));
+      allRefs.push(...scanDoc(rootDir, doc, existsCache));
     }
 
     const details = allRefs.map(

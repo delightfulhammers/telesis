@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { useTempDir } from "../../test-utils.js";
 import { staleReferencesCheck } from "./stale-references.js";
 
@@ -14,8 +14,7 @@ describe("stale-references", () => {
     if (docs) {
       for (const [relPath, content] of Object.entries(docs)) {
         const fullPath = join(dir, relPath);
-        const parentDir = fullPath.substring(0, fullPath.lastIndexOf("/"));
-        mkdirSync(parentDir, { recursive: true });
+        mkdirSync(dirname(fullPath), { recursive: true });
         writeFileSync(fullPath, content);
       }
     }
@@ -115,6 +114,22 @@ describe("stale-references", () => {
       "docs/PRD.md": "Look in `src/cli/`\n",
     });
     mkdirSync(join(dir, "src", "cli"), { recursive: true });
+    const result = staleReferencesCheck.run(dir);
+    expect(result.passed).toBe(true);
+  });
+
+  it("ignores paths that traverse outside the project root", () => {
+    const dir = setup({
+      "docs/PRD.md": "See [x](../../etc/passwd) for details.\n",
+    });
+    const result = staleReferencesCheck.run(dir);
+    expect(result.passed).toBe(true);
+  });
+
+  it("ignores backtick paths that traverse outside the project root", () => {
+    const dir = setup({
+      "docs/PRD.md": "See `src/../../../etc/passwd` here.\n",
+    });
     const result = staleReferencesCheck.run(dir);
     expect(result.passed).toBe(true);
   });
