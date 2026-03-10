@@ -123,12 +123,9 @@ describe("extractActiveMilestone", () => {
     const path = join(dir, "MILESTONES.md");
     writeFileSync(
       path,
-      [
-        "## v0.1.0 — Cased",
-        "**Status:** in progress",
-        "Content.",
-        "---",
-      ].join("\n"),
+      ["## v0.1.0 — Cased", "**Status:** in progress", "Content.", "---"].join(
+        "\n",
+      ),
     );
 
     const result = extractActiveMilestone(path);

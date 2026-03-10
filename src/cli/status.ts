@@ -26,6 +26,7 @@ export const statusCommand = new Command("status")
       console.log(`Status:     ${s.projectStatus}`);
       console.log(`ADRs:       ${s.adrCount}`);
       console.log(`TDDs:       ${s.tddCount}`);
+      console.log(`Notes:      ${s.noteCount}`);
 
       if (s.activeMilestone) {
         console.log(`Milestone:  ${firstLine(s.activeMilestone)}`);

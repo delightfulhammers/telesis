@@ -57,36 +57,37 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.3.0 — Drift Detection
+## v0.4.0 — Session Insight Capture
 
-**Goal:** Detect when implementation diverges from what the spec documents claim, using
-deterministic/structural checks only (no model calls).
+**Goal:** Lightweight mechanism for feeding development observations back into project
+memory. Notes are too small for an ADR, not a requirement, not a milestone item — but they
+prevent future mistakes.
 
-**Status:** Complete
+**Status:** In Progress
 
 **Reference:** Planned milestone
 
 ### What Changes
 
-A drift detection subsystem is introduced under `src/drift/`. Six structural checks verify
-falsifiable claims from ARCHITECTURE.md and PRD.md: SDK import containment, Commander import
-containment, no process.exit in business logic, expected directory structure, test colocation,
-and command registration parity between PRD and CLI.
+A `telesis note` command is introduced for capturing development insights into
+`.telesis/notes.jsonl`. Notes surface in CLAUDE.md via `telesis context`, grouped by tag.
+`telesis status` reports note count.
 
 ### Acceptance Criteria
 
-1. `telesis drift` runs all registered checks and prints a formatted pass/fail report
-2. `telesis drift --check <name>` runs only the named check
-3. `telesis drift --json` outputs the report as JSON
-4. `sdk-import-containment` detects `@anthropic-ai/sdk` imports outside `src/agent/model/client.ts`
-5. `commander-import-containment` detects `commander` imports outside `src/cli/` and `src/index.ts`
-6. `no-process-exit` detects `process.exit` calls in business logic packages
-7. `test-colocation` identifies source files missing colocated tests
-8. `expected-directories` verifies the documented directory structure exists
-9. `command-registration` verifies PRD commands match registered CLI commands
-10. Running `telesis drift` on the Telesis repo produces zero errors
-11. `telesis drift` exits 0 on all-pass, exits 1 on any error-severity finding
-12. All drift checks have colocated unit tests
+1. `telesis note add "text"` appends a note to `.telesis/notes.jsonl` with UUID, timestamp, and text
+2. `telesis note add --tag <tag> "text"` stores the note with the specified tag(s)
+3. `telesis note add -` reads note text from stdin
+4. `telesis note list` displays all notes in reverse chronological order
+5. `telesis note list --tag <tag>` filters notes to those matching the tag
+6. `telesis note list --json` outputs notes as a JSON array
+7. `telesis context` includes a "Development Notes" section in CLAUDE.md when notes exist
+8. Notes in CLAUDE.md are grouped by tag with a "General" group for untagged notes
+9. `telesis context` omits the Development Notes section when no notes exist
+10. `telesis status` reports note count
+11. Write failures to `notes.jsonl` log to stderr and do not abort
+12. All new business logic has colocated unit tests
+13. Running `telesis drift` on the Telesis repo produces zero errors after all changes
 
 ---
 
@@ -103,7 +104,7 @@ and command registration parity between PRD and CLI.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (1 component designs)
+- TDDs: `docs/tdd/` (2 component designs)
 
 ---
 
@@ -242,5 +243,22 @@ At any point in this project, Claude Code sessions should be able to answer:
 - What's the next thing to build? → current milestone acceptance criteria
 
 If any of those questions can't be answered from the docs, the docs need updating before more code gets written.
+
+---
+
+## Development Notes
+
+### architecture
+- Agent layer lives under src/agent/ — direct imports, no subprocess boundary (2026-03-10)
+
+### bop
+- bop v0.8.4 with private repo install via BOP_GITHUB_TOKEN is the working version (2026-03-10)
+
+### config
+- .gitignore must use /telesis (anchored) not telesis — otherwise matches src/ paths (2026-03-10)
+
+### git
+- SSH remote required for workflow scope — HTTPS lacks workflow scope for pushing GitHub Actions files (2026-03-10)
+- .gitignore must use /telesis (anchored) not telesis — otherwise matches src/ paths (2026-03-10)
 
 ---

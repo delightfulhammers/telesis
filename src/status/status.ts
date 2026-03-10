@@ -4,6 +4,7 @@ import { load } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
 import { loadTelemetryRecords } from "../agent/telemetry/reader.js";
 import { loadPricing, calculateCost } from "../agent/telemetry/pricing.js";
+import { loadNotes } from "../notes/store.js";
 
 export interface Status {
   readonly projectName: string;
@@ -15,6 +16,7 @@ export interface Status {
   readonly totalInputTokens: number;
   readonly totalOutputTokens: number;
   readonly modelCallCount: number;
+  readonly noteCount: number;
   readonly estimatedCost: number | null;
 }
 
@@ -58,6 +60,8 @@ export const getStatus = (rootDir: string): Status => {
   const totalInputTokens = records.reduce((sum, r) => sum + r.inputTokens, 0);
   const totalOutputTokens = records.reduce((sum, r) => sum + r.outputTokens, 0);
 
+  const noteCount = loadNotes(rootDir).length;
+
   const pricing = records.length > 0 ? loadPricing(rootDir) : null;
   const estimatedCost = pricing ? calculateCost(records, pricing) : null;
 
@@ -70,6 +74,7 @@ export const getStatus = (rootDir: string): Status => {
     contextGeneratedAt,
     totalInputTokens,
     totalOutputTokens,
+    noteCount,
     modelCallCount: records.length,
     estimatedCost,
   };

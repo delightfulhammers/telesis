@@ -3,6 +3,8 @@ import { join, basename } from "node:path";
 import { load } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
 import { renderTemplate } from "../templates/index.js";
+import { loadNotes } from "../notes/store.js";
+import { renderNotesSection } from "../notes/format.js";
 
 interface ContextSection {
   readonly Content: string;
@@ -179,6 +181,9 @@ export const generate = (rootDir: string): string => {
 
   const contextSections = scanContextFiles(join(rootDir, "docs", "context"));
 
+  const notes = loadNotes(rootDir);
+  const notesSection = renderNotesSection(notes);
+
   const now = new Date();
   const generatedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -196,5 +201,6 @@ export const generate = (rootDir: string): string => {
     TDDCount: tddCount,
     Principles: principles,
     ContextSections: contextSections,
+    NotesSection: notesSection || false,
   });
 };

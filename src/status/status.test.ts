@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { save } from "../config/config.js";
 import type { Config } from "../config/config.js";
 import { getStatus } from "./status.js";
+import { appendNote } from "../notes/store.js";
 import { useTempDir } from "../test-utils.js";
 
 const makeTempDir = useTempDir("status-test");
@@ -173,6 +174,23 @@ No status marker here.
     expect(s.contextGeneratedAt).toBeNull();
     expect(s.adrCount).toBe(0);
     expect(s.tddCount).toBe(0);
+  });
+
+  it("counts notes", () => {
+    const rootDir = setupProject();
+
+    appendNote(rootDir, "first note", ["git"]);
+    appendNote(rootDir, "second note", []);
+
+    const s = getStatus(rootDir);
+    expect(s.noteCount).toBe(2);
+  });
+
+  it("reports zero note count when no notes exist", () => {
+    const rootDir = setupProject();
+
+    const s = getStatus(rootDir);
+    expect(s.noteCount).toBe(0);
   });
 
   it("fails without config", () => {

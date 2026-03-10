@@ -34,6 +34,7 @@ telesis/
       status.ts           ← reads telemetry for cost reporting (v0.2.0+)
       eval.ts             ← document quality evaluation command
       drift.ts            ← drift detection command (v0.3.0+)
+      note.ts             ← development notes command (v0.4.0+)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection
     config/               ← .telesis/config.yml read/write
@@ -43,6 +44,7 @@ telesis/
     tdd/                  ← TDD file management
     status/               ← project status aggregation
     milestones/           ← milestone parsing
+    notes/                ← development notes (JSONL store, formatting)
     docgen/               ← shared document generation utilities
     eval/                 ← document quality evaluation suite
     drift/                ← drift detection checks and runner (v0.3.0+)
@@ -106,7 +108,7 @@ telesis/
 
 - **`src/cli/`** contains Commander command definitions — flag parsing, calling into business
   logic packages, printing output. This is the only directory that imports Commander.
-- **`src/{config,context,scaffold,adr,tdd,status,milestones,docgen}`** contain business
+- **`src/{config,context,scaffold,adr,tdd,status,milestones,docgen,notes}`** contain business
   logic. They know nothing about the CLI framework.
 - **`src/agent/model/client.ts`** is the only file that imports `@anthropic-ai/sdk` directly.
   All other code calls `ModelClient`. This is a hard rule — it keeps provider coupling
