@@ -18,7 +18,19 @@ export const runChecks = (
     ? checks.filter((c) => filter.includes(c.name))
     : checks;
 
-  const findings: DriftFinding[] = selected.map((check) => check.run(rootDir));
+  const findings: DriftFinding[] = selected.map((check) => {
+    try {
+      return check.run(rootDir);
+    } catch (err) {
+      return {
+        check: check.name,
+        passed: false,
+        message: `Check threw: ${err instanceof Error ? err.message : String(err)}`,
+        severity: "error" as const,
+        details: [],
+      };
+    }
+  });
 
   const summary: DriftSummary = {
     total: findings.length,

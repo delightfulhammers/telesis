@@ -80,4 +80,21 @@ describe("runChecks", () => {
     expect(report.passed).toBe(true);
     expect(report.summary.total).toBe(0);
   });
+
+  it("converts thrown exceptions into error findings", () => {
+    const throwingCheck: DriftCheck = {
+      name: "throws",
+      description: "A check that throws",
+      requiresModel: false,
+      run: () => {
+        throw new Error("boom");
+      },
+    };
+    const report = runChecks([passingCheck, throwingCheck], "/tmp");
+    expect(report.passed).toBe(false);
+    expect(report.checks[1].check).toBe("throws");
+    expect(report.checks[1].passed).toBe(false);
+    expect(report.checks[1].message).toContain("boom");
+    expect(report.checks[1].severity).toBe("error");
+  });
 });

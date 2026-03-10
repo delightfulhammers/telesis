@@ -51,4 +51,14 @@ describe("command-registration", () => {
     const result = commandRegistrationCheck.run(dir);
     expect(result.passed).toBe(true);
   });
+
+  it("returns a failed finding when PRD.md is missing", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src", "index.ts"), ".addCommand(initCommand)\n");
+
+    const result = commandRegistrationCheck.run(dir);
+    expect(result.passed).toBe(false);
+    expect(result.message).toContain("missing");
+  });
 });

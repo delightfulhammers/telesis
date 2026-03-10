@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DriftCheck } from "../types.js";
+import type { DriftCheck, DriftFinding } from "../types.js";
 
 const extractPrdCommands = (prdContent: string): readonly string[] => {
   const pattern = /^###\s+`telesis\s+(\S+)/gm;
@@ -29,12 +29,23 @@ export const commandRegistrationCheck: DriftCheck = {
   name: "command-registration",
   description: "PRD commands match registered CLI commands",
   requiresModel: false,
-  run: (rootDir) => {
-    const prdContent = readFileSync(join(rootDir, "docs", "PRD.md"), "utf-8");
-    const indexContent = readFileSync(
-      join(rootDir, "src", "index.ts"),
-      "utf-8",
-    );
+  run: (rootDir): DriftFinding => {
+    const prdPath = join(rootDir, "docs", "PRD.md");
+    const indexPath = join(rootDir, "src", "index.ts");
+
+    const missing = [prdPath, indexPath].filter((p) => !existsSync(p));
+    if (missing.length > 0) {
+      return {
+        check: "command-registration",
+        passed: false,
+        message: "Required file(s) missing for command registration check",
+        severity: "warning",
+        details: missing.map((p) => `Missing: ${p}`),
+      };
+    }
+
+    const prdContent = readFileSync(prdPath, "utf-8");
+    const indexContent = readFileSync(indexPath, "utf-8");
 
     const prdCommands = extractPrdCommands(prdContent);
     const registeredCommands = extractRegisteredCommands(indexContent);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { useTempDir } from "../test-utils.js";
 import { findTypeScriptFiles, scanForPattern } from "./scan.js";
@@ -52,6 +52,20 @@ describe("findTypeScriptFiles", () => {
     const dir = makeTempDir();
     expect(findTypeScriptFiles(dir)).toEqual([]);
   });
+
+  it("returns empty array when directory does not exist", () => {
+    expect(findTypeScriptFiles("/nonexistent/path")).toEqual([]);
+  });
+
+  it("skips symbolic links", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, "real"), { recursive: true });
+    writeFileSync(join(dir, "real", "a.ts"), "");
+    symlinkSync(join(dir, "real"), join(dir, "linked"));
+
+    const files = findTypeScriptFiles(dir);
+    expect(files).toEqual(["real/a.ts"]);
+  });
 });
 
 describe("scanForPattern", () => {
@@ -82,5 +96,13 @@ describe("scanForPattern", () => {
 
     const hits = scanForPattern(dir, ["f.ts"], /missing/);
     expect(hits).toEqual([]);
+  });
+
+  it("handles global-flag regex without lastIndex drift", () => {
+    const dir = makeTempDir();
+    writeFileSync(join(dir, "a.ts"), "target\ntarget\ntarget\n");
+
+    const hits = scanForPattern(dir, ["a.ts"], /target/g);
+    expect(hits).toHaveLength(3);
   });
 });
