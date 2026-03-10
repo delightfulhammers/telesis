@@ -236,8 +236,9 @@ interface ModelCallRecord {
 ```
 
 **Cost is not stored in telemetry records.** It is derived at display time from token
-counts plus `.telesis/pricing.yml`. This means the raw signal is always accurate even
-when pricing changes. The `telesis status` command computes cost on read.
+counts plus the pricing configuration (`.telesis/pricing.yml`, created at runtime). This
+means the raw signal is always accurate even when pricing changes. The `telesis status`
+command computes cost on read.
 
 ---
 
@@ -276,8 +277,8 @@ project relationships, and other curated guidance for Claude Code sessions belon
 
 ## Agent Prompt System
 
-Each document type has a generation system prompt in `src/agent/generate/prompts/` as
-plain text files, loaded at build time. Prompt files are versioned — the prompt version
+Each document type has a generation system prompt in `src/agent/generate/prompts.ts`,
+co-located with the generator. Prompt files are versioned — the prompt version
 is stored alongside generated document metadata for future re-generation compatibility.
 
 ---

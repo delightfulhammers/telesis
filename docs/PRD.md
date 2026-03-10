@@ -65,7 +65,7 @@ Creates a new ADR from template.
 
 - Assigns next sequential number
 - Opens with standard ADR template (status, context, decision, consequences)
-- Example: `telesis adr new use-nats-for-events` → `docs/adr/ADR-012-use-nats-for-events.md`
+- Example: `telesis adr new use-nats-for-events` → `docs/adr/ADR-{NNN}-use-nats-for-events.md`
 
 ### `telesis tdd new <slug>`
 
