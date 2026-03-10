@@ -67,7 +67,14 @@ const listCommand = new Command("list")
   .action(
     handleAction((opts: { tag?: string; json?: boolean }) => {
       const rootDir = projectRoot();
-      let notes = loadNotes(rootDir);
+      const { items, invalidLineCount } = loadNotes(rootDir);
+      let notes = items;
+
+      if (invalidLineCount > 0) {
+        console.error(
+          `Warning: ${invalidLineCount} malformed line(s) in notes.jsonl were skipped.`,
+        );
+      }
 
       if (opts.tag) {
         notes = notes.filter((n) => n.tags.includes(opts.tag!));

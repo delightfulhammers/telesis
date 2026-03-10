@@ -1,3 +1,4 @@
+import { createScanContext } from "./scan-context.js";
 import type {
   DriftCheck,
   DriftFinding,
@@ -8,6 +9,9 @@ import type {
 /**
  * Runs the given drift checks against `rootDir` and produces an aggregated report.
  * If `filter` is provided, only checks whose names appear in the filter are run.
+ * A shared ScanContext is created once and passed to all checks to avoid redundant
+ * filesystem traversals. Context creation is lazy — filesystem errors surface
+ * inside individual checks and are caught by the per-check error handler.
  */
 export const runChecks = (
   checks: readonly DriftCheck[],
@@ -18,9 +22,11 @@ export const runChecks = (
     ? checks.filter((c) => filter.includes(c.name))
     : checks;
 
+  const ctx = createScanContext(rootDir);
+
   const findings: DriftFinding[] = selected.map((check) => {
     try {
-      return check.run(rootDir);
+      return check.run(rootDir, ctx);
     } catch (err) {
       return {
         check: check.name,

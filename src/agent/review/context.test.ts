@@ -190,4 +190,29 @@ Irrelevant.
     expect(ctx.conventions).toContain("Rule A");
     expect(ctx.conventions).toContain("Style B");
   });
+
+  it("truncates conventions exceeding size cap", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    // Write a convention file large enough to exceed the 50,000 char cap
+    const largeContent = "x".repeat(60_000);
+    writeFileSync(join(dir, "docs", "context", "huge.md"), largeContent);
+
+    const ctx = assembleReviewContext(dir);
+    expect(ctx.conventions.length).toBeLessThanOrEqual(50_000);
+    expect(ctx.conventionsTruncated).toBeDefined();
+    expect(ctx.conventionsTruncated!.originalLength).toBeGreaterThan(50_000);
+    expect(ctx.conventionsTruncated!.truncatedLength).toBe(50_000);
+  });
+
+  it("does not set truncation metadata when under cap", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    writeFileSync(join(dir, "docs", "context", "small.md"), "Short content.\n");
+
+    const ctx = assembleReviewContext(dir);
+    expect(ctx.conventionsTruncated).toBeUndefined();
+  });
 });

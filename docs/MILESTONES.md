@@ -276,7 +276,7 @@ documents (architecture, requirements, conventions, decisions) and produces stru
 findings. Replaces the need for an external review tool by leveraging what Telesis already
 knows about the project.
 
-**Status:** Not Started
+**Status:** Complete
 
 **Reference:** TDD-003 (Review Agent)
 
@@ -304,6 +304,24 @@ as per-session JSONL files.
 12. Malformed model responses produce a warning, not a crash
 13. All new business logic has colocated unit tests
 14. Running `telesis drift` on the Telesis repo produces zero errors after all changes
+
+### Implementation Notes
+
+The review agent went through four rounds of Bop code review on PR #33, with each round
+improving security and robustness:
+
+- **Round 1:** Self-review found 12 issues; 6 fixed (hardcoded model name, falsy line-0
+  check, non-atomic writes, late validation, shell injection via `execSync`, duplicate
+  severity constants)
+- **Round 2:** Security hardening — UUID validation on session IDs (path traversal
+  prevention), git option injection prevention (safe ref allowlist), first-line-only session
+  listing, maxBuffer on all git commands
+- **Round 3:** Newline-missing edge case in session listing, redundant `content.split('\n')`
+  elimination, line number validation on model output (positive integers, coherent ranges),
+  robust fence stripping with capture group regex, descriptive JSON.parse errors, PRD
+  Commands section added to review context
+- **Round 4:** Exit code based on unfiltered findings (not display-filtered subset),
+  unanchored regex for fence extraction to handle model preamble/postamble
 
 ---
 

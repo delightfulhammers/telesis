@@ -159,8 +159,11 @@ const extractPrdCommands = (rootDir: string): string => {
   return extractSection(content, /^##\s+Commands/i);
 };
 
+// ~12,500 tokens at 4 chars/token — leaves ample room for diff + response
+const MAX_CONVENTIONS_CHARS = 50_000;
+
 const extractNotes = (rootDir: string): string => {
-  const notes = loadNotes(rootDir);
+  const { items: notes } = loadNotes(rootDir);
   if (notes.length === 0) return "";
 
   return notes
@@ -206,14 +209,32 @@ export const assembleReviewContext = (rootDir: string): ReviewContext => {
     parts.push("## Development Notes\n\n" + notes);
   }
 
-  const conventionsText =
+  let conventionsText =
     parts.length > 0
       ? parts.join("\n\n---\n\n")
       : "No project-specific review criteria found. Apply general code review best practices.";
+
+  const truncated =
+    conventionsText.length > MAX_CONVENTIONS_CHARS
+      ? {
+          originalLength: conventionsText.length,
+          truncatedLength: MAX_CONVENTIONS_CHARS,
+        }
+      : undefined;
+
+  if (truncated) {
+    let end = MAX_CONVENTIONS_CHARS;
+    const lastCode = conventionsText.charCodeAt(end - 1);
+    if (lastCode >= 0xd800 && lastCode <= 0xdbff) {
+      end -= 1;
+    }
+    conventionsText = conventionsText.slice(0, end);
+  }
 
   return {
     conventions: conventionsText,
     projectName: cfg.project.name,
     primaryLanguage: cfg.project.language,
+    conventionsTruncated: truncated,
   };
 };

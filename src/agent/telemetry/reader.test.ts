@@ -37,22 +37,24 @@ describe("loadTelemetryRecords", () => {
     ];
     writeTelemetry(rootDir, records);
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const result = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(2);
-    expect(loaded[0].inputTokens).toBe(100);
-    expect(loaded[1].inputTokens).toBe(200);
+    expect(result.records).toHaveLength(2);
+    expect(result.records[0].inputTokens).toBe(100);
+    expect(result.records[1].inputTokens).toBe(200);
+    expect(result.invalidLineCount).toBe(0);
   });
 
-  it("returns empty array when file does not exist", () => {
+  it("returns empty result when file does not exist", () => {
     const rootDir = makeTempDir();
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const result = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toEqual([]);
+    expect(result.records).toEqual([]);
+    expect(result.invalidLineCount).toBe(0);
   });
 
-  it("skips malformed lines", () => {
+  it("skips malformed lines and reports count", () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     const content =
@@ -63,11 +65,12 @@ describe("loadTelemetryRecords", () => {
       "\n";
     writeFileSync(join(rootDir, ".telesis", "telemetry.jsonl"), content);
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const result = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(2);
-    expect(loaded[0].id).toBe("good");
-    expect(loaded[1].id).toBe("also-good");
+    expect(result.records).toHaveLength(2);
+    expect(result.records[0].id).toBe("good");
+    expect(result.records[1].id).toBe("also-good");
+    expect(result.invalidLineCount).toBe(1);
   });
 
   it("skips empty lines", () => {
@@ -80,9 +83,9 @@ describe("loadTelemetryRecords", () => {
       "\n";
     writeFileSync(join(rootDir, ".telesis", "telemetry.jsonl"), content);
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const result = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(2);
+    expect(result.records).toHaveLength(2);
   });
 
   it("skips records missing required fields", () => {
@@ -95,10 +98,11 @@ describe("loadTelemetryRecords", () => {
       "\n";
     writeFileSync(join(rootDir, ".telesis", "telemetry.jsonl"), content);
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const result = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(1);
-    expect(loaded[0].id).toBe("valid");
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0].id).toBe("valid");
+    expect(result.invalidLineCount).toBe(1);
   });
 
   it("preserves optional cache token fields", () => {
@@ -107,10 +111,10 @@ describe("loadTelemetryRecords", () => {
       makeRecord({ cacheReadTokens: 50, cacheWriteTokens: 75 }),
     ]);
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const { records } = loadTelemetryRecords(rootDir);
 
-    expect(loaded[0].cacheReadTokens).toBe(50);
-    expect(loaded[0].cacheWriteTokens).toBe(75);
+    expect(records[0].cacheReadTokens).toBe(50);
+    expect(records[0].cacheWriteTokens).toBe(75);
   });
 
   it("rejects records with invalid optional cache fields", () => {
@@ -125,9 +129,10 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const { records, invalidLineCount } = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(0);
+    expect(records).toHaveLength(0);
+    expect(invalidLineCount).toBe(1);
   });
 
   // JSON.stringify(NaN) and JSON.stringify(Infinity) produce null,
@@ -142,9 +147,9 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const { records } = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(0);
+    expect(records).toHaveLength(0);
   });
 
   it("rejects records with negative token counts", () => {
@@ -156,9 +161,9 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const { records } = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(0);
+    expect(records).toHaveLength(0);
   });
 
   it("rejects records with null duration (Infinity serialized as null)", () => {
@@ -171,8 +176,8 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const loaded = loadTelemetryRecords(rootDir);
+    const { records } = loadTelemetryRecords(rootDir);
 
-    expect(loaded).toHaveLength(0);
+    expect(records).toHaveLength(0);
   });
 });

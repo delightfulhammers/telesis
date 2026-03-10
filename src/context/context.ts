@@ -181,7 +181,7 @@ export const generate = (rootDir: string): string => {
 
   const contextSections = scanContextFiles(join(rootDir, "docs", "context"));
 
-  const notes = loadNotes(rootDir);
+  const { items: notes } = loadNotes(rootDir);
   const notesSection = renderNotesSection(notes);
 
   const now = new Date();

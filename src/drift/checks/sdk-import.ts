@@ -12,9 +12,10 @@ export const sdkImportCheck: DriftCheck = {
   name: "sdk-import-containment",
   description: "@anthropic-ai/sdk imported only in src/agent/model/client.ts",
   requiresModel: false,
-  run: (rootDir) => {
+  run: (rootDir, ctx) => {
     const srcDir = join(rootDir, "src");
-    const files = findTypeScriptFiles(srcDir).filter((f) => !isTestFile(f));
+    const allFiles = ctx ? ctx.srcFiles() : findTypeScriptFiles(srcDir);
+    const files = allFiles.filter((f) => !isTestFile(f));
     const hits = scanForPattern(srcDir, files, IMPORT_PATTERN).filter(
       (h) => `src/${h.file}` !== ALLOWED_FILE,
     );

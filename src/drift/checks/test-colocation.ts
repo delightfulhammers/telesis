@@ -22,8 +22,10 @@ export const testColocationCheck: DriftCheck = {
   name: "test-colocation",
   description: "Business logic .ts files have colocated .test.ts files",
   requiresModel: false,
-  run: (rootDir) => {
-    const files = findTypeScriptFiles(join(rootDir, "src"), EXCLUDED_DIRS);
+  run: (rootDir, ctx) => {
+    const files = ctx
+      ? ctx.srcFiles(EXCLUDED_DIRS)
+      : findTypeScriptFiles(join(rootDir, "src"), EXCLUDED_DIRS);
     const fileSet = new Set(files);
 
     const missing = files

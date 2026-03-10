@@ -101,6 +101,11 @@ export const reviewCommand = new Command("review")
 
         // Assemble context
         const context = assembleReviewContext(rootDir);
+        if (context.conventionsTruncated) {
+          console.error(
+            `Warning: review conventions truncated from ${context.conventionsTruncated.originalLength} to ${context.conventionsTruncated.truncatedLength} characters.`,
+          );
+        }
 
         // Call model
         const sessionId = randomUUID();

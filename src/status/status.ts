@@ -56,11 +56,11 @@ export const getStatus = (rootDir: string): Status => {
 
   const contextGeneratedAt = contextTimestamp(join(rootDir, "CLAUDE.md"));
 
-  const records = loadTelemetryRecords(rootDir);
+  const { records } = loadTelemetryRecords(rootDir);
   const totalInputTokens = records.reduce((sum, r) => sum + r.inputTokens, 0);
   const totalOutputTokens = records.reduce((sum, r) => sum + r.outputTokens, 0);
 
-  const noteCount = loadNotes(rootDir).length;
+  const noteCount = loadNotes(rootDir).items.length;
 
   const pricing = records.length > 0 ? loadPricing(rootDir) : null;
   const estimatedCost = pricing ? calculateCost(records, pricing) : null;
