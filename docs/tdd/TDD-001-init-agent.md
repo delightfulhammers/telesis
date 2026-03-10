@@ -3,7 +3,7 @@
 **Status:** Draft
 **Date:** 2026-03-08
 **Author:** Delightful Hammers
-**Related:** ADR-001 (TypeScript agent layer)
+**Related:** ADR-001 (TypeScript agent layer, superseded), ADR-002 (TypeScript rewrite)
 
 ---
 
@@ -367,8 +367,8 @@ src/agent/                     ← agent layer within the unified codebase
    this kind of ongoing document refinement as a component of the feedback and control
    loop. The init agent produces the substrate; the system evolves it.
 
-3. **Context generation.** With the TypeScript rewrite (ADR-002), the init agent calls
-   `context.generate()` directly — no subprocess boundary.
+3. **Context generation.** The init agent calls `context.generate()` directly — no
+   subprocess boundary (unified TypeScript codebase per ADR-002).
 
 4. **Pricing.yml bootstrapping.** The agent layer owns pricing.yml. It creates the file
    with current defaults on first run if absent.

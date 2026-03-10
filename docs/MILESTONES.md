@@ -73,19 +73,21 @@ real documents — not skeletons.
 
 ### Build Sequence
 
-1. **Phase 0 — Agent scaffold:** `agent/` directory, `package.json`, `tsconfig.json`,
-   TypeScript toolchain, `pnpm` workspace configuration
-2. **Phase 1 — Model client + telemetry:** `ModelClient` abstraction, JSONL telemetry
+1. **Phase 1 — Model client + telemetry:** `ModelClient` abstraction, JSONL telemetry
    logger, `pricing.yml` bootstrap
-3. **Phase 2 — Interview engine:** conversation loop, state serialization, system prompt
-4. **Phase 3 — Document generator:** per-document generation calls, generation prompts,
+2. **Phase 2 — Interview engine:** conversation loop, state serialization, system prompt
+3. **Phase 3 — Document generator:** per-document generation calls, generation prompts,
    sequential generation with accumulated context
-5. **Phase 4 — CLI integration:** wire `telesis init` to invoke the agent, call
-   `telesis context` to generate CLAUDE.md, summary output
-6. **Phase 5 — Status integration:** update `telesis status` to read telemetry and
+4. **Phase 4 — CLI integration:** wire `telesis init` to invoke the agent, call
+   `context.generate()` directly to produce CLAUDE.md, summary output
+5. **Phase 5 — Status integration:** update `telesis status` to read telemetry and
    report token usage and estimated cost
-7. **Phase 6 — Validation:** initialize a real project with the agent, evaluate document
+6. **Phase 6 — Validation:** initialize a real project with the agent, evaluate document
    quality, validate all acceptance criteria
+
+*Note: Phase 0 (agent scaffold) from the original plan was absorbed by the TypeScript
+rewrite (ADR-002), which unified the codebase under `src/` — no separate `agent/`
+directory or workspace configuration needed.*
 
 ### Phase 6 Notes
 
