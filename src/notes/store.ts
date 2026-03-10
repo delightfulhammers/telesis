@@ -17,11 +17,29 @@ const isValidNote = (val: unknown): val is Note => {
   );
 };
 
+const normalizeTags = (tags: readonly string[]): readonly string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const tag of tags) {
+    const trimmed = tag.trim();
+    if (trimmed.length > 0 && !seen.has(trimmed)) {
+      seen.add(trimmed);
+      result.push(trimmed);
+    }
+  }
+  return result;
+};
+
 export const appendNote = (
   rootDir: string,
   text: string,
   tags: readonly string[],
 ): Note => {
+  const trimmedText = text.trim();
+  if (trimmedText.length === 0) {
+    throw new Error("note text cannot be empty");
+  }
+
   const resolvedRoot = resolve(rootDir);
   const telesisDir = join(resolvedRoot, ".telesis");
   const notesPath = join(resolvedRoot, NOTES_PATH);
@@ -29,8 +47,8 @@ export const appendNote = (
   const note: Note = {
     id: randomUUID(),
     timestamp: new Date().toISOString(),
-    text,
-    tags,
+    text: trimmedText,
+    tags: normalizeTags(tags),
   };
 
   mkdirSync(telesisDir, { recursive: true });

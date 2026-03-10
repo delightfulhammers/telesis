@@ -11,15 +11,16 @@ const readStdin = (): Promise<string> =>
     const chunks: Buffer[] = [];
     let totalBytes = 0;
     let overflowed = false;
-    process.stdin.on("data", (chunk: Buffer) => {
-      totalBytes += chunk.length;
+    process.stdin.on("data", (chunk: Buffer | string) => {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buf.length;
       if (totalBytes > MAX_STDIN_BYTES) {
         overflowed = true;
         reject(new Error("stdin input exceeds 1 MB limit"));
         process.stdin.destroy();
         return;
       }
-      chunks.push(chunk);
+      chunks.push(buf);
     });
     process.stdin.on("end", () => {
       if (!overflowed) {

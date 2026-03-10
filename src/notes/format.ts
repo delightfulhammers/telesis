@@ -20,31 +20,41 @@ export const formatNoteList = (notes: readonly Note[]): string => {
     .join("\n");
 };
 
+interface GroupEntry {
+  readonly text: string;
+  readonly date: string;
+  readonly timestamp: string;
+}
+
+const byEntryTimestampDesc = (a: GroupEntry, b: GroupEntry): number =>
+  a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
+
 export const renderNotesSection = (notes: readonly Note[]): string => {
   if (notes.length === 0) return "";
 
-  const sorted = [...notes].sort(byTimestampDesc);
+  const groups = new Map<string, GroupEntry[]>();
 
-  const groups = new Map<string, { text: string; date: string }[]>();
+  const addToGroup = (key: string, entry: GroupEntry): void => {
+    let items = groups.get(key);
+    if (!items) {
+      items = [];
+      groups.set(key, items);
+    }
+    items.push(entry);
+  };
 
-  for (const note of sorted) {
-    const date = formatDate(note.timestamp);
-    const entry = { text: note.text, date };
-
-    const addToGroup = (key: string): void => {
-      let items = groups.get(key);
-      if (!items) {
-        items = [];
-        groups.set(key, items);
-      }
-      items.push(entry);
+  for (const note of notes) {
+    const entry: GroupEntry = {
+      text: note.text,
+      date: formatDate(note.timestamp),
+      timestamp: note.timestamp,
     };
 
     if (note.tags.length === 0) {
-      addToGroup(GENERAL_TAG);
+      addToGroup(GENERAL_TAG, entry);
     } else {
       for (const tag of note.tags) {
-        addToGroup(tag);
+        addToGroup(tag, entry);
       }
     }
   }
@@ -57,7 +67,7 @@ export const renderNotesSection = (notes: readonly Note[]): string => {
   });
 
   const sections = sortedTags.map((tag) => {
-    const items = groups.get(tag)!;
+    const items = groups.get(tag)!.sort(byEntryTimestampDesc);
     const lines = items.map((item) => `- ${item.text} (${item.date})`);
     return `### ${tag}\n${lines.join("\n")}`;
   });

@@ -70,6 +70,35 @@ describe("appendNote", () => {
 
     expect(note.tags).toEqual(["git", "config"]);
   });
+
+  it("rejects empty text", () => {
+    const rootDir = makeTempDir();
+
+    expect(() => appendNote(rootDir, "", [])).toThrow("empty");
+    expect(() => appendNote(rootDir, "   ", [])).toThrow("empty");
+  });
+
+  it("trims text", () => {
+    const rootDir = makeTempDir();
+
+    const note = appendNote(rootDir, "  padded text  ", []);
+
+    expect(note.text).toBe("padded text");
+  });
+
+  it("trims and deduplicates tags", () => {
+    const rootDir = makeTempDir();
+
+    const note = appendNote(rootDir, "text", [
+      " git ",
+      "config",
+      "git",
+      "",
+      " ",
+    ]);
+
+    expect(note.tags).toEqual(["git", "config"]);
+  });
 });
 
 describe("loadNotes", () => {
