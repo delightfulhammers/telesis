@@ -38,8 +38,15 @@ const evaluateMilestonesActionability = (
   const diagnostics: Diagnostic[] = [];
   let score = 0;
 
-  const hasACSection = /acceptance\s+criteria/i.test(content);
-  const hasBuildSequence = /build\s+sequence/i.test(content);
+  // Use heading extraction to verify sections exist as actual headings,
+  // not just mentioned in prose
+  const acContent =
+    extractMarkdownSection(content, /^###?\s+acceptance\s+criteria/im) ?? "";
+  const buildContent =
+    extractMarkdownSection(content, /^###?\s+build\s+sequence/im) ?? "";
+
+  const hasACSection = acContent.length > 0;
+  const hasBuildSequence = buildContent.length > 0;
 
   if (!hasACSection) {
     diagnostics.push({
@@ -60,8 +67,6 @@ const evaluateMilestonesActionability = (
   }
 
   // Count numbered ACs (good milestones have 3+ numbered criteria)
-  const acContent =
-    extractMarkdownSection(content, /^###?\s+acceptance\s+criteria/im) ?? "";
   const acCount = countNumberedItems(acContent);
 
   if (hasACSection && acCount < 3) {
@@ -74,8 +79,6 @@ const evaluateMilestonesActionability = (
   }
 
   // Count build sequence phases
-  const buildContent =
-    extractMarkdownSection(content, /^###?\s+build\s+sequence/im) ?? "";
   const phaseCount = countNumberedItems(buildContent);
 
   if (hasBuildSequence && phaseCount < 2) {
@@ -110,9 +113,19 @@ const evaluatePrdActionability = (
   const diagnostics: Diagnostic[] = [];
   let score = 0;
 
-  const hasRequirements = /^##\s+requirements/im.test(content);
-  const hasUserJourneys = /^##\s+user\s+journeys/im.test(content);
-  const hasSuccessCriteria = /^##\s+success\s+criteria/im.test(content);
+  // Use heading extraction to verify sections exist as actual headings
+  const reqContent =
+    extractMarkdownSection(content, /^##\s+requirements/im) ?? "";
+  const nfrContent =
+    extractMarkdownSection(content, /^##\s+non-?functional\s+requirements/im) ??
+    "";
+  const scContent =
+    extractMarkdownSection(content, /^##\s+success\s+criteria/im) ?? "";
+
+  const hasRequirements = reqContent.length > 0;
+  const hasUserJourneys =
+    extractMarkdownSection(content, /^##\s+user\s+journeys/im) !== null;
+  const hasSuccessCriteria = scContent.length > 0;
 
   if (!hasRequirements) {
     diagnostics.push({
@@ -122,15 +135,6 @@ const evaluatePrdActionability = (
       severity: "warning",
     });
   }
-
-  // Count requirement items only within Requirements and NFR sections
-  const reqContent =
-    extractMarkdownSection(content, /^##\s+requirements/im) ?? "";
-  const nfrContent =
-    extractMarkdownSection(content, /^##\s+non-?functional\s+requirements/im) ??
-    "";
-  const scContent =
-    extractMarkdownSection(content, /^##\s+success\s+criteria/im) ?? "";
   const combinedReqContent = [reqContent, nfrContent, scContent].join("\n");
   const totalItems =
     countNumberedItems(combinedReqContent) +

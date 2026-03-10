@@ -208,7 +208,10 @@ export const evaluateSpecificity = (
 
   // Named entity check: capitalized multi-word terms in body text (not headings)
   const bodyText = content.replace(/^#+\s.*$/gm, "");
-  if (/(?:^|\s)[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?=\s|[,.])/.test(bodyText)) {
+  // Require 3+ lowercase chars per word to filter sentence-initial words like "The"
+  if (
+    /(?:^|\s)[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+(?=\s|[,.])/.test(bodyText)
+  ) {
     totalSpecificHits++;
   }
 

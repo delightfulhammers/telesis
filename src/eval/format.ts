@@ -92,8 +92,9 @@ export const formatReport = (report: EvalReport): string => {
   lines.push("");
 
   // Diagnostics summary
-  const warnings = report.diagnostics.filter((d) => d.severity === "warning");
   const errors = report.diagnostics.filter((d) => d.severity === "error");
+  const warnings = report.diagnostics.filter((d) => d.severity === "warning");
+  const infos = report.diagnostics.filter((d) => d.severity === "info");
 
   if (errors.length > 0 || warnings.length > 0) {
     lines.push("─".repeat(50));
@@ -104,6 +105,15 @@ export const formatReport = (report: EvalReport): string => {
     }
     for (const d of warnings) {
       lines.push(`  ~ [${d.document}] ${d.message}`);
+    }
+  }
+
+  if (infos.length > 0) {
+    lines.push("─".repeat(50));
+    lines.push("Suggestions:");
+
+    for (const d of infos) {
+      lines.push(`  · [${d.document}] ${d.message}`);
     }
   }
 

@@ -1,5 +1,6 @@
 import type { GeneratedDocs } from "../agent/generate/types.js";
 import type { AxisScore, Diagnostic } from "./types.js";
+import { STOP_WORDS } from "./stop-words.js";
 
 /**
  * Extracts likely project name from the first heading of a document.
@@ -110,7 +111,7 @@ const checkPrdMilestoneAlignment = (
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
-      .filter((w) => w.length >= 4);
+      .filter((w) => w.length >= 4 && !STOP_WORDS.has(w));
     requirementTerms.push(...words);
   }
 
