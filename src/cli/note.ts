@@ -4,10 +4,20 @@ import { formatNoteList } from "../notes/format.js";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
 
+const MAX_STDIN_BYTES = 1024 * 1024; // 1 MB
+
 const readStdin = (): Promise<string> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let totalBytes = 0;
+    process.stdin.on("data", (chunk: Buffer) => {
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_STDIN_BYTES) {
+        process.stdin.destroy(new Error("stdin input exceeds 1 MB limit"));
+        return;
+      }
+      chunks.push(chunk);
+    });
     process.stdin.on("end", () =>
       resolve(Buffer.concat(chunks).toString("utf-8").trim()),
     );
@@ -27,10 +37,15 @@ const addCommand = new Command("add")
     handleAction(async (text: string, opts: { tag: string[] }) => {
       const rootDir = projectRoot();
       const noteText = text === "-" ? await readStdin() : text;
-      const note = appendNote(rootDir, noteText, opts.tag);
-      const tagLabel =
-        note.tags.length > 0 ? ` (tags: ${note.tags.join(", ")})` : "";
-      console.log(`Note added${tagLabel}`);
+      try {
+        const note = appendNote(rootDir, noteText, opts.tag);
+        const tagLabel =
+          note.tags.length > 0 ? ` (tags: ${note.tags.join(", ")})` : "";
+        console.log(`Note added${tagLabel}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`note write failed: ${message}`);
+      }
     }),
   );
 

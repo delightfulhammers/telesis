@@ -1,4 +1,0 @@
-{"id":"26162c14-bc64-4bcb-920e-53c4039fbca1","timestamp":"2026-03-10T15:10:46.210Z","text":"SSH remote required for workflow scope — HTTPS lacks workflow scope for pushing GitHub Actions files","tags":["git"]}
-{"id":"46724e89-2f1b-4afc-9a74-e0c78ac8bdc4","timestamp":"2026-03-10T15:10:46.237Z","text":".gitignore must use /telesis (anchored) not telesis — otherwise matches src/ paths","tags":["git","config"]}
-{"id":"cdde9645-71e9-4f8a-80e2-84ccfba45fe0","timestamp":"2026-03-10T15:10:46.264Z","text":"bop v0.8.4 with private repo install via BOP_GITHUB_TOKEN is the working version","tags":["bop"]}
-{"id":"784b36ba-6413-4ebd-84ff-a89f2b32cf3d","timestamp":"2026-03-10T15:10:46.291Z","text":"Agent layer lives under src/agent/ — direct imports, no subprocess boundary","tags":["architecture"]}

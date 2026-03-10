@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
+import { platform } from "node:process";
 import { appendNote, loadNotes } from "./store.js";
 import { useTempDir } from "../test-utils.js";
 
@@ -45,6 +46,21 @@ describe("appendNote", () => {
       "utf-8",
     );
     expect(content).toContain("test");
+  });
+
+  it("throws on write failure", () => {
+    if (platform === "win32") return;
+
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    // Make directory read-only so file creation fails
+    chmodSync(join(rootDir, ".telesis"), 0o444);
+
+    try {
+      expect(() => appendNote(rootDir, "should fail", [])).toThrow();
+    } finally {
+      chmodSync(join(rootDir, ".telesis"), 0o755);
+    }
   });
 
   it("preserves multiple tags", () => {

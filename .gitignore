@@ -36,6 +36,10 @@ coverage/
 # Bop review output
 review-output/
 
+# Runtime data
+.telesis/notes.jsonl
+.telesis/telemetry.jsonl
+
 # Temp
 tmp/
 temp/

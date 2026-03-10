@@ -33,19 +33,8 @@ export const appendNote = (
     tags,
   };
 
-  try {
-    mkdirSync(telesisDir, { recursive: true });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`note write failed: ${message}`);
-  }
-
-  try {
-    appendFileSync(notesPath, JSON.stringify(note) + "\n");
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`note write failed: ${message}`);
-  }
+  mkdirSync(telesisDir, { recursive: true });
+  appendFileSync(notesPath, JSON.stringify(note) + "\n");
 
   return note;
 };
