@@ -287,10 +287,10 @@ describe("ModelClient", () => {
 
   describe("completeStream", () => {
     it("yields text chunks and a done event with full response", async () => {
-      const mockSdk = makeStreamMockSdk(
-        ["Hello, ", "world!"],
-        { input_tokens: 50, output_tokens: 25 },
-      );
+      const mockSdk = makeStreamMockSdk(["Hello, ", "world!"], {
+        input_tokens: 50,
+        output_tokens: 25,
+      });
       const { client } = makeClientWithMock(mockSdk);
 
       const events = [];
@@ -307,10 +307,10 @@ describe("ModelClient", () => {
     });
 
     it("logs telemetry after stream completes", async () => {
-      const mockSdk = makeStreamMockSdk(
-        ["text"],
-        { input_tokens: 100, output_tokens: 50 },
-      );
+      const mockSdk = makeStreamMockSdk(["text"], {
+        input_tokens: 100,
+        output_tokens: 50,
+      });
       const { client, rootDir } = makeClientWithMock(mockSdk, {
         sessionId: "sess-456",
         component: "generate:vision",

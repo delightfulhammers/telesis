@@ -5,6 +5,7 @@ import { contextCommand } from "./cli/context.js";
 import { adrCommand } from "./cli/adr.js";
 import { tddCommand } from "./cli/tdd.js";
 import { statusCommand } from "./cli/status.js";
+import { evalCommand } from "./cli/eval.js";
 
 const program = new Command("telesis")
   .description("Development intelligence platform")
@@ -13,6 +14,7 @@ const program = new Command("telesis")
   .addCommand(contextCommand)
   .addCommand(adrCommand)
   .addCommand(tddCommand)
-  .addCommand(statusCommand);
+  .addCommand(statusCommand)
+  .addCommand(evalCommand);
 
 program.parse();

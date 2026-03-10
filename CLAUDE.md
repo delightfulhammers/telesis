@@ -57,71 +57,54 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.2.0 — AI-Powered Init
+## v0.2.1 — Document Quality Refinement
 
-**Goal:** Cross the line from plain CLI tool to development intelligence platform. Replace
-the flags-only `telesis init` with a conversational agent that interviews the developer
-and generates substantive first-draft project documents from that conversation.
+**Goal:** Make the init agent's generated documents good enough that a developer can start
+building immediately — no significant manual editing needed. Establish a repeatable
+evaluation framework to measure document quality and drive prompt improvements with data.
 
-**Status:** Complete
+**Status:** In Progress
 
-**Reference:** TDD-001 (Init Agent), ADR-001 (TypeScript agent layer), ADR-002 (TypeScript rewrite)
+**Reference:** Issues #15–#20
 
 ### What Changes
 
-The CLI has been rewritten from Go to TypeScript/Bun (ADR-002). The agent layer lives
-under `src/agent/` within the unified codebase — no subprocess boundary, direct function
-calls. The `telesis init` experience becomes: run the agent, answer questions, receive
-real documents — not skeletons.
+A document quality evaluation suite is introduced to score generated documents across
+defined axes (completeness, accuracy, specificity, actionability, consistency). With
+measurement in place, the interview and generation prompts are improved to address the
+five quality gaps identified during v0.2.0 validation.
 
 ### Acceptance Criteria
 
-1. `telesis init` launches the TypeScript init agent and conducts a conversational
-   interview with the developer
-2. The interview collects all required project context: name, owner, purpose, primary
-   language(s), constraints, success criteria, architecture hints, out-of-scope items
-3. The agent generates substantive (non-skeleton) first-draft versions of VISION.md,
-   PRD.md, ARCHITECTURE.md, and MILESTONES.md from the interview
-4. The agent writes `.telesis/config.yml` from collected metadata
-5. The agent invokes `telesis context` to produce the initial `CLAUDE.md`
-6. Every model call is logged to `.telesis/telemetry.jsonl` with token counts and
-   duration
-7. `telesis status` reports total tokens used and estimated cost from telemetry
-8. The agent creates `.telesis/pricing.yml` with current model pricing on first run
-9. A new project initialized with the v0.2.0 `telesis init` produces documents
-   good enough to begin development without significant manual editing
-10. Bop reviews at least one PR on the Telesis repo during this milestone
+1. An evaluation suite exists that scores generated documents on defined quality axes
+2. The eval suite can run against any set of generated documents and produce a structured
+   report
+3. Interview context is fully preserved in generated documents — features, constraints,
+   and decisions discussed in the interview appear in the output (#18)
+4. ARCHITECTURE.md generation does not fabricate implementation details that were not
+   discussed in the interview (#17)
+5. VISION.md principles are project-specific, derived from the interview conversation,
+   not generic boilerplate (#15)
+6. Config extraction correctly identifies the primary language/framework from context (#16)
+7. PRD includes an explicit out-of-scope section when the interview surfaces out-of-scope
+   items (#19)
+8. Re-running the tic-tac-toe test case shows measurable improvement on eval scores
+   compared to v0.2.0 baseline
 
 ### Build Sequence
 
-1. **Phase 1 — Model client + telemetry:** `ModelClient` abstraction, JSONL telemetry
-   logger, `pricing.yml` bootstrap
-2. **Phase 2 — Interview engine:** conversation loop, state serialization, system prompt
-3. **Phase 3 — Document generator:** per-document generation calls, generation prompts,
-   sequential generation with accumulated context
-4. **Phase 4 — CLI integration:** wire `telesis init` to invoke the agent, call
-   `context.generate()` directly to produce CLAUDE.md, summary output
-5. **Phase 5 — Status integration:** update `telesis status` to read telemetry and
-   report token usage and estimated cost
-6. **Phase 6 — Validation:** initialize a real project with the agent, evaluate document
-   quality, validate all acceptance criteria
-
-*Note: Phase 0 (agent scaffold) from the original plan was absorbed by the TypeScript
-rewrite (ADR-002), which unified the codebase under `src/` — no separate `agent/`
-directory or workspace configuration needed.*
-
-### Phase 6 Notes
-
-Live validation against a sample project (tic-tac-toe webapp) confirmed all 10 acceptance
-criteria. Three runtime bugs were found and fixed during live testing: empty messages array
-on first API call, `finalMessage()` unavailable on raw SDK stream, and config extraction
-failing when project name not explicitly stated.
-
-Document quality assessment identified five areas for improvement, tracked as issues #15–#19:
-generic VISION.md principles, incorrect language normalization (React vs TypeScript),
-ARCHITECTURE.md over-specifying undiscussed implementation details, interview context
-dropped from generated docs, and missing out-of-scope section in PRD. Issue #20 tracks
-building an evaluation suite to measure document quality systematically.
+1. **Phase 1 — Eval suite:** Build the document quality evaluation framework (#20).
+   Define scoring axes, implement automated scoring, establish baseline from v0.2.0
+   output
+2. **Phase 2 — Interview context preservation:** Fix dropped context between interview
+   and generation (#18). Ensure all discussed topics flow through to documents
+3. **Phase 3 — Generation prompt improvements:** Address over-specification in
+   ARCHITECTURE.md (#17), generic VISION.md principles (#15), missing PRD out-of-scope
+   (#19)
+4. **Phase 4 — Config extraction fix:** Improve language/framework detection in config
+   extraction (#16)
+5. **Phase 5 — Validation:** Re-run eval suite, compare against baseline, validate all
+   acceptance criteria
 
 ---
 
