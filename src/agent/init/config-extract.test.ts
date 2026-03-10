@@ -178,4 +178,16 @@ describe("extractConfig", () => {
 
     expect(config.project.name).toBe("myproject");
   });
+
+  it("prompt instructs to extract languages not frameworks", async () => {
+    const client = makeClient(
+      JSON.stringify({ name: "test", owner: "", language: "TypeScript" }),
+    );
+
+    await extractConfig(client, makeState());
+
+    const calls = (client.complete as ReturnType<typeof vi.fn>).mock.calls;
+    const request = calls[0][0] as CompletionRequest;
+    expect(request.system).toContain("not frameworks");
+  });
 });

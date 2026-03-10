@@ -10,7 +10,7 @@ From the conversation below, extract these fields:
 
 - **name**: The project name (required). If the developer did not state an explicit name, infer a short, lowercase, hyphenated name from what the project does (e.g., "tic-tac-toe", "expense-tracker").
 - **owner**: The organization or individual who owns the project
-- **language**: The primary programming language(s)
+- **language**: The primary programming language(s), not frameworks. If the developer mentions a framework (e.g., React, Next.js, Express, Rails), record the underlying language (TypeScript, JavaScript, Ruby), not the framework name
 - **repo**: The repository URL (if mentioned)
 
 ## Output format
