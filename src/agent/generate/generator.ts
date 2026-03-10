@@ -5,6 +5,7 @@ import type { InterviewState } from "../interview/state.js";
 import type { DocumentType, GeneratedDocs } from "./types.js";
 import { DOCUMENT_ORDER, DOCUMENT_PATHS } from "./types.js";
 import { buildGenerationPrompt } from "./prompts.js";
+import { extractTopics } from "./topics.js";
 
 export interface GenerateOptions {
   readonly client: ModelClient;
@@ -20,11 +21,15 @@ export const generateDocuments = async (
   const resolvedRoot = resolve(rootDir);
   const docs: Record<string, string> = {};
 
+  // Extract structured topics from interview for cross-referencing
+  const topics = await extractTopics(client, state);
+
   for (const docType of DOCUMENT_ORDER) {
     const systemPrompt = buildGenerationPrompt(
       docType,
       state,
       docs as GeneratedDocs,
+      topics,
     );
 
     const response = await client.complete({
