@@ -47,6 +47,16 @@ export const reviewCommand = new Command("review")
       }) => {
         const rootDir = resolve(projectRoot());
 
+        // Validate shared options early
+        if (
+          opts.minSeverity &&
+          !(SEVERITIES as readonly string[]).includes(opts.minSeverity)
+        ) {
+          throw new Error(
+            `Invalid severity: ${opts.minSeverity}. Valid: ${SEVERITIES.join(", ")}`,
+          );
+        }
+
         // List mode
         if (opts.list) {
           const sessions = listReviewSessions(rootDir);
@@ -74,16 +84,7 @@ export const reviewCommand = new Command("review")
           return;
         }
 
-        // Review mode — validate inputs before any I/O
-        if (
-          opts.minSeverity &&
-          !(SEVERITIES as readonly string[]).includes(opts.minSeverity)
-        ) {
-          throw new Error(
-            `Invalid severity: ${opts.minSeverity}. Valid: ${SEVERITIES.join(", ")}`,
-          );
-        }
-
+        // Review mode
         if (!process.env.ANTHROPIC_API_KEY) {
           throw new Error(
             "ANTHROPIC_API_KEY environment variable is not set. " +

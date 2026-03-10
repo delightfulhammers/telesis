@@ -115,4 +115,22 @@ describe("resolveDiff", () => {
     const result = resolveDiff(dir);
     expect(result.files.length).toBe(2);
   });
+
+  it("rejects ref starting with dash (option injection)", () => {
+    const dir = makeTempDir();
+    initGitRepo(dir);
+
+    expect(() => resolveDiff(dir, "--output=/tmp/stolen")).toThrow(
+      "must not start with -",
+    );
+  });
+
+  it("rejects ref with unsafe characters", () => {
+    const dir = makeTempDir();
+    initGitRepo(dir);
+
+    expect(() => resolveDiff(dir, "main; rm -rf /")).toThrow(
+      "unsafe characters",
+    );
+  });
 });

@@ -9,11 +9,21 @@ import { join } from "node:path";
 import type { ReviewSession, ReviewFinding } from "./types.js";
 
 const REVIEWS_DIR = ".telesis/reviews";
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+const validateSessionId = (sessionId: string): void => {
+  if (!UUID_RE.test(sessionId)) {
+    throw new Error(`invalid session id: ${sessionId}`);
+  }
+};
 
 const reviewsPath = (rootDir: string): string => join(rootDir, REVIEWS_DIR);
 
-const sessionPath = (rootDir: string, sessionId: string): string =>
-  join(reviewsPath(rootDir), `${sessionId}.jsonl`);
+const sessionPath = (rootDir: string, sessionId: string): string => {
+  validateSessionId(sessionId);
+  return join(reviewsPath(rootDir), `${sessionId}.jsonl`);
+};
 
 export const saveReviewSession = (
   rootDir: string,
@@ -109,8 +119,17 @@ export const listReviewSessions = (
     if (entry.isDirectory() || !entry.name.endsWith(".jsonl")) continue;
     try {
       const content = readFileSync(join(dir, entry.name), "utf-8");
-      const result = parseSessionFile(content);
-      if (result) sessions.push(result.session);
+      const firstLine = content.slice(0, content.indexOf("\n"));
+      if (firstLine.length === 0) continue;
+      const parsed: unknown = JSON.parse(firstLine);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        (parsed as Record<string, unknown>).type === "session" &&
+        typeof (parsed as Record<string, unknown>).data === "object"
+      ) {
+        sessions.push((parsed as { data: ReviewSession }).data);
+      }
     } catch {
       // skip unreadable files
     }

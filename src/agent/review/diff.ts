@@ -2,6 +2,16 @@ import { execFileSync } from "node:child_process";
 import type { ChangedFile, ResolvedDiff } from "./types.js";
 
 const EMPTY_DIFF: ResolvedDiff = { diff: "", files: [], ref: "" };
+const SAFE_REF_RE = /^[a-zA-Z0-9/._~^:\-]+$/;
+
+const validateRef = (ref: string): void => {
+  if (ref.startsWith("-")) {
+    throw new Error(`invalid ref: "${ref}" (must not start with -)`);
+  }
+  if (!SAFE_REF_RE.test(ref)) {
+    throw new Error(`invalid ref: "${ref}" (contains unsafe characters)`);
+  }
+};
 
 const parseStatus = (code: string): ChangedFile["status"] => {
   if (code === "A") return "added";
@@ -17,6 +27,7 @@ const parseChangedFiles = (
   const raw = execFileSync("git", ["diff", "--name-status", ...args], {
     cwd: rootDir,
     encoding: "utf-8",
+    maxBuffer: 10 * 1024 * 1024,
   }).trim();
 
   if (raw.length === 0) return [];
@@ -42,7 +53,10 @@ const describeRef = (ref?: string, all?: boolean): string => {
 };
 
 const gitArgs = (ref?: string, all?: boolean): readonly string[] => {
-  if (ref) return [ref];
+  if (ref) {
+    validateRef(ref);
+    return [ref];
+  }
   if (all) return ["HEAD"];
   return ["--cached"];
 };

@@ -11,10 +11,14 @@ import { useTempDir } from "../../test-utils.js";
 
 const makeTempDir = useTempDir("review-store-test");
 
+const TEST_ID = "00000000-0000-0000-0000-000000000001";
+const TEST_ID_OLD = "00000000-0000-0000-0000-000000000002";
+const TEST_ID_NEW = "00000000-0000-0000-0000-000000000003";
+
 const makeSession = (
   overrides: Partial<ReviewSession> = {},
 ): ReviewSession => ({
-  id: "session-1",
+  id: TEST_ID,
   timestamp: "2026-03-10T12:00:00Z",
   ref: "staged changes",
   files: [{ path: "src/foo.ts", status: "modified" }],
@@ -29,7 +33,7 @@ const makeFinding = (
   overrides: Partial<ReviewFinding> = {},
 ): ReviewFinding => ({
   id: "finding-1",
-  sessionId: "session-1",
+  sessionId: TEST_ID,
   severity: "high",
   category: "bug",
   path: "src/foo.ts",
@@ -51,7 +55,7 @@ describe("saveReviewSession", () => {
     saveReviewSession(dir, session, findings);
 
     const content = readFileSync(
-      join(dir, ".telesis", "reviews", "session-1.jsonl"),
+      join(dir, ".telesis", "reviews", `${TEST_ID}.jsonl`),
       "utf-8",
     );
     const lines = content.trim().split("\n");
@@ -59,7 +63,7 @@ describe("saveReviewSession", () => {
 
     const sessionRecord = JSON.parse(lines[0]);
     expect(sessionRecord.type).toBe("session");
-    expect(sessionRecord.data.id).toBe("session-1");
+    expect(sessionRecord.data.id).toBe(TEST_ID);
 
     const findingRecord = JSON.parse(lines[1]);
     expect(findingRecord.type).toBe("finding");
@@ -73,7 +77,7 @@ describe("saveReviewSession", () => {
     saveReviewSession(dir, makeSession({ findingCount: 0 }), []);
 
     const content = readFileSync(
-      join(dir, ".telesis", "reviews", "session-1.jsonl"),
+      join(dir, ".telesis", "reviews", `${TEST_ID}.jsonl`),
       "utf-8",
     );
     const lines = content.trim().split("\n");
@@ -93,17 +97,26 @@ describe("loadReviewSession", () => {
     ];
 
     saveReviewSession(dir, session, findings);
-    const loaded = loadReviewSession(dir, "session-1");
+    const loaded = loadReviewSession(dir, TEST_ID);
 
-    expect(loaded.session.id).toBe("session-1");
+    expect(loaded.session.id).toBe(TEST_ID);
     expect(loaded.findings).toHaveLength(2);
     expect(loaded.findings[0].description).toBe("Issue A");
     expect(loaded.findings[1].description).toBe("Issue B");
   });
 
+  it("throws on invalid session id format", () => {
+    const dir = makeTempDir();
+    expect(() => loadReviewSession(dir, "../../../etc/passwd")).toThrow(
+      "invalid session id",
+    );
+  });
+
   it("throws on missing session file", () => {
     const dir = makeTempDir();
-    expect(() => loadReviewSession(dir, "nonexistent")).toThrow();
+    expect(() =>
+      loadReviewSession(dir, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+    ).toThrow();
   });
 
   it("throws on file without session record", () => {
@@ -111,11 +124,11 @@ describe("loadReviewSession", () => {
     const reviewsDir = join(dir, ".telesis", "reviews");
     mkdirSync(reviewsDir, { recursive: true });
     writeFileSync(
-      join(reviewsDir, "bad.jsonl"),
+      join(reviewsDir, `${TEST_ID}.jsonl`),
       JSON.stringify({ type: "finding", data: makeFinding() }) + "\n",
     );
 
-    expect(() => loadReviewSession(dir, "bad")).toThrow(
+    expect(() => loadReviewSession(dir, TEST_ID)).toThrow(
       "invalid review session",
     );
   });
@@ -130,10 +143,13 @@ describe("loadReviewSession", () => {
       "this is not json",
       JSON.stringify({ type: "finding", data: makeFinding() }),
     ];
-    writeFileSync(join(reviewsDir, "session-1.jsonl"), lines.join("\n") + "\n");
+    writeFileSync(
+      join(reviewsDir, `${TEST_ID}.jsonl`),
+      lines.join("\n") + "\n",
+    );
 
-    const loaded = loadReviewSession(dir, "session-1");
-    expect(loaded.session.id).toBe("session-1");
+    const loaded = loadReviewSession(dir, TEST_ID);
+    expect(loaded.session.id).toBe(TEST_ID);
     expect(loaded.findings).toHaveLength(1);
   });
 });
@@ -150,19 +166,19 @@ describe("listReviewSessions", () => {
 
     saveReviewSession(
       dir,
-      makeSession({ id: "old", timestamp: "2026-03-09T10:00:00Z" }),
+      makeSession({ id: TEST_ID_OLD, timestamp: "2026-03-09T10:00:00Z" }),
       [],
     );
     saveReviewSession(
       dir,
-      makeSession({ id: "new", timestamp: "2026-03-10T10:00:00Z" }),
+      makeSession({ id: TEST_ID_NEW, timestamp: "2026-03-10T10:00:00Z" }),
       [],
     );
 
     const sessions = listReviewSessions(dir);
     expect(sessions).toHaveLength(2);
-    expect(sessions[0].id).toBe("new");
-    expect(sessions[1].id).toBe("old");
+    expect(sessions[0].id).toBe(TEST_ID_NEW);
+    expect(sessions[1].id).toBe(TEST_ID_OLD);
   });
 
   it("skips non-jsonl files", () => {
