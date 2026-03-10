@@ -405,9 +405,84 @@ a session, and themes from prior sessions suppress repeat findings.
 
 ---
 
+## v0.7.0 — Enforcement Loop
+
+**Goal:** Make Telesis actively verify its own consistency. Expand drift detection to catch
+stale docs, missing post-milestone steps, and convention violations that currently rely on
+human memory.
+
+**Status:** Not Started
+
+### What Changes
+
+Drift detection gains content-aware checks: stale references in living docs, milestone
+status inconsistencies, missing context regeneration. The post-code-change and
+post-milestone checklists become verifiable, not just documented.
+
+### Acceptance Criteria
+
+1. `telesis drift` detects stale external references in living docs (e.g., outdated tool names, broken links)
+2. `telesis drift` warns when CLAUDE.md is out of date relative to source docs
+3. `telesis drift` warns when a milestone is marked "Complete" but its TDD is still "Draft"
+4. `telesis drift` warns when new CLI commands exist in code but not in PRD.md
+5. New drift checks have colocated unit tests
+6. Running `telesis drift` on the Telesis repo produces zero errors after all changes
+
+---
+
+## v0.8.0 — CI Integration
+
+**Goal:** Make `telesis review` and `telesis drift` run automatically on pull requests via
+GitHub Actions, closing the loop between local development and shared review.
+
+**Status:** Not Started
+
+### What Changes
+
+A GitHub Actions workflow runs `telesis drift` and `telesis review` on every PR. Results
+are posted as PR comments or check annotations. The review agent replaces Bop as the
+primary PR reviewer for this repo.
+
+### Acceptance Criteria
+
+1. A GitHub Actions workflow runs `telesis drift` on every PR
+2. A GitHub Actions workflow runs `telesis review --ref origin/main...HEAD` on every PR
+3. Drift failures block PR merge (required check)
+4. Review findings are posted as PR comments or check annotations
+5. The workflow is self-contained (no external tool dependencies beyond Telesis itself)
+6. The Telesis repo uses this workflow as its primary review mechanism
+
+---
+
+## v0.9.0 — Milestone Validation
+
+**Goal:** Automated validation of milestone acceptance criteria, replacing manual
+verification with structured checks that confirm a milestone is actually done.
+
+**Status:** Not Started
+
+### What Changes
+
+`telesis milestone check` evaluates the current milestone's acceptance criteria against
+the actual state of the project — tests passing, drift clean, docs updated, required
+commands implemented. This is the gate that prevents "marking done" before it's actually
+done.
+
+### Acceptance Criteria
+
+1. `telesis milestone check` evaluates acceptance criteria for the active milestone
+2. Criteria that can be verified automatically are checked (tests pass, drift clean, commands exist)
+3. Criteria that require human judgment are listed for manual confirmation
+4. `telesis milestone complete` marks the milestone done only after checks pass
+5. Completing a milestone automatically runs the post-milestone checklist (doc updates, context regen)
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
 
+- **v0.10.0 — Chronicler Agent:** Automatic extraction of development insights from session
+  transcripts, reducing reliance on manual `telesis note` capture
 - **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development
-  lifecycle
+  lifecycle, with agents communicating through structured context rather than ad-hoc prompts

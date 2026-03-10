@@ -75,7 +75,7 @@ Telesis is not smarter agents. It is the **structure that makes agents trustwort
 Telesis orchestrates a panel of specialized agents, each focused on a distinct concern:
 
 - **The Architect** — guards the high-level design; flags decisions that violate structural intent
-- **The Reviewer** — examines code for quality, correctness, and alignment (this is bop's domain)
+- **The Reviewer** — examines code for quality, correctness, and alignment
 - **The Spec Keeper** — maintains the living specification; detects when implementation diverges from requirements
 - **The Milestone Tracker** — validates progress against acceptance criteria; controls what can proceed
 - **The Chronicler** — maintains the provenance trail; records decisions, rationale, and rejected paths
@@ -85,15 +85,11 @@ No single agent sees everything. Together, they see what any human team would �
 
 ---
 
-## Relationship to Bop
+## Prior Art
 
-[Bop](https://github.com/delightfulhammers/bop) is Telesis's first agent — the Reviewer. It already exists, works, and has real users.
+Telesis's review agent was informed by [Bop](https://github.com/delightfulhammers/bop), an earlier multi-perspective code review tool by the same team. Bop proved that a panel-of-personas model is structurally better than a single-perspective review. Telesis internalized that lesson — the native review agent uses persona-based review as its default mode — and extended it with project-aware context, cross-round theme suppression, and within-session deduplication.
 
-Bop demonstrated the panel-of-personas model that Telesis generalizes. The lesson bop taught: a multi-perspective review is structurally better than a single-perspective review, every time.
-
-Telesis is what bop grows into. Bop becomes one specialized agent in the swarm — the code review expert — while Telesis provides the coordination layer, the memory, and the broader lifecycle coverage that bop alone can't provide.
-
-Bop users will find Telesis familiar. Telesis users will have bop's capabilities built in.
+Bop remains a standalone tool. Telesis is not Bop v2 — it is a broader platform that happens to include review as one capability among many.
 
 ---
 
@@ -119,33 +115,28 @@ The provenance trail, the decision log, the living spec — these emerge from th
 
 ---
 
-## The MVP
+## Progress So Far
 
-The shortest path to something useful: **the project context layer**.
+Telesis has been self-hosting since v0.1.0 — used to develop itself. The foundation is in place:
 
-A CLI tool that:
-- Initializes a structured project context (spec, architecture, milestones, decision log)
-- Maintains those documents as living artifacts throughout development
-- Makes them available to Claude Code as persistent, injected context
-- Validates milestone completion against defined acceptance criteria
+- **Context layer** (v0.1.0) — project init, context generation, ADRs, TDDs, milestones, status
+- **AI-powered init** (v0.2.0) — interactive interview generates spec documents from conversation
+- **Drift detection** (v0.3.0) — automated checks for convention violations (import discipline, test colocation, structural rules)
+- **Development notes** (v0.4.0) — lightweight insight capture that surfaces in CLAUDE.md
+- **Review agent** (v0.5.0) — native code review against project's own conventions and architecture
+- **Review personas** (v0.6.0) — multi-perspective review with specialized personas, deduplication, and cross-round themes
 
-No swarm yet. No orchestration. Just the memory and intent layer — the fixed point that everything else will orbit.
-
-This is useful immediately. It solves a real problem (context drift in autonomous development). And it can be built in a focused sprint.
-
-Once this exists, Telesis can be used to build the rest of Telesis.
+The memory and intent layer exists. The first agent (the Reviewer) is fully realized. What remains is closing the enforcement loop — making Telesis actively maintain its own consistency rather than relying on the developer to remember.
 
 ---
 
-## The Insight Gap
+## The Enforcement Gap
 
-Development sessions produce insights that don't fit neatly into existing categories. An observation like "the `.gitignore` pattern `telesis` matches `cmd/telesis/` — use `/telesis` for root-only" isn't an architectural decision (too small for an ADR), isn't a requirement (doesn't belong in the PRD), and isn't a milestone item. But it's exactly the kind of knowledge that prevents future mistakes.
+Telesis can detect problems (drift checks, code review) but cannot enforce its own usage. Today, the developer must remember to run `telesis context` after doc changes, tag releases after milestone merges, and update milestones when work completes. These are exactly the kinds of things a control system should handle automatically.
 
-Today, these insights live in three places — the conversation (ephemeral), the developer's memory (unreliable), or nowhere. None of those are the *project's* memory.
+The lightweight capture path exists (`telesis note`) and development observations now surface in CLAUDE.md. But operational conventions — the "always do X after Y" rules — need a stronger mechanism than notes. They need to be drift-checkable, not just readable.
 
-Telesis's principle #4 says memory is first-class. But the MVP's memory mechanisms (ADRs, generated CLAUDE.md, doc updates) are all **heavyweight or structured**. What's missing is a lightweight capture path for **development observations** — things learned during implementation that should inform future sessions.
-
-This is the gap between "documentation as a byproduct" (principle #6) and the reality that some byproducts need an explicit collection mechanism. The Chronicler agent in the swarm model is the long-term answer, but a simpler version — perhaps `telesis note <text>` or automatic extraction from session transcripts — could close this gap much sooner.
+The next frontier is closing this enforcement loop: making Telesis actively verify its own consistency and prompt corrective action when things drift.
 
 ---
 

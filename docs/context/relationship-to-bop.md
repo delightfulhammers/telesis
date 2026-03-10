@@ -1,7 +1,5 @@
-## Relationship to Bop
+## Prior Art
 
-[Bop](https://github.com/delightfulhammers/bop) is Telesis's first agent — the Reviewer. It already exists and has real users.
+[Bop](https://github.com/delightfulhammers/bop) is a standalone multi-perspective code review tool by the same team. It informed the design of Telesis's native review agent — particularly the panel-of-personas model and the lesson that LLM-based semantic dedup outperforms string-based fingerprinting.
 
-Bop demonstrated the panel-of-personas model that Telesis generalizes. In the full swarm, bop becomes one specialized agent (The Reviewer). For the MVP, bop reviews PRs on this repo as an external tool.
-
-The parallel track (out of MVP scope): bop gets an ACP server interface so Telesis can drive it programmatically in future swarm orchestration.
+Telesis now has its own review agent (`telesis review`) with persona-based review, cross-round theme suppression, and project-aware context. Bop remains available as an external tool but is not a dependency.

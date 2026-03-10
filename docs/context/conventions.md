@@ -77,7 +77,7 @@
 
 ### PR expectations
 
-- Bop will review every PR. Write code as if a multi-perspective panel is reading it.
+- Write code as if a multi-perspective review panel is reading it.
 - PRs should be focused. One concern per PR where possible.
 - PR descriptions reference the relevant ADR or TDD when applicable.
 
@@ -85,6 +85,28 @@
 
 - If something is not in the current milestone's acceptance criteria, it is out of scope.
   Name it and park it; don't let it creep in.
-- Current out of scope: milestone validation automation, swarm
-  orchestration, GitHub/Linear/Jira integrations, ACP server, web UI, multi-project
-  management, auth/teams, OpenClaw TUI integration.
+- Current out of scope: swarm orchestration, GitHub/Linear/Jira integrations, web UI,
+  multi-project management, auth/teams, OpenClaw TUI integration.
+
+### Milestone workflow
+
+These steps are **mandatory** after completing a milestone. Do not skip them.
+
+1. Update `docs/MILESTONES.md` — set milestone status to "Complete"
+2. Update the relevant TDD status to "Accepted" (if applicable)
+3. Update `docs/PRD.md` — add/update command documentation for new CLI features
+4. Update `docs/ARCHITECTURE.md` — add new files/modules to the repo structure
+5. Run `telesis context` to regenerate `CLAUDE.md`
+6. Commit and push the doc updates
+7. Tag the release (e.g., `git tag v0.X.0` + `git push origin v0.X.0`)
+
+### Post-code-change checklist
+
+After every code change:
+
+1. Run `pnpm run format` (formatter)
+2. Run `pnpm run lint` (type checking)
+3. Run `pnpm test` (all tests pass)
+4. Run `pnpm run build` (compiles)
+5. Run `telesis drift` (zero errors)
+6. If docs were changed, run `telesis context` to regenerate `CLAUDE.md`
