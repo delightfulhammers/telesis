@@ -21,8 +21,10 @@ const isSectionBoundary = (trimmed: string): boolean =>
   (trimmed.startsWith("# ") && !trimmed.startsWith("##")) ||
   trimmed.startsWith("## ");
 
-const extractSection = (content: string, headerRe: RegExp): string => {
-  const lines = content.split("\n");
+const extractSectionFromLines = (
+  lines: readonly string[],
+  headerRe: RegExp,
+): string => {
   let capturing = false;
   const result: string[] = [];
 
@@ -40,12 +42,16 @@ const extractSection = (content: string, headerRe: RegExp): string => {
   return result.join("\n").trim();
 };
 
+const extractSection = (content: string, headerRe: RegExp): string =>
+  extractSectionFromLines(content.split("\n"), headerRe);
+
 const extractMultipleSections = (
   content: string,
   headerRes: readonly RegExp[],
 ): string => {
+  const lines = content.split("\n");
   const sections = headerRes
-    .map((re) => extractSection(content, re))
+    .map((re) => extractSectionFromLines(lines, re))
     .filter((s) => s.length > 0);
   return sections.join("\n\n");
 };

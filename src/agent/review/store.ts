@@ -119,7 +119,8 @@ export const listReviewSessions = (
     if (entry.isDirectory() || !entry.name.endsWith(".jsonl")) continue;
     try {
       const content = readFileSync(join(dir, entry.name), "utf-8");
-      const firstLine = content.slice(0, content.indexOf("\n"));
+      const newlineIdx = content.indexOf("\n");
+      const firstLine = newlineIdx === -1 ? content : content.slice(0, newlineIdx);
       if (firstLine.length === 0) continue;
       const parsed: unknown = JSON.parse(firstLine);
       if (
