@@ -32,12 +32,18 @@ export const runChecks = (
     }
   });
 
+  const failed = findings.filter(
+    (f) => !f.passed && f.severity === "error",
+  ).length;
+  const warnings = findings.filter(
+    (f) => !f.passed && f.severity !== "error",
+  ).length;
+
   const summary: DriftSummary = {
     total: findings.length,
-    passed: findings.filter((f) => f.passed).length,
-    failed: findings.filter((f) => !f.passed && f.severity === "error").length,
-    warnings: findings.filter((f) => !f.passed && f.severity === "warning")
-      .length,
+    passed: findings.length - failed - warnings,
+    failed,
+    warnings,
   };
 
   const passed = findings.every((f) => f.passed || f.severity !== "error");

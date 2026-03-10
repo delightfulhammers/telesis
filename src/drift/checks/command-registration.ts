@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { DriftCheck, DriftFinding } from "../types.js";
 
 const extractPrdCommands = (prdContent: string): readonly string[] => {
-  const pattern = /^###\s+`telesis\s+(\S+)/gm;
+  const pattern = /^###\s+`telesis\s+([^`\s]+)/gm;
   const commands: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(prdContent)) !== null) {
-    commands.push(match[1].replace(/`$/, ""));
+    commands.push(match[1]);
   }
   return commands.sort();
 };
@@ -40,7 +40,7 @@ export const commandRegistrationCheck: DriftCheck = {
         passed: false,
         message: "Required file(s) missing for command registration check",
         severity: "warning",
-        details: missing.map((p) => `Missing: ${p}`),
+        details: missing.map((p) => `Missing: ${relative(rootDir, p)}`),
       };
     }
 
