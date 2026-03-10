@@ -156,8 +156,8 @@ export const reviewCommand = new Command("review")
           console.log(formatReviewReport(session, filtered));
         }
 
-        // Exit 1 if any critical or high findings
-        const hasCriticalOrHigh = filtered.some(
+        // Exit 1 if any critical or high findings (based on full results, not display filter)
+        const hasCriticalOrHigh = result.findings.some(
           (f) => f.severity === "critical" || f.severity === "high",
         );
         if (hasCriticalOrHigh) {

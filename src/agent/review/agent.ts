@@ -90,14 +90,9 @@ const parseFindings = (
 ): readonly ReviewFinding[] => {
   const trimmed = content.trim();
 
-  // Strip markdown code fences if present
-  let jsonStr: string;
-  if (trimmed.startsWith("```")) {
-    const fenceMatch = /^```\w*\n([\s\S]*?)\n?```$/.exec(trimmed);
-    jsonStr = fenceMatch ? fenceMatch[1] : trimmed.replace(/^```\w*\n?/, "");
-  } else {
-    jsonStr = trimmed;
-  }
+  // Extract JSON from markdown code fences (handles preamble/postamble text)
+  const fenceMatch = /```(?:\w*)\s*\n([\s\S]*?)\n?```/.exec(trimmed);
+  const jsonStr = fenceMatch ? fenceMatch[1] : trimmed;
 
   let parsed: unknown;
   try {

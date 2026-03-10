@@ -97,6 +97,34 @@ describe("reviewDiff", () => {
     expect(result.findings).toHaveLength(1);
   });
 
+  it("strips code fences with conversational preamble", async () => {
+    const findings = [
+      {
+        severity: "medium",
+        category: "bug",
+        path: "src/foo.ts",
+        description: "Found an issue",
+        suggestion: "Fix it",
+      },
+    ];
+    const wrapped =
+      "Here are the findings from my review:\n\n```json\n" +
+      JSON.stringify(findings) +
+      "\n```\n\nLet me know if you need more details.";
+
+    const client = makeClient(wrapped);
+    const result = await reviewDiff(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].description).toBe("Found an issue");
+  });
+
   it("filters out findings with invalid severity", async () => {
     const findings = [
       {
@@ -253,7 +281,7 @@ describe("reviewDiff", () => {
     expect(result.findings[0].endLine).toBeUndefined();
   });
 
-  it("handles code fences without closing fence", async () => {
+  it("treats unclosed code fence as malformed response", async () => {
     const findings = [
       {
         severity: "low",
@@ -274,7 +302,8 @@ describe("reviewDiff", () => {
       SESSION_ID,
       "claude-sonnet-4-6",
     );
-    expect(result.findings).toHaveLength(1);
+    // Unclosed fence means truncated/malformed response — no findings extracted
+    expect(result.findings).toEqual([]);
   });
 
   it("handles optional line numbers", async () => {
