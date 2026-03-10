@@ -6,7 +6,13 @@ export interface DriftCheck {
   readonly name: string;
   readonly description: string;
   readonly requiresModel: boolean;
-  readonly run: (rootDir: string) => DriftFinding;
+  readonly run: (rootDir: string, ctx?: ScanContext) => DriftFinding;
+}
+
+/** Shared scan context providing cached filesystem access across checks. */
+export interface ScanContext {
+  readonly rootDir: string;
+  readonly srcFiles: (exclude?: readonly string[]) => readonly string[];
 }
 
 /** The result of running a single drift check. */
