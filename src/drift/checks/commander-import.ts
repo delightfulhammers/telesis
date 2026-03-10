@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { DriftCheck } from "../types.js";
 import { findTypeScriptFiles, scanForPattern } from "../scan.js";
 
@@ -16,10 +17,11 @@ export const commanderImportCheck: DriftCheck = {
   description: "commander imported only in src/cli/ and src/index.ts",
   requiresModel: false,
   run: (rootDir) => {
-    const files = findTypeScriptFiles(`${rootDir}/src`).filter(
+    const srcDir = join(rootDir, "src");
+    const files = findTypeScriptFiles(srcDir).filter(
       (f) => !isTestFile(f),
     );
-    const hits = scanForPattern(`${rootDir}/src`, files, IMPORT_PATTERN).filter(
+    const hits = scanForPattern(srcDir, files, IMPORT_PATTERN).filter(
       (h) => !isAllowed(h.file),
     );
 

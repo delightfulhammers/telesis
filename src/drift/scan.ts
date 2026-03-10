@@ -26,6 +26,7 @@ export const findTypeScriptFiles = (
       if (entry.isDirectory()) {
         if (
           entry.name === "node_modules" ||
+          entry.name.startsWith(".") ||
           exclude.some((ex) => relPath === ex || relPath.startsWith(`${ex}/`))
         ) {
           continue;

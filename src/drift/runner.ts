@@ -46,7 +46,5 @@ export const runChecks = (
     warnings,
   };
 
-  const passed = findings.every((f) => f.passed || f.severity !== "error");
-
-  return { checks: findings, passed, summary };
+  return { checks: findings, passed: failed === 0, summary };
 };

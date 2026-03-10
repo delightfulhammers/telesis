@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { DriftCheck } from "../types.js";
 import { findTypeScriptFiles, scanForPattern } from "../scan.js";
 
@@ -10,10 +11,11 @@ export const noProcessExitCheck: DriftCheck = {
   description: "No process.exit calls outside src/cli/",
   requiresModel: false,
   run: (rootDir) => {
-    const files = findTypeScriptFiles(`${rootDir}/src`, ["cli"]).filter(
+    const srcDir = join(rootDir, "src");
+    const files = findTypeScriptFiles(srcDir, ["cli"]).filter(
       (f) => !isTestFile(f),
     );
-    const hits = scanForPattern(`${rootDir}/src`, files, PROCESS_EXIT_PATTERN);
+    const hits = scanForPattern(srcDir, files, PROCESS_EXIT_PATTERN);
 
     return {
       check: "no-process-exit",
