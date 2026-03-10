@@ -355,11 +355,59 @@ code review feedback across four rounds.
 
 ---
 
+## v0.6.0 — Review Personas
+
+**Goal:** Multi-perspective review with specialized personas that focus on distinct
+concerns, within-session deduplication, and cross-round theme suppression. Transform the
+single-pass reviewer into an orchestrated panel of focused experts.
+
+**Status:** In Progress
+
+**Reference:** TDD-004 (Review Personas), Bop (prior art)
+
+### What Changes
+
+The review agent gains persona-based review as the default mode. An orchestrator selects
+which personas to engage based on the diff and project context. Selected personas review
+in parallel with focused system prompts. Findings are deduplicated across personas within
+a session, and themes from prior sessions suppress repeat findings.
+
+### Acceptance Criteria
+
+1. `telesis review` runs persona-based review by default with built-in personas
+2. `telesis review --single` runs the generalist single-pass review mode
+3. `telesis review --personas sec,arch` runs only the named personas
+4. `telesis review --no-dedup` skips within-session deduplication
+5. `telesis review --no-themes` skips cross-round theme extraction
+6. The orchestrator selects personas based on diff content and project context
+7. Persona calls execute in parallel
+8. Findings include the `persona` field identifying which persona produced them
+9. Duplicate findings across personas are merged, keeping the highest severity
+10. The dedup merge count is displayed in the report summary
+11. Cross-round themes from the 3 most recent sessions are injected into persona prompts
+12. Session metadata records mode, personas used, and themes injected
+13. The report groups findings by persona in persona mode
+14. Personas are configurable via `.telesis/config.yml` `review.personas` section
+15. Default personas work with zero configuration
+16. `telesis review --json` includes persona and dedup metadata
+17. All new business logic has colocated unit tests
+18. Running `telesis drift` on the Telesis repo produces zero errors after all changes
+
+### Build Sequence
+
+1. **Phase 1 — Types and persona definitions**
+2. **Phase 2 — Persona-specific prompts**
+3. **Phase 3 — Persona orchestrator and parallel execution**
+4. **Phase 4 — Within-session deduplication**
+5. **Phase 5 — Cross-round theme extraction**
+6. **Phase 6 — CLI integration and formatter**
+7. **Phase 7 — Config integration and validation**
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
 
-- **v0.6.0 — Review Personas:** Multi-perspective review with persona-based lenses and
-  cross-round deduplication (informed by Bop's three-stage dedup architecture)
 - **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development
   lifecycle

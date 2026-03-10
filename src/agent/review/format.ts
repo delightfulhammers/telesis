@@ -74,6 +74,27 @@ const countBySeverity = (findings: readonly ReviewFinding[]): string => {
     .join(", ");
 };
 
+const buildSummaryLine = (
+  session: ReviewSession,
+  findings: readonly ReviewFinding[],
+): string => {
+  const totalTokens =
+    session.tokenUsage.inputTokens + session.tokenUsage.outputTokens;
+  return findings.length === 0
+    ? `0 findings · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}`
+    : `${findings.length} findings (${countBySeverity(findings)}) · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}`;
+};
+
+const sortedFindings = (
+  findings: readonly ReviewFinding[],
+): readonly ReviewFinding[] =>
+  [...findings].sort(
+    (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
+  );
+
+const capitalize = (s: string): string =>
+  s.charAt(0).toUpperCase() + s.slice(1);
+
 export const formatReviewReport = (
   session: ReviewSession,
   findings: readonly ReviewFinding[],
@@ -86,25 +107,66 @@ export const formatReviewReport = (
     lines.push("  No findings.");
     lines.push("");
   } else {
-    const sorted = [...findings].sort(
-      (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
-    );
-    for (const finding of sorted) {
+    for (const finding of sortedFindings(findings)) {
       lines.push(formatFinding(finding));
       lines.push("");
     }
   }
 
   const separator = "─".repeat(50);
-  const totalTokens =
-    session.tokenUsage.inputTokens + session.tokenUsage.outputTokens;
-  const summary =
-    findings.length === 0
-      ? `0 findings · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}`
-      : `${findings.length} findings (${countBySeverity(findings)}) · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}`;
-
   lines.push(separator);
-  lines.push(summary);
+  lines.push(buildSummaryLine(session, findings));
+
+  return lines.join("\n");
+};
+
+export interface PersonaReportOptions {
+  readonly mergedCount?: number;
+}
+
+export const formatPersonaReport = (
+  session: ReviewSession,
+  findings: readonly ReviewFinding[],
+  options: PersonaReportOptions = {},
+): string => {
+  const personaSlugs = session.personas ?? [];
+  const header = `Review: ${session.ref}`;
+  const personaLine = `Personas: ${personaSlugs.join(", ")}`;
+  const divider = "═".repeat(50);
+  const lines: string[] = [header, personaLine];
+
+  if (session.themes && session.themes.length > 0) {
+    lines.push(`Themes: ${session.themes.join(", ")}`);
+  }
+
+  lines.push(divider, "");
+
+  // Group findings by persona, maintaining persona order from session
+  for (const slug of personaSlugs) {
+    const personaFindings = findings.filter((f) => f.persona === slug);
+    const label = capitalize(slug);
+    const underline = "─".repeat(label.length + 2);
+
+    lines.push(`  ${label}`);
+    lines.push(`  ${underline}`);
+
+    if (personaFindings.length === 0) {
+      lines.push("  No findings.");
+    } else {
+      for (const finding of sortedFindings(personaFindings)) {
+        lines.push(formatFinding(finding));
+      }
+    }
+    lines.push("");
+  }
+
+  const separator = "─".repeat(50);
+  lines.push(separator);
+  lines.push(buildSummaryLine(session, findings));
+
+  if (options.mergedCount && options.mergedCount > 0) {
+    lines.push(`  [${options.mergedCount} duplicates merged across personas]`);
+  }
 
   return lines.join("\n");
 };

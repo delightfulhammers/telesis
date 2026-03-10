@@ -26,6 +26,7 @@ const makeSession = (
   model: "claude-sonnet-4-6",
   durationMs: 500,
   tokenUsage: { inputTokens: 100, outputTokens: 50 },
+  mode: "single",
   ...overrides,
 });
 
@@ -103,6 +104,33 @@ describe("loadReviewSession", () => {
     expect(loaded.findings).toHaveLength(2);
     expect(loaded.findings[0].description).toBe("Issue A");
     expect(loaded.findings[1].description).toBe("Issue B");
+  });
+
+  it("round-trips persona session with themes", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, ".telesis"), { recursive: true });
+
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security", "correctness"],
+      themes: ["SQL injection", "input validation"],
+    });
+    const findings = [
+      makeFinding({ id: "f1", persona: "security" }),
+      makeFinding({ id: "f2", persona: "correctness" }),
+    ];
+
+    saveReviewSession(dir, session, findings);
+    const loaded = loadReviewSession(dir, TEST_ID);
+
+    expect(loaded.session.mode).toBe("personas");
+    expect(loaded.session.personas).toEqual(["security", "correctness"]);
+    expect(loaded.session.themes).toEqual([
+      "SQL injection",
+      "input validation",
+    ]);
+    expect(loaded.findings[0].persona).toBe("security");
+    expect(loaded.findings[1].persona).toBe("correctness");
   });
 
   it("throws on invalid session id format", () => {
