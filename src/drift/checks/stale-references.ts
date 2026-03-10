@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import type { DriftCheck, DriftFinding } from "../types.js";
 
 const LIVING_DOCS = [
@@ -20,17 +20,13 @@ interface StaleRef {
   readonly path: string;
 }
 
-const isWithinRoot = (resolvedPath: string, rootDir: string): boolean => {
-  const normalizedRoot = resolve(rootDir);
-  const normalizedPath = resolve(resolvedPath);
-  return (
-    normalizedPath === normalizedRoot ||
-    normalizedPath.startsWith(normalizedRoot + "/")
-  );
-};
+const isWithinRoot = (resolvedPath: string, normalizedRoot: string): boolean =>
+  resolvedPath === normalizedRoot ||
+  resolvedPath.startsWith(normalizedRoot + sep);
 
 const scanDoc = (
   rootDir: string,
+  resolvedRoot: string,
   docRelPath: string,
   existsCache: Map<string, boolean>,
 ): readonly StaleRef[] => {
@@ -70,7 +66,7 @@ const scanDoc = (
 
       const cleaned = refPath.replace(/\/$/, "");
       const absPath = resolve(rootDir, cleaned);
-      if (!isWithinRoot(absPath, rootDir)) continue;
+      if (!isWithinRoot(absPath, resolvedRoot)) continue;
       if (!checkExists(absPath)) {
         refs.push({ doc: docRelPath, path: refPath });
       }
@@ -87,7 +83,7 @@ const scanDoc = (
 
       const docDir = dirname(docPath);
       const absPath = resolve(docDir, stripped);
-      if (!isWithinRoot(absPath, rootDir)) continue;
+      if (!isWithinRoot(absPath, resolvedRoot)) continue;
       if (!checkExists(absPath)) {
         refs.push({ doc: docRelPath, path: linkTarget });
       }
@@ -113,13 +109,14 @@ export const staleReferencesCheck: DriftCheck = {
   description: "Living docs reference existing paths",
   requiresModel: false,
   run: (rootDir): DriftFinding => {
+    const resolvedRoot = resolve(rootDir);
     const contextDocs = scanContextDir(rootDir);
     const allDocs = [...LIVING_DOCS, ...contextDocs];
     const allRefs: StaleRef[] = [];
     const existsCache = new Map<string, boolean>();
 
     for (const doc of allDocs) {
-      allRefs.push(...scanDoc(rootDir, doc, existsCache));
+      allRefs.push(...scanDoc(rootDir, resolvedRoot, doc, existsCache));
     }
 
     const details = allRefs.map(

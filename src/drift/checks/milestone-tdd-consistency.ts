@@ -12,7 +12,7 @@ const MILESTONE_HEADING_RE = /^##\s+(.+)/;
 const STATUS_RE = /^\*\*Status:\*\*\s+(.+)/;
 const REFERENCE_RE = /^\*\*Reference:\*\*/;
 const TDD_NUM_RE = /TDD-(\d+)/g;
-const TDD_STATUS_RE = /^\*\*Status:\*\*\s+(.+)/;
+const TDD_STATUS_RE = /^\*\*Status:\*\*\s+(.+)/m;
 
 const parseMilestones = (content: string): readonly MilestoneInfo[] => {
   const milestones: MilestoneInfo[] = [];
@@ -55,11 +55,8 @@ const parseMilestones = (content: string): readonly MilestoneInfo[] => {
 };
 
 const extractTddStatus = (content: string): string => {
-  for (const line of content.split("\n")) {
-    const match = TDD_STATUS_RE.exec(line.trim());
-    if (match && match[1]) return match[1].trim();
-  }
-  return "";
+  const match = TDD_STATUS_RE.exec(content);
+  return match?.[1]?.trim() ?? "";
 };
 
 const findTddFile = (
