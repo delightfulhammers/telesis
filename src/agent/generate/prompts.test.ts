@@ -143,4 +143,28 @@ describe("buildGenerationPrompt", () => {
     const contextIndex = prompt.indexOf("Project context");
     expect(topicsIndex).toBeLessThan(contextIndex);
   });
+
+  describe("vision prompt — principle quality (#15)", () => {
+    it("instructs against restating features as principles", () => {
+      const prompt = buildGenerationPrompt("vision", makeState(), {});
+      expect(prompt).toContain("Do not restate features as principles");
+    });
+
+    it("instructs principles to guide ambiguous decisions", () => {
+      const prompt = buildGenerationPrompt("vision", makeState(), {});
+      expect(prompt).toContain("resolve ambiguous design decisions");
+    });
+  });
+
+  describe("architecture prompt — decided vs suggested (#17)", () => {
+    it("instructs to distinguish decided from suggested technologies", () => {
+      const prompt = buildGenerationPrompt("architecture", makeState(), {});
+      expect(prompt).toContain("explicitly chosen");
+    });
+
+    it("instructs to frame undiscussed choices as options", () => {
+      const prompt = buildGenerationPrompt("architecture", makeState(), {});
+      expect(prompt).toContain("options to evaluate");
+    });
+  });
 });

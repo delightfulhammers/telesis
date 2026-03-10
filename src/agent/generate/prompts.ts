@@ -45,6 +45,8 @@ VISION.md captures the project's foundational "why" — its purpose, the problem
 - Ground everything in the interview conversation
 - Ensure every topic from the interview checklist below appears somewhere in the document
 - Principles must be specific to THIS project, derived from the interview — not generic advice
+- Do not restate features as principles. A principle should resolve ambiguous design decisions, not describe what the project does. For example, "When in doubt, prioritize simplicity over configurability" is a useful principle; "Simple Configuration" is just a feature label.
+- Each principle should help a developer choose between two reasonable options when the answer isn't obvious
 - Return ONLY the markdown document, no preamble or explanation`,
 
   prd: `You are generating a PRD.md (Product Requirements Document) for a software project.
@@ -85,6 +87,7 @@ ARCHITECTURE.md describes how the system is built — its components, their rela
 - Be specific about technology choices, patterns, and conventions
 - Include developer preferences (coding style, paradigm preferences, etc.) in Working Conventions
 - ONLY describe components and technology choices that were explicitly discussed in the interview — do NOT fabricate implementation details
+- Distinguish between technologies the developer has explicitly chosen and areas where the choice is still open. Mark explicitly chosen technologies as decisions; frame undiscussed or loosely-mentioned alternatives as options to evaluate
 - Reference VISION.md for principles and PRD.md for requirements
 - Return ONLY the markdown document, no preamble or explanation`,
 
