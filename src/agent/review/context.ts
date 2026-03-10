@@ -214,10 +214,15 @@ export const assembleReviewContext = (rootDir: string): ReviewContext => {
       ? parts.join("\n\n---\n\n")
       : "No project-specific review criteria found. Apply general code review best practices.";
 
-  if (conventionsText.length > MAX_CONVENTIONS_CHARS) {
-    console.error(
-      `Warning: review conventions truncated from ${conventionsText.length} to ${MAX_CONVENTIONS_CHARS} characters.`,
-    );
+  const truncated =
+    conventionsText.length > MAX_CONVENTIONS_CHARS
+      ? {
+          originalLength: conventionsText.length,
+          truncatedLength: MAX_CONVENTIONS_CHARS,
+        }
+      : undefined;
+
+  if (truncated) {
     conventionsText = conventionsText.slice(0, MAX_CONVENTIONS_CHARS);
   }
 
@@ -225,5 +230,6 @@ export const assembleReviewContext = (rootDir: string): ReviewContext => {
     conventions: conventionsText,
     projectName: cfg.project.name,
     primaryLanguage: cfg.project.language,
+    conventionsTruncated: truncated,
   };
 };

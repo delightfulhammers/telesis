@@ -106,22 +106,3 @@ export const loadNotes = (rootDir: string): LoadNotesResult => {
 
   return { items, invalidLineCount };
 };
-
-export const countNotes = (rootDir: string): number => {
-  const resolvedRoot = resolve(rootDir);
-  const filePath = join(resolvedRoot, NOTES_PATH);
-
-  let data: string;
-  try {
-    data = readFileSync(filePath, "utf-8");
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
-    throw err;
-  }
-
-  let count = 0;
-  for (const line of data.split("\n")) {
-    if (line.trim().length > 0) count++;
-  }
-  return count;
-};

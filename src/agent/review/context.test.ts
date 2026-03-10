@@ -201,5 +201,18 @@ Irrelevant.
 
     const ctx = assembleReviewContext(dir);
     expect(ctx.conventions.length).toBeLessThanOrEqual(50_000);
+    expect(ctx.conventionsTruncated).toBeDefined();
+    expect(ctx.conventionsTruncated!.originalLength).toBeGreaterThan(50_000);
+    expect(ctx.conventionsTruncated!.truncatedLength).toBe(50_000);
+  });
+
+  it("does not set truncation metadata when under cap", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    writeFileSync(join(dir, "docs", "context", "small.md"), "Short content.\n");
+
+    const ctx = assembleReviewContext(dir);
+    expect(ctx.conventionsTruncated).toBeUndefined();
   });
 });

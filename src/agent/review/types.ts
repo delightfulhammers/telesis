@@ -57,4 +57,8 @@ export interface ReviewContext {
   readonly conventions: string;
   readonly projectName: string;
   readonly primaryLanguage: string;
+  readonly conventionsTruncated?: {
+    readonly originalLength: number;
+    readonly truncatedLength: number;
+  };
 }

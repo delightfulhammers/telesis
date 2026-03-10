@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, writeFileSync, readFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { platform } from "node:process";
-import { appendNote, loadNotes, countNotes } from "./store.js";
+import { appendNote, loadNotes } from "./store.js";
 import { useTempDir } from "../test-utils.js";
 
 const makeTempDir = useTempDir("notes-store-test");
@@ -193,22 +193,5 @@ describe("loadNotes", () => {
     const { items, invalidLineCount } = loadNotes(rootDir);
     expect(items).toEqual([]);
     expect(invalidLineCount).toBe(1);
-  });
-});
-
-describe("countNotes", () => {
-  it("returns 0 when file does not exist", () => {
-    const rootDir = makeTempDir();
-    expect(countNotes(rootDir)).toBe(0);
-  });
-
-  it("counts non-empty lines without parsing", () => {
-    const rootDir = makeTempDir();
-
-    appendNote(rootDir, "first", []);
-    appendNote(rootDir, "second", []);
-    appendNote(rootDir, "third", []);
-
-    expect(countNotes(rootDir)).toBe(3);
   });
 });
