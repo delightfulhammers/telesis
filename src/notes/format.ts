@@ -1,15 +1,11 @@
 import type { Note } from "./types.js";
 
-const formatDate = (timestamp: string): string => {
-  const d = new Date(timestamp);
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+const formatDate = (timestamp: string): string => timestamp.slice(0, 10);
 
 const GENERAL_TAG = "General";
 
 const byTimestampDesc = (a: Note, b: Note): number =>
-  b.timestamp.localeCompare(a.timestamp);
+  a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
 
 export const formatNoteList = (notes: readonly Note[]): string => {
   if (notes.length === 0) return "";
@@ -35,15 +31,20 @@ export const renderNotesSection = (notes: readonly Note[]): string => {
     const date = formatDate(note.timestamp);
     const entry = { text: note.text, date };
 
-    if (note.tags.length === 0) {
-      const items = groups.get(GENERAL_TAG) ?? [];
+    const addToGroup = (key: string): void => {
+      let items = groups.get(key);
+      if (!items) {
+        items = [];
+        groups.set(key, items);
+      }
       items.push(entry);
-      groups.set(GENERAL_TAG, items);
+    };
+
+    if (note.tags.length === 0) {
+      addToGroup(GENERAL_TAG);
     } else {
       for (const tag of note.tags) {
-        const items = groups.get(tag) ?? [];
-        items.push(entry);
-        groups.set(tag, items);
+        addToGroup(tag);
       }
     }
   }
