@@ -10,18 +10,27 @@ const readStdin = (): Promise<string> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let totalBytes = 0;
+    let overflowed = false;
     process.stdin.on("data", (chunk: Buffer) => {
       totalBytes += chunk.length;
       if (totalBytes > MAX_STDIN_BYTES) {
-        process.stdin.destroy(new Error("stdin input exceeds 1 MB limit"));
+        overflowed = true;
+        reject(new Error("stdin input exceeds 1 MB limit"));
+        process.stdin.destroy();
         return;
       }
       chunks.push(chunk);
     });
-    process.stdin.on("end", () =>
-      resolve(Buffer.concat(chunks).toString("utf-8").trim()),
-    );
-    process.stdin.on("error", reject);
+    process.stdin.on("end", () => {
+      if (!overflowed) {
+        resolve(Buffer.concat(chunks).toString("utf-8").trim());
+      }
+    });
+    process.stdin.on("error", (err) => {
+      if (!overflowed) {
+        reject(err);
+      }
+    });
   });
 
 const addCommand = new Command("add")
@@ -45,6 +54,7 @@ const addCommand = new Command("add")
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`note write failed: ${message}`);
+        process.exitCode = 1;
       }
     }),
   );

@@ -8,12 +8,14 @@ const formatDate = (timestamp: string): string => {
 
 const GENERAL_TAG = "General";
 
+const byTimestampDesc = (a: Note, b: Note): number =>
+  b.timestamp.localeCompare(a.timestamp);
+
 export const formatNoteList = (notes: readonly Note[]): string => {
   if (notes.length === 0) return "";
 
-  const reversed = [...notes].reverse();
-
-  return reversed
+  return [...notes]
+    .sort(byTimestampDesc)
     .map((note) => {
       const date = formatDate(note.timestamp);
       const tagLabel = note.tags.length > 0 ? ` (${note.tags.join(", ")})` : "";
@@ -25,9 +27,11 @@ export const formatNoteList = (notes: readonly Note[]): string => {
 export const renderNotesSection = (notes: readonly Note[]): string => {
   if (notes.length === 0) return "";
 
+  const sorted = [...notes].sort(byTimestampDesc);
+
   const groups = new Map<string, { text: string; date: string }[]>();
 
-  for (const note of notes) {
+  for (const note of sorted) {
     const date = formatDate(note.timestamp);
     const entry = { text: note.text, date };
 

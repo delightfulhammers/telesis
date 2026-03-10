@@ -36,15 +36,17 @@ describe("formatNoteList", () => {
     expect(output).toBe("[2026-03-10] untagged insight");
   });
 
-  it("shows newest first", () => {
+  it("sorts by timestamp descending regardless of input order", () => {
     const notes = [
-      makeNote("older", ["a"], "2026-03-08T00:00:00Z"),
-      makeNote("newer", ["b"], "2026-03-10T00:00:00Z"),
+      makeNote("middle", ["a"], "2026-03-09T12:00:00Z"),
+      makeNote("newest", ["b"], "2026-03-10T12:00:00Z"),
+      makeNote("oldest", ["c"], "2026-03-08T12:00:00Z"),
     ];
     const output = formatNoteList(notes);
     const lines = output.split("\n");
-    expect(lines[0]).toContain("newer");
-    expect(lines[1]).toContain("older");
+    expect(lines[0]).toContain("newest");
+    expect(lines[1]).toContain("middle");
+    expect(lines[2]).toContain("oldest");
   });
 });
 
@@ -85,6 +87,20 @@ describe("renderNotesSection", () => {
 
     expect(buildIdx).toBeLessThan(gitIdx);
     expect(gitIdx).toBeLessThan(generalIdx);
+  });
+
+  it("sorts entries within groups by timestamp descending", () => {
+    const notes = [
+      makeNote("oldest", ["git"], "2026-03-08T12:00:00Z"),
+      makeNote("newest", ["git"], "2026-03-10T12:00:00Z"),
+      makeNote("middle", ["git"], "2026-03-09T12:00:00Z"),
+    ];
+    const output = renderNotesSection(notes);
+    const newestIdx = output.indexOf("newest");
+    const middleIdx = output.indexOf("middle");
+    const oldestIdx = output.indexOf("oldest");
+    expect(newestIdx).toBeLessThan(middleIdx);
+    expect(middleIdx).toBeLessThan(oldestIdx);
   });
 
   it("places multi-tagged notes in each tag group", () => {
