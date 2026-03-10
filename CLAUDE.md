@@ -191,7 +191,7 @@ The provenance trail, the decision log, the living spec — these emerge from th
 **Model calls:**
 - All model calls go through `ModelClient`. Never call the Anthropic SDK directly from
   business logic.
-- Default model: `claude-sonnet-4-20250514` for both interview and generation.
+- Default model: `claude-sonnet-4-6` for both interview and generation.
   Configurable in `.telesis/config.yml`.
 - Every model call is logged to `.telesis/telemetry.jsonl` automatically via `ModelClient`.
   This is not optional.

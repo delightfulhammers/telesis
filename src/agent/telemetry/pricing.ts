@@ -19,7 +19,7 @@ export interface PricingConfig {
 const PRICING_PATH = ".telesis/pricing.yml";
 
 const DEFAULT_MODELS: PricingConfig["models"] = {
-  "claude-sonnet-4-20250514": {
+  "claude-sonnet-4-6": {
     provider: "anthropic",
     inputPer1MTokens: 3.0,
     outputPer1MTokens: 15.0,

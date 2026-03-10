@@ -13,7 +13,7 @@ const makeRecord = (
   id: "test-id",
   timestamp: "2026-03-09T10:00:00.000Z",
   component: "interview",
-  model: "claude-sonnet-4-20250514",
+  model: "claude-sonnet-4-6",
   provider: "anthropic",
   inputTokens: 1000,
   outputTokens: 500,

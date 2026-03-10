@@ -13,7 +13,7 @@ const makeRecord = (
   id: "test-id",
   timestamp: "2026-03-09T12:00:00Z",
   component: "interview",
-  model: "claude-sonnet-4-20250514",
+  model: "claude-sonnet-4-6",
   provider: "anthropic",
   inputTokens: 1000,
   outputTokens: 500,
@@ -34,7 +34,7 @@ describe("pricing", () => {
         join(rootDir, ".telesis", "pricing.yml"),
         "utf-8",
       );
-      expect(content).toContain("claude-sonnet-4-20250514");
+      expect(content).toContain("claude-sonnet-4-6");
       expect(content).toContain("inputPer1MTokens");
     });
 
@@ -59,7 +59,7 @@ describe("pricing", () => {
         join(rootDir, ".telesis", "pricing.yml"),
         "utf-8",
       );
-      expect(content).toContain("claude-sonnet-4-20250514");
+      expect(content).toContain("claude-sonnet-4-6");
     });
   });
 
@@ -72,9 +72,9 @@ describe("pricing", () => {
       const pricing = loadPricing(rootDir);
 
       expect(pricing).not.toBeNull();
-      expect(pricing!.models["claude-sonnet-4-20250514"]).toBeDefined();
+      expect(pricing!.models["claude-sonnet-4-6"]).toBeDefined();
       expect(
-        pricing!.models["claude-sonnet-4-20250514"].inputPer1MTokens,
+        pricing!.models["claude-sonnet-4-6"].inputPer1MTokens,
       ).toBeGreaterThan(0);
     });
 
@@ -153,7 +153,7 @@ describe("pricing", () => {
       const pricing = {
         lastUpdated: "2026-03-09",
         models: {
-          "claude-sonnet-4-20250514": {
+          "claude-sonnet-4-6": {
             provider: "anthropic",
             inputPer1MTokens: 3.0,
             outputPer1MTokens: 15.0,
@@ -172,7 +172,7 @@ describe("pricing", () => {
       const pricing = {
         lastUpdated: "2026-03-09",
         models: {
-          "claude-sonnet-4-20250514": {
+          "claude-sonnet-4-6": {
             provider: "anthropic",
             inputPer1MTokens: 3.0,
             outputPer1MTokens: 15.0,
@@ -192,7 +192,7 @@ describe("pricing", () => {
       const pricing = {
         lastUpdated: "2026-03-09",
         models: {
-          "claude-sonnet-4-20250514": {
+          "claude-sonnet-4-6": {
             provider: "anthropic",
             inputPer1MTokens: 3.0,
             outputPer1MTokens: 15.0,
@@ -217,7 +217,7 @@ describe("pricing", () => {
       const pricing = {
         lastUpdated: "2026-03-09",
         models: {
-          "claude-sonnet-4-20250514": {
+          "claude-sonnet-4-6": {
             provider: "anthropic",
             inputPer1MTokens: 3.0,
             outputPer1MTokens: 15.0,
@@ -238,7 +238,7 @@ describe("pricing", () => {
       const pricing = {
         lastUpdated: "2026-03-09",
         models: {
-          "claude-sonnet-4-20250514": {
+          "claude-sonnet-4-6": {
             provider: "anthropic",
             inputPer1MTokens: 3.0,
             outputPer1MTokens: 15.0,
