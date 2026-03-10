@@ -190,4 +190,16 @@ Irrelevant.
     expect(ctx.conventions).toContain("Rule A");
     expect(ctx.conventions).toContain("Style B");
   });
+
+  it("truncates conventions exceeding size cap", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    // Write a convention file large enough to exceed the 50,000 char cap
+    const largeContent = "x".repeat(60_000);
+    writeFileSync(join(dir, "docs", "context", "huge.md"), largeContent);
+
+    const ctx = assembleReviewContext(dir);
+    expect(ctx.conventions.length).toBeLessThanOrEqual(50_000);
+  });
 });

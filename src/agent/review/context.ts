@@ -159,8 +159,11 @@ const extractPrdCommands = (rootDir: string): string => {
   return extractSection(content, /^##\s+Commands/i);
 };
 
+// ~12,500 tokens at 4 chars/token — leaves ample room for diff + response
+const MAX_CONVENTIONS_CHARS = 50_000;
+
 const extractNotes = (rootDir: string): string => {
-  const notes = loadNotes(rootDir);
+  const { items: notes } = loadNotes(rootDir);
   if (notes.length === 0) return "";
 
   return notes
@@ -206,10 +209,17 @@ export const assembleReviewContext = (rootDir: string): ReviewContext => {
     parts.push("## Development Notes\n\n" + notes);
   }
 
-  const conventionsText =
+  let conventionsText =
     parts.length > 0
       ? parts.join("\n\n---\n\n")
       : "No project-specific review criteria found. Apply general code review best practices.";
+
+  if (conventionsText.length > MAX_CONVENTIONS_CHARS) {
+    console.error(
+      `Warning: review conventions truncated from ${conventionsText.length} to ${MAX_CONVENTIONS_CHARS} characters.`,
+    );
+    conventionsText = conventionsText.slice(0, MAX_CONVENTIONS_CHARS);
+  }
 
   return {
     conventions: conventionsText,
