@@ -223,7 +223,12 @@ export const assembleReviewContext = (rootDir: string): ReviewContext => {
       : undefined;
 
   if (truncated) {
-    conventionsText = conventionsText.slice(0, MAX_CONVENTIONS_CHARS);
+    let end = MAX_CONVENTIONS_CHARS;
+    const lastCode = conventionsText.charCodeAt(end - 1);
+    if (lastCode >= 0xd800 && lastCode <= 0xdbff) {
+      end -= 1;
+    }
+    conventionsText = conventionsText.slice(0, end);
   }
 
   return {

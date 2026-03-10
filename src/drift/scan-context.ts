@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { findTypeScriptFiles } from "./scan.js";
 import type { ScanContext } from "./types.js";
 
@@ -17,17 +17,18 @@ const filterExcludes = (
  * The full file list is computed once; exclude filtering happens in-memory.
  */
 export const createScanContext = (rootDir: string): ScanContext => {
+  const resolvedRoot = resolve(rootDir);
   let cachedFiles: readonly string[] | null = null;
 
   const allFiles = (): readonly string[] => {
     if (cachedFiles === null) {
-      cachedFiles = findTypeScriptFiles(join(rootDir, "src"));
+      cachedFiles = findTypeScriptFiles(join(resolvedRoot, "src"));
     }
     return cachedFiles;
   };
 
   return {
-    rootDir,
+    rootDir: resolvedRoot,
     srcFiles: (exclude) =>
       exclude && exclude.length > 0
         ? filterExcludes(allFiles(), exclude)
