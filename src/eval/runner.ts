@@ -27,9 +27,16 @@ const PER_DOC_AXES: readonly PerDocumentAxis[] = [
  * independently for each document. Cross-document axes (coverage, consistency)
  * are scored once globally and reported separately.
  */
+const normalizeDocs = (docs: GeneratedDocs): Required<GeneratedDocs> => ({
+  vision: docs.vision ?? "",
+  prd: docs.prd ?? "",
+  architecture: docs.architecture ?? "",
+  milestones: docs.milestones ?? "",
+});
+
 export const evaluate = (input: EvalInput): EvalReport => {
   const { interviewState, generatedDocs } = input;
-  const docs = generatedDocs as Required<GeneratedDocs>;
+  const docs = normalizeDocs(generatedDocs);
 
   // Cross-document evaluations (run once, reported globally)
   const coverageResult = evaluateCoverage(interviewState, docs);

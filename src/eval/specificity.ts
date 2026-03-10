@@ -208,9 +208,9 @@ export const evaluateSpecificity = (
 
   // Named entity check: capitalized multi-word terms in body text (not headings)
   const bodyText = content.replace(/^#+\s.*$/gm, "");
-  // Require 3+ lowercase chars per word to filter sentence-initial words like "The"
+  // Require 4+ char minimum per word (1 upper + 3 lower) to filter function words
   if (
-    /(?:^|\s)[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+(?=\s|[,.])/.test(bodyText)
+    /(?:^|\s)[A-Z][a-z]{3,}(?:\s+[A-Z][a-z]{3,})+(?=\s|[,.])/.test(bodyText)
   ) {
     totalSpecificHits++;
   }
@@ -219,7 +219,7 @@ export const evaluateSpecificity = (
   // Base score starts at 1.0, reduced by generic signals, boosted by specific ones.
   // Each generic signal deducts 0.15, each specific signal adds 0.1.
   const genericPenalty = totalGenericWeight * 0.15;
-  const specificBonus = totalSpecificHits * 0.1;
+  const specificBonus = Math.min(totalSpecificHits * 0.1, 0.5);
 
   // Also penalize if content is very short per section (likely skeleton)
   // Strip heading lines from each section before measuring body length

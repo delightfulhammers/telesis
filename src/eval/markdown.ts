@@ -24,12 +24,17 @@ export const extractMarkdownSection = (
   const levelMatch = match[0].match(/^(#+)/);
   const level = levelMatch ? levelMatch[1].length : 2;
 
-  const afterHeading = content.substring(match.index! + match[0].length);
-  const nextHeading = new RegExp(`^#{1,${level}}\\s`, "m").exec(afterHeading);
+  // Use lastIndex on a global+multiline regex to avoid substring allocation.
+  // Stops at the next heading of equal or higher level (intentional — standard
+  // markdown section boundary semantics).
+  const startIdx = match.index! + match[0].length;
+  const closingPattern = new RegExp(`^#{1,${level}}\\s`, "gm");
+  closingPattern.lastIndex = startIdx;
+  const nextMatch = closingPattern.exec(content);
 
-  const sectionBody = nextHeading
-    ? afterHeading.substring(0, nextHeading.index)
-    : afterHeading;
+  const sectionBody = nextMatch
+    ? content.substring(startIdx, nextMatch.index)
+    : content.substring(startIdx);
 
   return sectionBody.trim() || null;
 };

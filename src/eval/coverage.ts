@@ -84,9 +84,13 @@ export const evaluateCoverage = (
 
   // Tokenize once for O(1) single-word lookups
   const wordSet = tokenize(combinedText);
-  // Lowercase combined text for bigram substring matching
-  // Normalize hyphens to spaces so "real-time" matches topic "real time"
-  const combinedLower = combinedText.toLowerCase().replace(/-/g, " ");
+  // Lowercase combined text for bigram substring matching.
+  // Normalize hyphens to spaces so "real-time" matches topic "real time".
+  // Normalize whitespace so cross-line phrases match single-line topics.
+  const combinedLower = combinedText
+    .toLowerCase()
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ");
 
   const diagnostics: Diagnostic[] = [];
   let covered = 0;
