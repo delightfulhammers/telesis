@@ -175,6 +175,33 @@ negatives, and name consistency producing false positives.
 
 ---
 
+## v0.2.2 — Pricing Provider Key
+
+**Goal:** Key pricing lookup by `{provider, model}` instead of model alone, preventing
+incorrect cost attribution if multiple providers share model identifiers.
+
+**Status:** Complete
+
+**Reference:** Issue #9
+
+### What Changes
+
+The `PricingConfig.models` structure changes from a flat `Record<model, ModelPricing>` to
+a nested `Record<provider, Record<model, ModelPricing>>`. The `provider` field is removed
+from `ModelPricing` (it is now the map key). `calculateCost` looks up pricing by
+`pricing.models[record.provider]?.[record.model]`, ensuring records are costed against
+their own provider's rates.
+
+### Acceptance Criteria
+
+1. `calculateCost` verifies both provider and model before applying pricing rates
+2. Records from an unknown provider contribute zero cost (not matched to another provider)
+3. Records from the same model under different providers are costed at their respective rates
+4. `pricing.yml` uses a nested `provider → model` YAML structure
+5. All existing tests pass with the new structure
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
