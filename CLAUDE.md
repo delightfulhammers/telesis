@@ -57,59 +57,33 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.5.0 — Review Agent
+## v0.5.1 — Housekeeping
 
-**Goal:** Native code review agent that reviews diffs against the project's own spec
-documents (architecture, requirements, conventions, decisions) and produces structured
-findings. Replaces the need for an external review tool by leveraging what Telesis already
-knows about the project.
+**Goal:** Close open issues from review feedback, harden drift detection and review context
+assembly.
 
 **Status:** Complete
 
-**Reference:** TDD-003 (Review Agent)
+**Reference:** Issues #30, #32, #34; PR #35 (4 rounds of Bop review)
 
 ### What Changes
 
-A review agent is introduced under `src/agent/review/`. It accepts a diff (staged changes,
-branch diff, or commit range), assembles review criteria dynamically from project documents,
-sends the diff + criteria to the model, and produces structured findings with severity,
-category, file location, and suggestion. Review sessions are stored in `.telesis/reviews/`
-as per-session JSONL files.
+Three open issues are resolved and several robustness improvements are made based on Bop
+code review feedback across four rounds.
 
-### Acceptance Criteria
+### Changes
 
-1. `telesis review` reviews staged changes and prints a formatted findings report
-2. `telesis review --all` reviews working + staged changes
-3. `telesis review --ref <ref>` reviews diff against the specified ref
-4. `telesis review --json` outputs the review as JSON
-5. `telesis review --min-severity <level>` filters findings by severity
-6. `telesis review --list` lists past review sessions
-7. `telesis review --show <id>` shows findings from a past session
-8. Empty diff prints a message and exits 0 (no model call)
-9. Review criteria are assembled dynamically from project documents (zero configuration)
-10. Findings include severity, category, file path, line range, description, and suggestion
-11. Review sessions are stored in `.telesis/reviews/<session-id>.jsonl`
-12. Malformed model responses produce a warning, not a crash
-13. All new business logic has colocated unit tests
-14. Running `telesis drift` on the Telesis repo produces zero errors after all changes
-
-### Implementation Notes
-
-The review agent went through four rounds of Bop code review on PR #33, with each round
-improving security and robustness:
-
-- **Round 1:** Self-review found 12 issues; 6 fixed (hardcoded model name, falsy line-0
-  check, non-atomic writes, late validation, shell injection via `execSync`, duplicate
-  severity constants)
-- **Round 2:** Security hardening — UUID validation on session IDs (path traversal
-  prevention), git option injection prevention (safe ref allowlist), first-line-only session
-  listing, maxBuffer on all git commands
-- **Round 3:** Newline-missing edge case in session listing, redundant `content.split('\n')`
-  elimination, line number validation on model output (positive integers, coherent ranges),
-  robust fence stripping with capture group regex, descriptive JSON.parse errors, PRD
-  Commands section added to review context
-- **Round 4:** Exit code based on unfiltered findings (not display-filtered subset),
-  unanchored regex for fence extraction to handle model preamble/postamble
+- **#30 — Shared drift scan context:** `ScanContext` (from TDD-002) caches the filesystem
+  walk once and filters in-memory per drift check. All four file-scanning checks accept
+  optional context with standalone fallback. Trailing-slash normalization on exclude entries.
+  `rootDir` resolved to absolute path for consistency.
+- **#32 — Structured JSONL reader results:** `loadNotes` and `loadTelemetryRecords` return
+  `{ items, invalidLineCount }` so callers can surface data corruption. Removed inaccurate
+  `countNotes` (counted malformed lines as valid); status uses `loadNotes().items.length`.
+- **#34 — Review conventions size cap:** Conventions truncated at 50K chars with metadata
+  returned to caller (not stderr). PRD Commands section extracted into review context.
+  Surrogate-pair-safe truncation to avoid invalid UTF-16 at boundary.
+- **#36 — Tracked:** Streaming telemetry reader for large JSONL files (deferred, larger scope).
 
 ---
 

@@ -325,6 +325,36 @@ improving security and robustness:
 
 ---
 
+## v0.5.1 — Housekeeping
+
+**Goal:** Close open issues from review feedback, harden drift detection and review context
+assembly.
+
+**Status:** Complete
+
+**Reference:** Issues #30, #32, #34; PR #35 (4 rounds of Bop review)
+
+### What Changes
+
+Three open issues are resolved and several robustness improvements are made based on Bop
+code review feedback across four rounds.
+
+### Changes
+
+- **#30 — Shared drift scan context:** `ScanContext` (from TDD-002) caches the filesystem
+  walk once and filters in-memory per drift check. All four file-scanning checks accept
+  optional context with standalone fallback. Trailing-slash normalization on exclude entries.
+  `rootDir` resolved to absolute path for consistency.
+- **#32 — Structured JSONL reader results:** `loadNotes` and `loadTelemetryRecords` return
+  `{ items, invalidLineCount }` so callers can surface data corruption. Removed inaccurate
+  `countNotes` (counted malformed lines as valid); status uses `loadNotes().items.length`.
+- **#34 — Review conventions size cap:** Conventions truncated at 50K chars with metadata
+  returned to caller (not stderr). PRD Commands section extracted into review context.
+  Surrogate-pair-safe truncation to avoid invalid UTF-16 at boundary.
+- **#36 — Tracked:** Streaming telemetry reader for large JSONL files (deferred, larger scope).
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
