@@ -1,6 +1,6 @@
 import {
   mkdirSync,
-  appendFileSync,
+  writeFileSync,
   readFileSync,
   readdirSync,
   type Dirent,
@@ -28,7 +28,7 @@ export const saveReviewSession = (
     JSON.stringify({ type: "session", data: session }),
     ...findings.map((f) => JSON.stringify({ type: "finding", data: f })),
   ];
-  appendFileSync(path, lines.join("\n") + "\n");
+  writeFileSync(path, lines.join("\n") + "\n");
 };
 
 interface SessionRecord {

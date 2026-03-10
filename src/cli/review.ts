@@ -18,9 +18,8 @@ import {
   formatSessionList,
   filterBySeverity,
 } from "../agent/review/format.js";
-import type { ReviewSession, Severity } from "../agent/review/types.js";
-
-const VALID_SEVERITIES = ["critical", "high", "medium", "low"];
+import { SEVERITIES, type Severity } from "../agent/review/types.js";
+import type { ReviewSession } from "../agent/review/types.js";
 
 export const reviewCommand = new Command("review")
   .description("Review code changes against project conventions")
@@ -75,17 +74,20 @@ export const reviewCommand = new Command("review")
           return;
         }
 
-        // Review mode
+        // Review mode — validate inputs before any I/O
+        if (
+          opts.minSeverity &&
+          !(SEVERITIES as readonly string[]).includes(opts.minSeverity)
+        ) {
+          throw new Error(
+            `Invalid severity: ${opts.minSeverity}. Valid: ${SEVERITIES.join(", ")}`,
+          );
+        }
+
         if (!process.env.ANTHROPIC_API_KEY) {
           throw new Error(
             "ANTHROPIC_API_KEY environment variable is not set. " +
               "Set it to your Anthropic API key before running telesis review.",
-          );
-        }
-
-        if (opts.minSeverity && !VALID_SEVERITIES.includes(opts.minSeverity)) {
-          throw new Error(
-            `Invalid severity: ${opts.minSeverity}. Valid: ${VALID_SEVERITIES.join(", ")}`,
           );
         }
 
@@ -110,12 +112,14 @@ export const reviewCommand = new Command("review")
           component: "review",
         });
 
+        const model = "claude-sonnet-4-6";
         const result = await reviewDiff(
           client,
           resolved.diff,
           resolved.files,
           context,
           sessionId,
+          model,
         );
 
         // Build session record

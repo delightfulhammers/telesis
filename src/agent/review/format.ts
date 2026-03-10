@@ -15,10 +15,10 @@ const SEVERITY_ICON: Record<Severity, string> = {
 };
 
 const formatLocation = (finding: ReviewFinding): string => {
-  if (finding.startLine && finding.endLine) {
+  if (finding.startLine !== undefined && finding.endLine !== undefined) {
     return `${finding.path}:${finding.startLine}-${finding.endLine}`;
   }
-  if (finding.startLine) {
+  if (finding.startLine !== undefined) {
     return `${finding.path}:${finding.startLine}`;
   }
   return finding.path;

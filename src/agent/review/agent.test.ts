@@ -48,6 +48,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
 
     expect(result.findings).toHaveLength(1);
@@ -67,6 +68,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
     expect(result.findings).toEqual([]);
   });
@@ -90,6 +92,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
     expect(result.findings).toHaveLength(1);
   });
@@ -119,6 +122,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0].description).toBe("Good severity");
@@ -142,6 +146,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
     expect(result.findings).toEqual([]);
   });
@@ -165,6 +170,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
     expect(result.findings).toHaveLength(1);
   });
@@ -187,6 +193,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
     expect(result.findings[0].startLine).toBeUndefined();
     expect(result.findings[0].endLine).toBeUndefined();
@@ -200,7 +207,9 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
+    expect(result.model).toBe("claude-sonnet-4-6");
     expect(result.tokenUsage.inputTokens).toBe(100);
     expect(result.tokenUsage.outputTokens).toBe(50);
     expect(result.durationMs).toBe(500);
@@ -214,6 +223,7 @@ describe("reviewDiff", () => {
       files,
       context,
       SESSION_ID,
+      "claude-sonnet-4-6",
     );
     expect(result.findings).toEqual([]);
   });
@@ -222,7 +232,14 @@ describe("reviewDiff", () => {
     const client = makeClient("[]");
     const hugeDiff = "x".repeat(200_001);
     await expect(
-      reviewDiff(client, hugeDiff, files, context, SESSION_ID),
+      reviewDiff(
+        client,
+        hugeDiff,
+        files,
+        context,
+        SESSION_ID,
+        "claude-sonnet-4-6",
+      ),
     ).rejects.toThrow("too large");
   });
 });

@@ -1,20 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { ModelClient } from "../model/client.js";
-import type {
-  ChangedFile,
-  ReviewContext,
-  ReviewFinding,
-  Category,
-  Severity,
+import {
+  SEVERITIES,
+  type ChangedFile,
+  type ReviewContext,
+  type ReviewFinding,
+  type Category,
+  type Severity,
 } from "./types.js";
 import { buildSystemPrompt, buildUserMessage } from "./prompts.js";
-
-const VALID_SEVERITIES: readonly string[] = [
-  "critical",
-  "high",
-  "medium",
-  "low",
-];
 const VALID_CATEGORIES: readonly string[] = [
   "bug",
   "security",
@@ -37,7 +31,7 @@ interface RawModelFinding {
 }
 
 const isValidSeverity = (s: string): s is Severity =>
-  VALID_SEVERITIES.includes(s);
+  (SEVERITIES as readonly string[]).includes(s);
 
 const isValidCategory = (s: string): s is Category =>
   VALID_CATEGORIES.includes(s);
@@ -101,6 +95,7 @@ export const reviewDiff = async (
   files: readonly ChangedFile[],
   context: ReviewContext,
   sessionId: string,
+  model: string,
 ): Promise<{
   readonly findings: readonly ReviewFinding[];
   readonly model: string;
@@ -118,6 +113,7 @@ export const reviewDiff = async (
   const userMessage = buildUserMessage(diff, formatFileList(files));
 
   const response = await client.complete({
+    model,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }],
   });
@@ -136,7 +132,7 @@ export const reviewDiff = async (
 
   return {
     findings,
-    model: "claude-sonnet-4-6",
+    model,
     durationMs: response.durationMs,
     tokenUsage: {
       inputTokens: response.usage.inputTokens,

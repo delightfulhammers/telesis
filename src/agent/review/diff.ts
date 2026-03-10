@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import type { ChangedFile, ResolvedDiff } from "./types.js";
 
 const EMPTY_DIFF: ResolvedDiff = { diff: "", files: [], ref: "" };
@@ -12,9 +12,9 @@ const parseStatus = (code: string): ChangedFile["status"] => {
 
 const parseChangedFiles = (
   rootDir: string,
-  gitArgs: string,
+  args: readonly string[],
 ): readonly ChangedFile[] => {
-  const raw = execSync(`git diff --name-status ${gitArgs}`, {
+  const raw = execFileSync("git", ["diff", "--name-status", ...args], {
     cwd: rootDir,
     encoding: "utf-8",
   }).trim();
@@ -28,8 +28,8 @@ const parseChangedFiles = (
   });
 };
 
-const getDiff = (rootDir: string, gitArgs: string): string =>
-  execSync(`git diff ${gitArgs}`, {
+const getDiff = (rootDir: string, args: readonly string[]): string =>
+  execFileSync("git", ["diff", ...args], {
     cwd: rootDir,
     encoding: "utf-8",
     maxBuffer: 10 * 1024 * 1024,
@@ -41,10 +41,10 @@ const describeRef = (ref?: string, all?: boolean): string => {
   return "staged changes";
 };
 
-const gitArgs = (ref?: string, all?: boolean): string => {
-  if (ref) return `${ref}`;
-  if (all) return "HEAD";
-  return "--cached";
+const gitArgs = (ref?: string, all?: boolean): readonly string[] => {
+  if (ref) return [ref];
+  if (all) return ["HEAD"];
+  return ["--cached"];
 };
 
 export const resolveDiff = (

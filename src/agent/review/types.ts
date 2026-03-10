@@ -15,7 +15,8 @@ export interface ResolvedDiff {
 
 // --- Review Findings ---
 
-export type Severity = "critical" | "high" | "medium" | "low";
+export const SEVERITIES = ["critical", "high", "medium", "low"] as const;
+export type Severity = (typeof SEVERITIES)[number];
 
 export type Category =
   | "bug"
