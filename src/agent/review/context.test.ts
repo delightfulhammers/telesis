@@ -144,6 +144,38 @@ Use TypeScript for everything.
     expect(ctx.conventions).toContain("[git]");
   });
 
+  it("extracts PRD command contracts", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    writeFileSync(
+      join(dir, "docs", "PRD.md"),
+      `# Product Requirements
+
+## Commands
+
+### \`telesis init\`
+
+Initializes a new project context.
+
+### \`telesis review\`
+
+Reviews code changes against project conventions.
+
+---
+
+## Other Section
+
+Irrelevant.
+`,
+    );
+
+    const ctx = assembleReviewContext(dir);
+    expect(ctx.conventions).toContain("Initializes a new project context");
+    expect(ctx.conventions).toContain("Reviews code changes");
+    expect(ctx.conventions).not.toContain("Irrelevant");
+  });
+
   it("assembles multiple doc sources together", () => {
     const dir = makeTempDir();
     setupProject(dir);

@@ -114,7 +114,7 @@ const extractActiveADRs = (rootDir: string): string => {
 
     const titleLine = lines.find((l) => l.trim().startsWith("# "));
     const title = titleLine?.replace(/^#\s+/, "").trim() ?? entry.name;
-    const decision = extractSection(content, /^##\s+Decision/i);
+    const decision = extractSectionFromLines(lines, /^##\s+Decision/i);
     summaries.push(
       `### ${title}\n${decision || "(no decision section found)"}`,
     );
@@ -141,17 +141,22 @@ const extractTDDContracts = (rootDir: string): string => {
 
   for (const entry of tdds) {
     const content = readFileSync(join(tddDir, entry.name), "utf-8");
-    const titleLine = content
-      .split("\n")
-      .find((l) => l.trim().startsWith("# "));
+    const lines = content.split("\n");
+    const titleLine = lines.find((l) => l.trim().startsWith("# "));
     const title = titleLine?.replace(/^#\s+/, "").trim() ?? entry.name;
-    const decisions = extractSection(content, /^##\s+Decisions/i);
+    const decisions = extractSectionFromLines(lines, /^##\s+Decisions/i);
     if (decisions.length > 0) {
       summaries.push(`### ${title}\n${decisions}`);
     }
   }
 
   return summaries.join("\n\n");
+};
+
+const extractPrdCommands = (rootDir: string): string => {
+  const content = readFileSafe(join(rootDir, "docs", "PRD.md"));
+  if (content.length === 0) return "";
+  return extractSection(content, /^##\s+Commands/i);
 };
 
 const extractNotes = (rootDir: string): string => {
@@ -170,6 +175,11 @@ export const assembleReviewContext = (rootDir: string): ReviewContext => {
   const cfg = load(rootDir);
 
   const parts: string[] = [];
+
+  const prdCommands = extractPrdCommands(rootDir);
+  if (prdCommands.length > 0) {
+    parts.push("## CLI Command Contracts\n\n" + prdCommands);
+  }
 
   const archRules = extractArchRules(rootDir);
   if (archRules.length > 0) {

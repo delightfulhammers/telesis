@@ -175,6 +175,108 @@ describe("reviewDiff", () => {
     expect(result.findings).toHaveLength(1);
   });
 
+  it("rejects negative line numbers", async () => {
+    const findings = [
+      {
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        startLine: -5,
+        endLine: 10,
+        description: "Negative start",
+        suggestion: "Fix it",
+      },
+    ];
+
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].startLine).toBeUndefined();
+    expect(result.findings[0].endLine).toBe(10);
+  });
+
+  it("rejects non-integer line numbers", async () => {
+    const findings = [
+      {
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        startLine: 10.5,
+        endLine: 15,
+        description: "Float start",
+        suggestion: "Fix it",
+      },
+    ];
+
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].startLine).toBeUndefined();
+    expect(result.findings[0].endLine).toBe(15);
+  });
+
+  it("drops endLine when it precedes startLine", async () => {
+    const findings = [
+      {
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        startLine: 20,
+        endLine: 10,
+        description: "Reversed range",
+        suggestion: "Fix it",
+      },
+    ];
+
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].startLine).toBe(20);
+    expect(result.findings[0].endLine).toBeUndefined();
+  });
+
+  it("handles code fences without closing fence", async () => {
+    const findings = [
+      {
+        severity: "low",
+        category: "style",
+        path: "src/foo.ts",
+        description: "No closing fence",
+        suggestion: "Fix it",
+      },
+    ];
+    const wrapped = "```json\n" + JSON.stringify(findings);
+
+    const client = makeClient(wrapped);
+    const result = await reviewDiff(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings).toHaveLength(1);
+  });
+
   it("handles optional line numbers", async () => {
     const findings = [
       {

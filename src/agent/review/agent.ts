@@ -51,14 +51,34 @@ const normalizeFinding = (
   if (typeof raw.suggestion !== "string" || raw.suggestion.length === 0)
     return null;
 
+  const startLine =
+    typeof raw.startLine === "number" &&
+    Number.isInteger(raw.startLine) &&
+    raw.startLine > 0
+      ? raw.startLine
+      : undefined;
+
+  const endLine =
+    typeof raw.endLine === "number" &&
+    Number.isInteger(raw.endLine) &&
+    raw.endLine > 0
+      ? raw.endLine
+      : undefined;
+
+  // Drop endLine if it precedes startLine
+  const validEndLine =
+    startLine !== undefined && endLine !== undefined && endLine < startLine
+      ? undefined
+      : endLine;
+
   return {
     id: randomUUID(),
     sessionId,
     severity,
     category,
     path: raw.path,
-    startLine: typeof raw.startLine === "number" ? raw.startLine : undefined,
-    endLine: typeof raw.endLine === "number" ? raw.endLine : undefined,
+    startLine,
+    endLine: validEndLine,
     description: raw.description,
     suggestion: raw.suggestion,
   };
@@ -71,11 +91,22 @@ const parseFindings = (
   const trimmed = content.trim();
 
   // Strip markdown code fences if present
-  const jsonStr = trimmed.startsWith("```")
-    ? trimmed.replace(/^```\w*\n?/, "").replace(/\n?```$/, "")
-    : trimmed;
+  let jsonStr: string;
+  if (trimmed.startsWith("```")) {
+    const fenceMatch = /^```\w*\n([\s\S]*?)\n?```$/.exec(trimmed);
+    jsonStr = fenceMatch ? fenceMatch[1] : trimmed.replace(/^```\w*\n?/, "");
+  } else {
+    jsonStr = trimmed;
+  }
 
-  const parsed = JSON.parse(jsonStr);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (err) {
+    throw new Error(
+      `model response is not valid JSON: ${err instanceof Error ? err.message : err}`,
+    );
+  }
 
   if (!Array.isArray(parsed)) {
     throw new Error("model response is not a JSON array");
