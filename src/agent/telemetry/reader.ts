@@ -28,9 +28,12 @@ const isValidRecord = (val: unknown): val is ModelCallRecord => {
   );
 };
 
-export const loadTelemetryRecords = (
-  rootDir: string,
-): readonly ModelCallRecord[] => {
+export interface LoadTelemetryResult {
+  readonly records: readonly ModelCallRecord[];
+  readonly invalidLineCount: number;
+}
+
+export const loadTelemetryRecords = (rootDir: string): LoadTelemetryResult => {
   const resolvedRoot = resolve(rootDir);
   const filePath = join(resolvedRoot, TELEMETRY_PATH);
 
@@ -38,19 +41,27 @@ export const loadTelemetryRecords = (
   try {
     data = readFileSync(filePath, "utf-8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if ((err as NodeJS.ErrnoException).code === "ENOENT")
+      return { records: [], invalidLineCount: 0 };
     throw err;
   }
 
-  return data
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .flatMap((line) => {
-      try {
-        const parsed: unknown = JSON.parse(line);
-        return isValidRecord(parsed) ? [parsed] : [];
-      } catch {
-        return [];
+  const records: ModelCallRecord[] = [];
+  let invalidLineCount = 0;
+
+  for (const line of data.split("\n")) {
+    if (line.trim().length === 0) continue;
+    try {
+      const parsed: unknown = JSON.parse(line);
+      if (isValidRecord(parsed)) {
+        records.push(parsed);
+      } else {
+        invalidLineCount++;
       }
-    });
+    } catch {
+      invalidLineCount++;
+    }
+  }
+
+  return { records, invalidLineCount };
 };

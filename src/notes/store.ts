@@ -69,7 +69,12 @@ export const appendNote = (
   return note;
 };
 
-export const loadNotes = (rootDir: string): readonly Note[] => {
+export interface LoadNotesResult {
+  readonly items: readonly Note[];
+  readonly invalidLineCount: number;
+}
+
+export const loadNotes = (rootDir: string): LoadNotesResult => {
   const resolvedRoot = resolve(rootDir);
   const filePath = join(resolvedRoot, NOTES_PATH);
 
@@ -77,19 +82,46 @@ export const loadNotes = (rootDir: string): readonly Note[] => {
   try {
     data = readFileSync(filePath, "utf-8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if ((err as NodeJS.ErrnoException).code === "ENOENT")
+      return { items: [], invalidLineCount: 0 };
     throw err;
   }
 
-  return data
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .flatMap((line) => {
-      try {
-        const parsed: unknown = JSON.parse(line);
-        return isValidNote(parsed) ? [parsed] : [];
-      } catch {
-        return [];
+  const items: Note[] = [];
+  let invalidLineCount = 0;
+
+  for (const line of data.split("\n")) {
+    if (line.trim().length === 0) continue;
+    try {
+      const parsed: unknown = JSON.parse(line);
+      if (isValidNote(parsed)) {
+        items.push(parsed);
+      } else {
+        invalidLineCount++;
       }
-    });
+    } catch {
+      invalidLineCount++;
+    }
+  }
+
+  return { items, invalidLineCount };
+};
+
+export const countNotes = (rootDir: string): number => {
+  const resolvedRoot = resolve(rootDir);
+  const filePath = join(resolvedRoot, NOTES_PATH);
+
+  let data: string;
+  try {
+    data = readFileSync(filePath, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw err;
+  }
+
+  let count = 0;
+  for (const line of data.split("\n")) {
+    if (line.trim().length > 0) count++;
+  }
+  return count;
 };

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, writeFileSync, readFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { platform } from "node:process";
-import { appendNote, loadNotes } from "./store.js";
+import { appendNote, loadNotes, countNotes } from "./store.js";
 import { useTempDir } from "../test-utils.js";
 
 const makeTempDir = useTempDir("notes-store-test");
@@ -118,12 +118,13 @@ describe("appendNote", () => {
 });
 
 describe("loadNotes", () => {
-  it("returns empty array when file does not exist", () => {
+  it("returns empty result when file does not exist", () => {
     const rootDir = makeTempDir();
 
-    const notes = loadNotes(rootDir);
+    const result = loadNotes(rootDir);
 
-    expect(notes).toEqual([]);
+    expect(result.items).toEqual([]);
+    expect(result.invalidLineCount).toBe(0);
   });
 
   it("round-trips notes through append and load", () => {
@@ -132,15 +133,15 @@ describe("loadNotes", () => {
     appendNote(rootDir, "first note", ["git"]);
     appendNote(rootDir, "second note", ["config", "build"]);
 
-    const notes = loadNotes(rootDir);
-    expect(notes).toHaveLength(2);
-    expect(notes[0].text).toBe("first note");
-    expect(notes[0].tags).toEqual(["git"]);
-    expect(notes[1].text).toBe("second note");
-    expect(notes[1].tags).toEqual(["config", "build"]);
+    const { items } = loadNotes(rootDir);
+    expect(items).toHaveLength(2);
+    expect(items[0].text).toBe("first note");
+    expect(items[0].tags).toEqual(["git"]);
+    expect(items[1].text).toBe("second note");
+    expect(items[1].tags).toEqual(["config", "build"]);
   });
 
-  it("skips malformed lines", () => {
+  it("skips malformed lines and reports count", () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
 
@@ -155,9 +156,10 @@ describe("loadNotes", () => {
     );
     writeFileSync(join(rootDir, ".telesis", "notes.jsonl"), content);
 
-    const notes = loadNotes(rootDir);
-    expect(notes).toHaveLength(1);
-    expect(notes[0].text).toBe("valid");
+    const { items, invalidLineCount } = loadNotes(rootDir);
+    expect(items).toHaveLength(1);
+    expect(items[0].text).toBe("valid");
+    expect(invalidLineCount).toBe(2);
   });
 
   it("rejects records with missing fields", () => {
@@ -171,8 +173,9 @@ describe("loadNotes", () => {
     });
     writeFileSync(join(rootDir, ".telesis", "notes.jsonl"), incomplete + "\n");
 
-    const notes = loadNotes(rootDir);
-    expect(notes).toEqual([]);
+    const { items, invalidLineCount } = loadNotes(rootDir);
+    expect(items).toEqual([]);
+    expect(invalidLineCount).toBe(1);
   });
 
   it("rejects records with non-string tags", () => {
@@ -187,7 +190,25 @@ describe("loadNotes", () => {
     });
     writeFileSync(join(rootDir, ".telesis", "notes.jsonl"), bad + "\n");
 
-    const notes = loadNotes(rootDir);
-    expect(notes).toEqual([]);
+    const { items, invalidLineCount } = loadNotes(rootDir);
+    expect(items).toEqual([]);
+    expect(invalidLineCount).toBe(1);
+  });
+});
+
+describe("countNotes", () => {
+  it("returns 0 when file does not exist", () => {
+    const rootDir = makeTempDir();
+    expect(countNotes(rootDir)).toBe(0);
+  });
+
+  it("counts non-empty lines without parsing", () => {
+    const rootDir = makeTempDir();
+
+    appendNote(rootDir, "first", []);
+    appendNote(rootDir, "second", []);
+    appendNote(rootDir, "third", []);
+
+    expect(countNotes(rootDir)).toBe(3);
   });
 });
