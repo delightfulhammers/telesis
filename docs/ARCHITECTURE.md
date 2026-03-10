@@ -60,13 +60,18 @@ telesis/
         generator.ts      ← DocumentGenerator implementation
         prompts/          ← per-document generation prompts
       review/
-        types.ts          ← ReviewSession, ReviewFinding, ChangedFile types
+        types.ts          ← ReviewSession, ReviewFinding, PersonaDefinition types
         diff.ts           ← diff resolver (only git interaction point)
         context.ts        ← review context assembler (reads project docs)
-        agent.ts          ← core review agent (model call + response parsing)
-        prompts.ts        ← review system prompt
+        agent.ts          ← core review agent (single-pass + persona parallel calls)
+        personas.ts       ← built-in persona definitions + config merge
+        orchestrator.ts   ← persona selection heuristics based on diff content
+        dedup.ts          ← within-session LLM-based deduplication across personas
+        themes.ts         ← cross-round theme extraction from prior sessions
+        prompts.ts        ← single-pass, persona, dedup, and theme prompts
+        json-parse.ts     ← shared JSON response parser (fence extraction)
         store.ts          ← per-session JSONL storage in .telesis/reviews/
-        format.ts         ← terminal report formatting
+        format.ts         ← terminal report formatting (flat + persona-grouped)
       model/
         client.ts         ← ModelClient abstraction (only Anthropic SDK import)
         types.ts          ← CompletionRequest/Response types

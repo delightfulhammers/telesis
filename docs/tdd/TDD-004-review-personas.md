@@ -1,6 +1,6 @@
 # TDD-004 — Review Personas
 
-**Status:** Draft
+**Status:** Accepted
 **Date:** 2026-03-10
 **Author:** Delightful Hammers
 **Related:** v0.6.0 milestone, TDD-003 (review agent), Bop (prior art)

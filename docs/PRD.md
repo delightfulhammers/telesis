@@ -113,15 +113,24 @@ Manages lightweight development notes (session insights, gotchas, conventions to
 
 Reviews code changes against project conventions, architecture rules, and design decisions.
 
-- `telesis review` reviews staged changes (default)
+- `telesis review` runs persona-based multi-perspective review by default
+- `telesis review --single` runs the generalist single-pass review mode
 - `telesis review --all` reviews working + staged changes
 - `telesis review --ref <ref>` reviews diff against a ref (e.g., main, main...HEAD)
-- `telesis review --json` outputs findings as JSON
+- `telesis review --personas <slugs>` runs only the named personas (comma-separated)
+- `telesis review --no-dedup` skips within-session deduplication across personas
+- `telesis review --no-themes` skips cross-round theme extraction from prior sessions
+- `telesis review --json` outputs findings as JSON (includes persona and dedup metadata)
 - `telesis review --min-severity <level>` filters findings by minimum severity
 - `telesis review --list` lists past review sessions
 - `telesis review --show <id>` shows findings from a past session
-- Findings include severity, category, file path, line range, description, and suggestion
+- Built-in personas: security, architecture, correctness (zero configuration required)
+- Orchestrator selects personas based on diff content and file types
+- Findings include severity, category, file path, line range, description, suggestion, and persona
+- Duplicate findings across personas are merged, keeping highest severity
+- Cross-round themes from prior sessions suppress repeat findings
 - Review sessions stored in `.telesis/reviews/`
+- Personas configurable via `.telesis/config.yml` `review.personas` section
 - Exits with code 1 when critical or high severity findings are present
 
 ---
