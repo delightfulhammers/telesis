@@ -1,5 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
+
+/** Normalize OS-native path separators to forward slashes for consistent string matching. */
+const toPosix = (p: string): string =>
+  sep === "/" ? p : p.split(sep).join("/");
 
 /**
  * Recursively finds all TypeScript files under `dir`, returning paths
@@ -21,7 +25,7 @@ export const findTypeScriptFiles = (
       if (entry.isSymbolicLink()) continue;
 
       const fullPath = join(current, entry.name);
-      const relPath = relative(dir, fullPath);
+      const relPath = toPosix(relative(dir, fullPath));
 
       if (entry.isDirectory()) {
         if (

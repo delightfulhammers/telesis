@@ -49,8 +49,20 @@ export const commandRegistrationCheck: DriftCheck = {
       };
     }
 
-    const prdContent = readFileSync(prdPath, "utf-8");
-    const indexContent = readFileSync(indexPath, "utf-8");
+    let prdContent: string;
+    let indexContent: string;
+    try {
+      prdContent = readFileSync(prdPath, "utf-8");
+      indexContent = readFileSync(indexPath, "utf-8");
+    } catch (err) {
+      return {
+        check: "command-registration",
+        passed: false,
+        message: `Failed to read required file: ${err instanceof Error ? err.message : String(err)}`,
+        severity: "warning",
+        details: [],
+      };
+    }
 
     const prdCommands = extractPrdCommands(prdContent);
     const registeredCommands = extractRegisteredCommands(indexContent);
