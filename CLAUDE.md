@@ -63,7 +63,7 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 building immediately — no significant manual editing needed. Establish a repeatable
 evaluation framework to measure document quality and drive prompt improvements with data.
 
-**Status:** In Progress
+**Status:** Complete
 
 **Reference:** Issues #15–#20
 
@@ -105,6 +105,26 @@ five quality gaps identified during v0.2.0 validation.
    extraction (#16)
 5. **Phase 5 — Validation:** Re-run eval suite, compare against baseline, validate all
    acceptance criteria
+
+### Phase 5 Notes
+
+Live validation against the tic-tac-toe test case confirmed all 8 acceptance criteria.
+The eval suite scored 72% overall (VISION 100%, PRD 100%, ARCHITECTURE 67%, MILESTONES
+87%, Coverage 50%, Consistency 45%). Per-document quality is high; lower global scores
+reflect eval suite calibration issues (bigram false negatives in coverage, name comparison
+false positive in consistency, numbered-heading mismatch in architecture completeness)
+rather than document quality problems.
+
+Qualitative assessment confirmed all five tracked quality issues are resolved:
+- #15: Principles are project-specific decision heuristics, not feature labels
+- #16: Config extraction prompt instructs language normalization (React → TypeScript)
+- #17: Architecture uses only discussed technologies, no fabrication
+- #18: Model-assisted topic extraction preserves interview context in generation
+- #19: PRD includes detailed Out of Scope section when exclusions are discussed
+
+Three eval suite calibration issues were identified for future refinement: numbered
+headings not matched by structural evaluator, bigram coverage producing excessive false
+negatives, and name consistency producing false positives.
 
 ---
 
