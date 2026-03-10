@@ -1,5 +1,6 @@
 export { evaluate } from "./runner.js";
 export { formatReport } from "./format.js";
+export { extractMarkdownSection } from "./markdown.js";
 export type {
   EvalInput,
   EvalReport,

@@ -86,8 +86,10 @@ export const evaluate = (input: EvalInput): EvalReport => {
 
   // Overall: weighted average of per-document scores (60%) and global axes (40%)
   const docAvg =
-    documentScores.reduce((sum, ds) => sum + ds.overall, 0) /
-    documentScores.length;
+    documentScores.length > 0
+      ? documentScores.reduce((sum, ds) => sum + ds.overall, 0) /
+        documentScores.length
+      : 0;
   const globalAvg = (coverageResult.score + consistencyResult.score) / 2;
   const overall = docAvg * 0.6 + globalAvg * 0.4;
 

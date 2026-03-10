@@ -1,5 +1,6 @@
 import type { DocumentType } from "../agent/generate/types.js";
 import type { AxisScore, Diagnostic } from "./types.js";
+import { extractMarkdownSection } from "./markdown.js";
 
 /** A check that expects a markdown heading with content underneath. */
 interface HeadingSpec {
@@ -96,33 +97,6 @@ const SECTION_SPECS: Readonly<Record<DocumentType, readonly SectionSpec[]>> = {
 };
 
 /**
- * Extracts the content under a heading by finding text between the heading
- * match and the next heading of equal or higher level (or end of document).
- */
-const extractHeadingContent = (
-  content: string,
-  pattern: RegExp,
-): string | null => {
-  const match = pattern.exec(content);
-  if (!match) return null;
-
-  const headingLine = content.substring(match.index);
-  const headingLevel = (headingLine.match(/^(#+)/) ?? [""])[1].length;
-
-  if (headingLevel === 0) return null;
-
-  const afterHeading = content.substring(match.index + match[0].length);
-  const nextHeadingPattern = new RegExp(`^#{1,${headingLevel}}\\s`, "m");
-  const nextMatch = nextHeadingPattern.exec(afterHeading);
-
-  const sectionBody = nextMatch
-    ? afterHeading.substring(0, nextMatch.index)
-    : afterHeading;
-
-  return sectionBody.trim();
-};
-
-/**
  * Checks whether a spec is present and has substantive content.
  */
 const checkSpec = (
@@ -140,7 +114,7 @@ const checkSpec = (
   }
 
   // Heading-based: check that section body has real content
-  const sectionContent = extractHeadingContent(content, spec.pattern);
+  const sectionContent = extractMarkdownSection(content, spec.pattern);
   return {
     present: true,
     hasContent: !!sectionContent && sectionContent.length >= 10,

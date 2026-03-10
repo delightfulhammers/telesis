@@ -1,5 +1,6 @@
 import type { DocumentType } from "../agent/generate/types.js";
 import type { AxisScore, Diagnostic } from "./types.js";
+import { extractMarkdownSection } from "./markdown.js";
 
 /**
  * Actionability is most relevant for milestones and PRD — documents that
@@ -26,28 +27,6 @@ const countNumberedItems = (content: string): number => {
 const countBulletItems = (content: string): number => {
   const matches = content.match(/^[-*]\s+\S/gm);
   return matches?.length ?? 0;
-};
-
-/**
- * Extracts the content of a section identified by a heading pattern.
- * Returns text from after the heading to the next heading of equal or higher
- * level, or end of document. Sub-headings are included in the section content.
- */
-const extractSection = (content: string, headingPattern: RegExp): string => {
-  const match = headingPattern.exec(content);
-  if (!match) return "";
-
-  // Determine the heading level of the matched heading
-  const matchedLine = content.substring(match.index);
-  const levelMatch = matchedLine.match(/^(#+)/);
-  const level = levelMatch ? levelMatch[1].length : 2;
-
-  const afterHeading = content.substring(match.index + match[0].length);
-  // Stop at the next heading of equal or higher level (fewer or equal #'s)
-  const nextHeading = new RegExp(`^#{1,${level}}\\s`, "m").exec(afterHeading);
-  return nextHeading
-    ? afterHeading.substring(0, nextHeading.index).trim()
-    : afterHeading.trim();
 };
 
 /**
@@ -81,7 +60,8 @@ const evaluateMilestonesActionability = (
   }
 
   // Count numbered ACs (good milestones have 3+ numbered criteria)
-  const acContent = extractSection(content, /^###?\s+acceptance\s+criteria/im);
+  const acContent =
+    extractMarkdownSection(content, /^###?\s+acceptance\s+criteria/im) ?? "";
   const acCount = countNumberedItems(acContent);
 
   if (hasACSection && acCount < 3) {
@@ -94,7 +74,8 @@ const evaluateMilestonesActionability = (
   }
 
   // Count build sequence phases
-  const buildContent = extractSection(content, /^###?\s+build\s+sequence/im);
+  const buildContent =
+    extractMarkdownSection(content, /^###?\s+build\s+sequence/im) ?? "";
   const phaseCount = countNumberedItems(buildContent);
 
   if (hasBuildSequence && phaseCount < 2) {
@@ -143,12 +124,13 @@ const evaluatePrdActionability = (
   }
 
   // Count requirement items only within Requirements and NFR sections
-  const reqContent = extractSection(content, /^##\s+requirements/im);
-  const nfrContent = extractSection(
-    content,
-    /^##\s+non-?functional\s+requirements/im,
-  );
-  const scContent = extractSection(content, /^##\s+success\s+criteria/im);
+  const reqContent =
+    extractMarkdownSection(content, /^##\s+requirements/im) ?? "";
+  const nfrContent =
+    extractMarkdownSection(content, /^##\s+non-?functional\s+requirements/im) ??
+    "";
+  const scContent =
+    extractMarkdownSection(content, /^##\s+success\s+criteria/im) ?? "";
   const combinedReqContent = [reqContent, nfrContent, scContent].join("\n");
   const totalItems =
     countNumberedItems(combinedReqContent) +

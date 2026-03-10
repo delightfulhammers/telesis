@@ -64,11 +64,18 @@ const checkNameConsistency = (
     return { score: 1.0, diagnostics: [] };
   }
 
+  const totalDocs = Object.keys(names).length;
+  const missingCount = totalDocs - foundNames.length;
+  const missingSuffix =
+    missingCount > 0
+      ? ` (${missingCount} document(s) had no extractable heading)`
+      : "";
+
   const diagnostics: Diagnostic[] = [
     {
       axis: "consistency",
       document: "global",
-      message: `Project name inconsistent across documents: ${[...unique].map((n) => `"${n}"`).join(", ")}`,
+      message: `Project name inconsistent across documents: ${[...unique].map((n) => `"${n}"`).join(", ")}${missingSuffix}`,
       severity: "warning",
     },
   ];
@@ -96,20 +103,15 @@ const checkPrdMilestoneAlignment = (
   }
 
   // Extract requirement keywords from PRD (look for list items)
-  const prdLines = docs.prd.split("\n");
   const requirementTerms: string[] = [];
 
-  for (const line of prdLines) {
-    const listMatch = /^[-*]\s+(.+)$/m.exec(line);
-    if (listMatch) {
-      // Extract significant words from list items
-      const words = listMatch[1]
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, " ")
-        .split(/\s+/)
-        .filter((w) => w.length >= 4);
-      requirementTerms.push(...words);
-    }
+  for (const match of docs.prd.matchAll(/^[-*]\s+(.+)$/gm)) {
+    const words = match[1]
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 4);
+    requirementTerms.push(...words);
   }
 
   if (requirementTerms.length === 0) {

@@ -13,7 +13,13 @@ const loadGeneratedDocs = (rootDir: string): Required<GeneratedDocs> => {
   const load = (relPath: string): string => {
     const fullPath = join(rootDir, relPath);
     if (!existsSync(fullPath)) return "";
-    return readFileSync(fullPath, "utf-8");
+    try {
+      return readFileSync(fullPath, "utf-8");
+    } catch (err) {
+      throw new Error(
+        `Failed to read ${relPath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   };
 
   return {

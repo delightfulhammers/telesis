@@ -207,10 +207,7 @@ export const evaluateSpecificity = (
   }
 
   // Named entity check: capitalized multi-word terms in body text (not headings)
-  const bodyText = content
-    .split("\n")
-    .filter((line) => !/^#+\s/.test(line))
-    .join("\n");
+  const bodyText = content.replace(/^#+\s.*$/gm, "");
   if (/(?:^|\s)[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?=\s|[,.])/.test(bodyText)) {
     totalSpecificHits++;
   }
@@ -222,8 +219,12 @@ export const evaluateSpecificity = (
   const specificBonus = totalSpecificHits * 0.1;
 
   // Also penalize if content is very short per section (likely skeleton)
+  // Strip heading lines from each section before measuring body length
   const avgSectionLength =
-    sections.reduce((sum, s) => sum + s.trim().length, 0) / sections.length;
+    sections.reduce(
+      (sum, s) => sum + s.replace(/^[^\n]+/, "").trim().length,
+      0,
+    ) / sections.length;
   const lengthPenalty = avgSectionLength < 50 ? 0.3 : 0;
 
   if (lengthPenalty > 0) {
