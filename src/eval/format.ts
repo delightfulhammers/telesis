@@ -1,3 +1,4 @@
+import type { DocumentType } from "../agent/generate/types.js";
 import type { EvalReport, DocumentScore, QualityAxis } from "./types.js";
 
 const AXIS_LABELS: Readonly<Record<QualityAxis, string>> = {
@@ -6,6 +7,13 @@ const AXIS_LABELS: Readonly<Record<QualityAxis, string>> = {
   specificity: "Specificity",
   consistency: "Consistency",
   actionability: "Actionability",
+};
+
+const DOC_DISPLAY_NAMES: Readonly<Record<DocumentType, string>> = {
+  vision: "VISION.md",
+  prd: "PRD.md",
+  architecture: "ARCHITECTURE.md",
+  milestones: "MILESTONES.md",
 };
 
 const scoreBar = (score: number, width: number = 20): string => {
@@ -24,14 +32,7 @@ const formatPercent = (score: number): string => `${Math.round(score * 100)}%`;
 
 const formatDocumentScore = (ds: DocumentScore): string => {
   const lines: string[] = [];
-  const docName =
-    ds.document === "vision"
-      ? "VISION.md"
-      : ds.document === "prd"
-        ? "PRD.md"
-        : ds.document === "architecture"
-          ? "ARCHITECTURE.md"
-          : "MILESTONES.md";
+  const docName = DOC_DISPLAY_NAMES[ds.document];
 
   lines.push(
     `  ${docName}  ${scoreBar(ds.overall)} ${formatPercent(ds.overall)}`,

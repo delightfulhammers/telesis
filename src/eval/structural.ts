@@ -1,50 +1,88 @@
 import type { DocumentType } from "../agent/generate/types.js";
 import type { AxisScore, Diagnostic } from "./types.js";
 
-/** Expected section headings per document type. */
-interface SectionSpec {
+/** A check that expects a markdown heading with content underneath. */
+interface HeadingSpec {
+  readonly kind: "heading";
   readonly pattern: RegExp;
   readonly label: string;
 }
 
+/** A check that expects an inline field (e.g. **Goal:**) with a value on the same line. */
+interface InlineFieldSpec {
+  readonly kind: "inline";
+  readonly pattern: RegExp;
+  readonly label: string;
+}
+
+type SectionSpec = HeadingSpec | InlineFieldSpec;
+
 const VISION_SECTIONS: readonly SectionSpec[] = [
-  { pattern: /^##\s+the\s+problem/im, label: "The Problem" },
-  { pattern: /^##\s+the\s+vision/im, label: "The Vision" },
-  { pattern: /^##\s+principles/im, label: "Principles" },
+  { kind: "heading", pattern: /^##\s+the\s+problem/im, label: "The Problem" },
+  { kind: "heading", pattern: /^##\s+the\s+vision/im, label: "The Vision" },
+  { kind: "heading", pattern: /^##\s+principles/im, label: "Principles" },
   {
+    kind: "heading",
     pattern: /^##\s+what\s+this\s+is/im,
     label: "What This Is / What This Isn't",
   },
 ];
 
 const PRD_SECTIONS: readonly SectionSpec[] = [
-  { pattern: /^##\s+overview/im, label: "Overview" },
-  { pattern: /^##\s+user\s+journeys/im, label: "User Journeys" },
-  { pattern: /^##\s+requirements/im, label: "Requirements" },
+  { kind: "heading", pattern: /^##\s+overview/im, label: "Overview" },
   {
+    kind: "heading",
+    pattern: /^##\s+user\s+journeys/im,
+    label: "User Journeys",
+  },
+  { kind: "heading", pattern: /^##\s+requirements/im, label: "Requirements" },
+  {
+    kind: "heading",
     pattern: /^##\s+non-?functional\s+requirements/im,
     label: "Non-functional Requirements",
   },
-  { pattern: /^##\s+success\s+criteria/im, label: "Success Criteria" },
+  {
+    kind: "heading",
+    pattern: /^##\s+success\s+criteria/im,
+    label: "Success Criteria",
+  },
 ];
 
 const ARCHITECTURE_SECTIONS: readonly SectionSpec[] = [
-  { pattern: /^##\s+system\s+overview/im, label: "System Overview" },
-  { pattern: /^##\s+components/im, label: "Components" },
-  { pattern: /^##\s+data\s+flow/im, label: "Data Flow" },
-  { pattern: /^##\s+working\s+conventions/im, label: "Working Conventions" },
-  { pattern: /^##\s+key\s+decisions/im, label: "Key Decisions" },
+  {
+    kind: "heading",
+    pattern: /^##\s+system\s+overview/im,
+    label: "System Overview",
+  },
+  { kind: "heading", pattern: /^##\s+components/im, label: "Components" },
+  { kind: "heading", pattern: /^##\s+data\s+flow/im, label: "Data Flow" },
+  {
+    kind: "heading",
+    pattern: /^##\s+working\s+conventions/im,
+    label: "Working Conventions",
+  },
+  {
+    kind: "heading",
+    pattern: /^##\s+key\s+decisions/im,
+    label: "Key Decisions",
+  },
 ];
 
 const MILESTONES_SECTIONS: readonly SectionSpec[] = [
-  { pattern: /\*\*goal:\*\*/im, label: "Goal" },
-  { pattern: /\*\*status:\*\*/im, label: "Status" },
+  { kind: "inline", pattern: /\*\*goal:\*\*\s*\S/im, label: "Goal" },
+  { kind: "inline", pattern: /\*\*status:\*\*\s*\S/im, label: "Status" },
   {
+    kind: "heading",
     pattern: /^###?\s+acceptance\s+criteria/im,
     label: "Acceptance Criteria",
   },
-  { pattern: /^###?\s+build\s+sequence/im, label: "Build Sequence" },
   {
+    kind: "heading",
+    pattern: /^###?\s+build\s+sequence/im,
+    label: "Build Sequence",
+  },
+  {
+    kind: "heading",
     pattern: /^##\s+future\s+milestones/im,
     label: "Future Milestones",
   },
@@ -61,7 +99,7 @@ const SECTION_SPECS: Readonly<Record<DocumentType, readonly SectionSpec[]>> = {
  * Extracts the content under a heading by finding text between the heading
  * match and the next heading of equal or higher level (or end of document).
  */
-const extractSectionContent = (
+const extractHeadingContent = (
   content: string,
   pattern: RegExp,
 ): string | null => {
@@ -69,9 +107,10 @@ const extractSectionContent = (
   if (!match) return null;
 
   const headingLine = content.substring(match.index);
-  const headingLevel = (headingLine.match(/^(#+)/) ?? ["", "##"])[1].length;
+  const headingLevel = (headingLine.match(/^(#+)/) ?? [""])[1].length;
 
-  // Find the next heading of equal or higher level
+  if (headingLevel === 0) return null;
+
   const afterHeading = content.substring(match.index + match[0].length);
   const nextHeadingPattern = new RegExp(`^#{1,${headingLevel}}\\s`, "m");
   const nextMatch = nextHeadingPattern.exec(afterHeading);
@@ -81,6 +120,31 @@ const extractSectionContent = (
     : afterHeading;
 
   return sectionBody.trim();
+};
+
+/**
+ * Checks whether a spec is present and has substantive content.
+ */
+const checkSpec = (
+  spec: SectionSpec,
+  content: string,
+): { present: boolean; hasContent: boolean } => {
+  if (!spec.pattern.test(content)) {
+    return { present: false, hasContent: false };
+  }
+
+  if (spec.kind === "inline") {
+    // Inline fields like **Goal:** are validated by the regex itself —
+    // the pattern requires non-whitespace after the field label.
+    return { present: true, hasContent: true };
+  }
+
+  // Heading-based: check that section body has real content
+  const sectionContent = extractHeadingContent(content, spec.pattern);
+  return {
+    present: true,
+    hasContent: !!sectionContent && sectionContent.length >= 10,
+  };
 };
 
 /**
@@ -107,18 +171,17 @@ export const evaluateStructure = (
   let present = 0;
 
   for (const spec of specs) {
-    if (spec.pattern.test(content)) {
-      // Check if the section has substantive content
-      const sectionContent = extractSectionContent(content, spec.pattern);
-      if (!sectionContent || sectionContent.length < 10) {
+    const result = checkSpec(spec, content);
+    if (result.present) {
+      if (result.hasContent) {
+        present++;
+      } else {
         diagnostics.push({
           axis: "completeness",
           document,
           message: `Section "${spec.label}" is present but empty or too short`,
           severity: "warning",
         });
-      } else {
-        present++;
       }
     } else {
       diagnostics.push({

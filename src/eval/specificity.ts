@@ -139,9 +139,6 @@ const SPECIFIC_SIGNALS: readonly RegExp[] = [
   // Specific numbers/metrics
   /\b\d+\s*(ms|seconds?|minutes?|hours?|MB|GB|requests?\/s|users?|items?)\b/i,
 
-  // Named entities (capitalized multi-word terms that aren't section headings)
-  /(?:^|\s)[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?=\s|[,.])/m,
-
   // File paths or code references
   /`[a-z][a-z0-9_/.-]+`/i,
 
@@ -207,6 +204,15 @@ export const evaluateSpecificity = (
     if (pattern.test(content)) {
       totalSpecificHits++;
     }
+  }
+
+  // Named entity check: capitalized multi-word terms in body text (not headings)
+  const bodyText = content
+    .split("\n")
+    .filter((line) => !/^#+\s/.test(line))
+    .join("\n");
+  if (/(?:^|\s)[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+(?=\s|[,.])/.test(bodyText)) {
+    totalSpecificHits++;
   }
 
   // Score: specific signals offset generic ones.

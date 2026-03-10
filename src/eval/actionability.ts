@@ -13,7 +13,7 @@ const ACTIONABLE_DOC_TYPES: ReadonlySet<DocumentType> = new Set([
 ]);
 
 /**
- * Counts numbered list items (1. 2. 3. etc.) in the document.
+ * Counts numbered list items (1. 2. 3. etc.) in the content.
  */
 const countNumberedItems = (content: string): number => {
   const matches = content.match(/^\d+\.\s+\S/gm);
@@ -21,11 +21,33 @@ const countNumberedItems = (content: string): number => {
 };
 
 /**
- * Counts bulleted list items in the document.
+ * Counts bulleted list items in the content.
  */
 const countBulletItems = (content: string): number => {
   const matches = content.match(/^[-*]\s+\S/gm);
   return matches?.length ?? 0;
+};
+
+/**
+ * Extracts the content of a section identified by a heading pattern.
+ * Returns text from after the heading to the next heading of equal or higher
+ * level, or end of document. Sub-headings are included in the section content.
+ */
+const extractSection = (content: string, headingPattern: RegExp): string => {
+  const match = headingPattern.exec(content);
+  if (!match) return "";
+
+  // Determine the heading level of the matched heading
+  const matchedLine = content.substring(match.index);
+  const levelMatch = matchedLine.match(/^(#+)/);
+  const level = levelMatch ? levelMatch[1].length : 2;
+
+  const afterHeading = content.substring(match.index + match[0].length);
+  // Stop at the next heading of equal or higher level (fewer or equal #'s)
+  const nextHeading = new RegExp(`^#{1,${level}}\\s`, "m").exec(afterHeading);
+  return nextHeading
+    ? afterHeading.substring(0, nextHeading.index).trim()
+    : afterHeading.trim();
 };
 
 /**
@@ -37,7 +59,6 @@ const evaluateMilestonesActionability = (
   const diagnostics: Diagnostic[] = [];
   let score = 0;
 
-  // Check for acceptance criteria section
   const hasACSection = /acceptance\s+criteria/i.test(content);
   const hasBuildSequence = /build\s+sequence/i.test(content);
 
@@ -60,9 +81,7 @@ const evaluateMilestonesActionability = (
   }
 
   // Count numbered ACs (good milestones have 3+ numbered criteria)
-  const acSectionMatch =
-    /acceptance\s+criteria([\s\S]*?)(?=^#{2,3}\s|\z)/im.exec(content);
-  const acContent = acSectionMatch?.[1] ?? "";
+  const acContent = extractSection(content, /^###?\s+acceptance\s+criteria/im);
   const acCount = countNumberedItems(acContent);
 
   if (hasACSection && acCount < 3) {
@@ -75,10 +94,7 @@ const evaluateMilestonesActionability = (
   }
 
   // Count build sequence phases
-  const buildMatch = /build\s+sequence([\s\S]*?)(?=^#{2,3}\s|\z)/im.exec(
-    content,
-  );
-  const buildContent = buildMatch?.[1] ?? "";
+  const buildContent = extractSection(content, /^###?\s+build\s+sequence/im);
   const phaseCount = countNumberedItems(buildContent);
 
   if (hasBuildSequence && phaseCount < 2) {
@@ -105,6 +121,7 @@ const evaluateMilestonesActionability = (
 
 /**
  * Checks whether the PRD has concrete, testable requirements.
+ * Counts list items only within requirement-oriented sections, not the whole document.
  */
 const evaluatePrdActionability = (
   content: string,
@@ -125,8 +142,17 @@ const evaluatePrdActionability = (
     });
   }
 
-  // Count requirement items (bullets or numbered)
-  const totalItems = countNumberedItems(content) + countBulletItems(content);
+  // Count requirement items only within Requirements and NFR sections
+  const reqContent = extractSection(content, /^##\s+requirements/im);
+  const nfrContent = extractSection(
+    content,
+    /^##\s+non-?functional\s+requirements/im,
+  );
+  const scContent = extractSection(content, /^##\s+success\s+criteria/im);
+  const combinedReqContent = [reqContent, nfrContent, scContent].join("\n");
+  const totalItems =
+    countNumberedItems(combinedReqContent) +
+    countBulletItems(combinedReqContent);
 
   if (totalItems < 5) {
     diagnostics.push({
