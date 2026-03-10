@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import type { ModelClient } from "../model/client.js";
 import type { CompletionRequest, CompletionResponse } from "../model/types.js";
 import type { ChangedFile, ReviewContext } from "./types.js";
-import { reviewDiff } from "./agent.js";
+import { reviewDiff, reviewWithPersonas } from "./agent.js";
+import {
+  securityPersona,
+  architecturePersona,
+  correctnessPersona,
+} from "./personas.js";
 
 const makeClient = (content: string): ModelClient => ({
   complete: async (_req: CompletionRequest): Promise<CompletionResponse> => ({
@@ -372,5 +377,155 @@ describe("reviewDiff", () => {
         "claude-sonnet-4-6",
       ),
     ).rejects.toThrow("too large");
+  });
+});
+
+describe("reviewWithPersonas", () => {
+  it("runs multiple personas in parallel and tags findings", async () => {
+    const secFinding = {
+      severity: "high",
+      category: "security",
+      path: "src/foo.ts",
+      description: "SQL injection",
+      suggestion: "Use parameterized queries",
+    };
+    const archFinding = {
+      severity: "medium",
+      category: "architecture",
+      path: "src/foo.ts",
+      description: "Import violation",
+      suggestion: "Move import to cli/",
+    };
+
+    let callCount = 0;
+    const client: ModelClient = {
+      complete: async (req: CompletionRequest): Promise<CompletionResponse> => {
+        callCount++;
+        const content = req.system?.includes("Security Reviewer")
+          ? JSON.stringify([secFinding])
+          : req.system?.includes("Architecture Reviewer")
+            ? JSON.stringify([archFinding])
+            : "[]";
+        return {
+          content,
+          usage: { inputTokens: 100, outputTokens: 50 },
+          durationMs: 500,
+        };
+      },
+      completeStream: () => {
+        throw new Error("not implemented");
+      },
+    };
+
+    const results = await reviewWithPersonas(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+      [securityPersona, architecturePersona],
+    );
+
+    expect(callCount).toBe(2);
+    expect(results).toHaveLength(2);
+
+    const secResult = results.find((r) => r.persona === "security");
+    expect(secResult).toBeDefined();
+    expect(secResult!.findings).toHaveLength(1);
+    expect(secResult!.findings[0].persona).toBe("security");
+    expect(secResult!.findings[0].description).toBe("SQL injection");
+
+    const archResult = results.find((r) => r.persona === "architecture");
+    expect(archResult).toBeDefined();
+    expect(archResult!.findings).toHaveLength(1);
+    expect(archResult!.findings[0].persona).toBe("architecture");
+  });
+
+  it("aggregates token usage per persona", async () => {
+    const client = makeClient("[]");
+    const results = await reviewWithPersonas(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+      [securityPersona, correctnessPersona],
+    );
+
+    expect(results).toHaveLength(2);
+    for (const r of results) {
+      expect(r.tokenUsage.inputTokens).toBe(100);
+      expect(r.tokenUsage.outputTokens).toBe(50);
+      expect(r.durationMs).toBe(500);
+    }
+  });
+
+  it("handles malformed response from one persona gracefully", async () => {
+    let callIdx = 0;
+    const client: ModelClient = {
+      complete: async (): Promise<CompletionResponse> => {
+        callIdx++;
+        return {
+          content: callIdx === 1 ? "not json" : "[]",
+          usage: { inputTokens: 100, outputTokens: 50 },
+          durationMs: 500,
+        };
+      },
+      completeStream: () => {
+        throw new Error("not implemented");
+      },
+    };
+
+    const results = await reviewWithPersonas(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+      [securityPersona, architecturePersona],
+    );
+
+    // One persona fails parsing, other succeeds — both return results
+    expect(results).toHaveLength(2);
+    const failedPersona = results[0];
+    expect(failedPersona.findings).toEqual([]);
+  });
+
+  it("uses persona-specific model when defined", async () => {
+    const capturedModels: string[] = [];
+    const client: ModelClient = {
+      complete: async (req: CompletionRequest): Promise<CompletionResponse> => {
+        capturedModels.push(req.model ?? "default");
+        return {
+          content: "[]",
+          usage: { inputTokens: 100, outputTokens: 50 },
+          durationMs: 500,
+        };
+      },
+      completeStream: () => {
+        throw new Error("not implemented");
+      },
+    };
+
+    const customPersona = {
+      ...securityPersona,
+      model: "claude-opus-4-6",
+    };
+
+    await reviewWithPersonas(
+      client,
+      "diff content",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+      [customPersona, architecturePersona],
+    );
+
+    expect(capturedModels).toContain("claude-opus-4-6");
+    expect(capturedModels).toContain("claude-sonnet-4-6");
   });
 });

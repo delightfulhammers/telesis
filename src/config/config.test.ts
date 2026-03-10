@@ -86,6 +86,64 @@ describe("config", () => {
     });
   });
 
+  describe("review config", () => {
+    it("loads review config with model override", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "config.yml"),
+        [
+          "project:",
+          "  name: Test",
+          "review:",
+          "  model: claude-opus-4-6",
+        ].join("\n"),
+      );
+
+      const cfg = load(rootDir);
+      expect(cfg.review?.model).toBe("claude-opus-4-6");
+    });
+
+    it("loads review config with persona model overrides", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "config.yml"),
+        [
+          "project:",
+          "  name: Test",
+          "review:",
+          "  personas:",
+          "    - slug: security",
+          "      model: claude-opus-4-6",
+        ].join("\n"),
+      );
+
+      const cfg = load(rootDir);
+      expect(cfg.review?.personas).toHaveLength(1);
+      expect(cfg.review!.personas![0].slug).toBe("security");
+      expect(cfg.review!.personas![0].model).toBe("claude-opus-4-6");
+    });
+
+    it("defaults review to undefined when not present", () => {
+      const rootDir = makeTempDir();
+      const cfg: Config = {
+        project: {
+          name: "Test",
+          owner: "",
+          language: "",
+          status: "",
+          repo: "",
+        },
+      };
+      save(rootDir, cfg);
+      const loaded = load(rootDir);
+      expect(loaded.review).toBeUndefined();
+    });
+  });
+
   describe("exists", () => {
     it("returns false when no config", () => {
       const rootDir = makeTempDir();

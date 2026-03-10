@@ -36,9 +36,13 @@ export interface ReviewFinding {
   readonly endLine?: number;
   readonly description: string;
   readonly suggestion: string;
+  readonly persona?: string;
+  readonly dedupGroupId?: string;
 }
 
 // --- Review Session ---
+
+export type ReviewMode = "single" | "personas";
 
 export interface ReviewSession {
   readonly id: string;
@@ -49,6 +53,9 @@ export interface ReviewSession {
   readonly model: string;
   readonly durationMs: number;
   readonly tokenUsage: TokenUsage;
+  readonly mode: ReviewMode;
+  readonly personas?: readonly string[];
+  readonly themes?: readonly string[];
 }
 
 // --- Review Context ---
@@ -61,4 +68,30 @@ export interface ReviewContext {
     readonly originalLength: number;
     readonly truncatedLength: number;
   };
+}
+
+// --- Persona Definitions ---
+
+export interface PersonaDefinition {
+  readonly slug: string;
+  readonly name: string;
+  readonly preamble: string;
+  readonly focusCategories: readonly Category[];
+  readonly ignoreCategories: readonly Category[];
+  readonly model?: string;
+}
+
+// --- Persona Results ---
+
+export interface PersonaResult {
+  readonly persona: string;
+  readonly findings: readonly ReviewFinding[];
+  readonly tokenUsage: TokenUsage;
+  readonly durationMs: number;
+}
+
+export interface DedupResult {
+  readonly findings: readonly ReviewFinding[];
+  readonly mergedCount: number;
+  readonly tokenUsage?: TokenUsage;
 }

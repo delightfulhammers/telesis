@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   formatReviewReport,
+  formatPersonaReport,
   formatSessionList,
   filterBySeverity,
 } from "./format.js";
@@ -17,6 +18,7 @@ const makeSession = (
   model: "claude-sonnet-4-6",
   durationMs: 2300,
   tokenUsage: { inputTokens: 1000, outputTokens: 200 },
+  mode: "single",
   ...overrides,
 });
 
@@ -141,6 +143,116 @@ describe("formatSessionList", () => {
     expect(output).toContain("[2026-03-09]");
     expect(output).toContain("def45678");
     expect(output).toContain("1 finding");
+  });
+});
+
+describe("formatPersonaReport", () => {
+  it("displays persona headers with findings grouped underneath", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security", "correctness"],
+    });
+    const findings = [
+      makeFinding({
+        id: "f1",
+        severity: "critical",
+        persona: "security",
+        description: "SQL injection",
+      }),
+      makeFinding({
+        id: "f2",
+        severity: "medium",
+        persona: "correctness",
+        description: "Missing null check",
+      }),
+    ];
+    const report = formatPersonaReport(session, findings);
+    expect(report).toContain("Personas: security, correctness");
+    expect(report).toContain("Security");
+    expect(report).toContain("Correctness");
+    expect(report).toContain("SQL injection");
+    expect(report).toContain("Missing null check");
+    // Security findings should appear before correctness
+    expect(report.indexOf("Security")).toBeLessThan(
+      report.indexOf("Correctness"),
+    );
+  });
+
+  it("shows merge count when duplicates were merged", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security", "correctness"],
+    });
+    const findings = [makeFinding({ id: "f1", persona: "security" })];
+    const report = formatPersonaReport(session, findings, { mergedCount: 2 });
+    expect(report).toContain("2 duplicates merged across personas");
+  });
+
+  it("omits merge line when mergedCount is 0", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security"],
+    });
+    const findings = [makeFinding({ id: "f1", persona: "security" })];
+    const report = formatPersonaReport(session, findings);
+    expect(report).not.toContain("duplicates merged");
+  });
+
+  it("shows themes when present on session", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security"],
+      themes: ["SQL injection", "input validation"],
+    });
+    const findings = [makeFinding({ id: "f1", persona: "security" })];
+    const report = formatPersonaReport(session, findings);
+    expect(report).toContain("Themes: SQL injection, input validation");
+  });
+
+  it("sorts findings within each persona by severity", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security"],
+    });
+    const findings = [
+      makeFinding({
+        id: "f1",
+        severity: "low",
+        persona: "security",
+        description: "Low issue",
+      }),
+      makeFinding({
+        id: "f2",
+        severity: "critical",
+        persona: "security",
+        description: "Critical issue",
+      }),
+    ];
+    const report = formatPersonaReport(session, findings);
+    expect(report.indexOf("Critical issue")).toBeLessThan(
+      report.indexOf("Low issue"),
+    );
+  });
+
+  it("handles persona with no findings gracefully", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security", "correctness"],
+    });
+    const findings = [makeFinding({ id: "f1", persona: "security" })];
+    const report = formatPersonaReport(session, findings);
+    expect(report).toContain("Security");
+    expect(report).toContain("Correctness");
+    expect(report).toContain("No findings");
+  });
+
+  it("shows 0 findings message when all findings empty", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security"],
+    });
+    const report = formatPersonaReport(session, []);
+    expect(report).toContain("0 findings");
   });
 });
 

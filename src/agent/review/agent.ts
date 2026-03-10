@@ -3,12 +3,19 @@ import type { ModelClient } from "../model/client.js";
 import {
   SEVERITIES,
   type ChangedFile,
+  type PersonaDefinition,
+  type PersonaResult,
   type ReviewContext,
   type ReviewFinding,
   type Category,
   type Severity,
 } from "./types.js";
-import { buildSystemPrompt, buildUserMessage } from "./prompts.js";
+import {
+  buildSinglePassPrompt,
+  buildPersonaSystemPrompt,
+  buildUserMessage,
+} from "./prompts.js";
+
 const VALID_CATEGORIES: readonly string[] = [
   "bug",
   "security",
@@ -39,6 +46,7 @@ const isValidCategory = (s: string): s is Category =>
 const normalizeFinding = (
   raw: RawModelFinding,
   sessionId: string,
+  persona?: string,
 ): ReviewFinding | null => {
   const severity = raw.severity?.toLowerCase() ?? "";
   const category = raw.category?.toLowerCase() ?? "";
@@ -81,12 +89,14 @@ const normalizeFinding = (
     endLine: validEndLine,
     description: raw.description,
     suggestion: raw.suggestion,
+    persona,
   };
 };
 
-const parseFindings = (
+export const parseFindings = (
   content: string,
   sessionId: string,
+  persona?: string,
 ): readonly ReviewFinding[] => {
   const trimmed = content.trim();
 
@@ -108,12 +118,28 @@ const parseFindings = (
   }
 
   return parsed
-    .map((raw: RawModelFinding) => normalizeFinding(raw, sessionId))
+    .map((raw: RawModelFinding) => normalizeFinding(raw, sessionId, persona))
     .filter((f): f is ReviewFinding => f !== null);
 };
 
 const formatFileList = (files: readonly ChangedFile[]): string =>
   files.map((f) => `- ${f.path} (${f.status})`).join("\n");
+
+const validateDiffSize = (diff: string): void => {
+  if (diff.length > MAX_DIFF_CHARS) {
+    throw new Error(
+      `diff is too large (${Math.round(diff.length / 4000)}k estimated tokens). ` +
+        "Use --ref to narrow the scope, or review smaller changesets.",
+    );
+  }
+};
+
+export interface ReviewDiffResult {
+  readonly findings: readonly ReviewFinding[];
+  readonly model: string;
+  readonly durationMs: number;
+  readonly tokenUsage: { inputTokens: number; outputTokens: number };
+}
 
 export const reviewDiff = async (
   client: ModelClient,
@@ -122,20 +148,10 @@ export const reviewDiff = async (
   context: ReviewContext,
   sessionId: string,
   model: string,
-): Promise<{
-  readonly findings: readonly ReviewFinding[];
-  readonly model: string;
-  readonly durationMs: number;
-  readonly tokenUsage: { inputTokens: number; outputTokens: number };
-}> => {
-  if (diff.length > MAX_DIFF_CHARS) {
-    throw new Error(
-      `diff is too large (${Math.round(diff.length / 4000)}k estimated tokens). ` +
-        "Use --ref to narrow the scope, or review smaller changesets.",
-    );
-  }
+): Promise<ReviewDiffResult> => {
+  validateDiffSize(diff);
 
-  const systemPrompt = buildSystemPrompt(context);
+  const systemPrompt = buildSinglePassPrompt(context);
   const userMessage = buildUserMessage(diff, formatFileList(files));
 
   const response = await client.complete({
@@ -165,4 +181,58 @@ export const reviewDiff = async (
       outputTokens: response.usage.outputTokens,
     },
   };
+};
+
+export const reviewWithPersonas = async (
+  client: ModelClient,
+  diff: string,
+  files: readonly ChangedFile[],
+  context: ReviewContext,
+  sessionId: string,
+  model: string,
+  personas: readonly PersonaDefinition[],
+  themes: readonly string[] = [],
+): Promise<readonly PersonaResult[]> => {
+  validateDiffSize(diff);
+
+  const userMessage = buildUserMessage(diff, formatFileList(files));
+
+  const results = await Promise.all(
+    personas.map(async (persona): Promise<PersonaResult> => {
+      const personaModel = persona.model ?? model;
+      const systemPrompt = buildPersonaSystemPrompt(persona, context, themes);
+
+      const response = await client.complete({
+        model: personaModel,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userMessage }],
+      });
+
+      let findings: readonly ReviewFinding[];
+      try {
+        findings = parseFindings(response.content, sessionId, persona.slug);
+      } catch {
+        console.error(
+          `Warning: could not parse ${persona.name} response as findings JSON.`,
+        );
+        console.error(
+          "Raw response (first 500 chars):",
+          response.content.slice(0, 500),
+        );
+        findings = [];
+      }
+
+      return {
+        persona: persona.slug,
+        findings,
+        tokenUsage: {
+          inputTokens: response.usage.inputTokens,
+          outputTokens: response.usage.outputTokens,
+        },
+        durationMs: response.durationMs,
+      };
+    }),
+  );
+
+  return results;
 };

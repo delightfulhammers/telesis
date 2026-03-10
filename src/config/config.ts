@@ -25,8 +25,19 @@ export interface Project {
   readonly repo: string;
 }
 
+export interface PersonaConfig {
+  readonly slug: string;
+  readonly model?: string;
+}
+
+export interface ReviewConfig {
+  readonly model?: string;
+  readonly personas?: readonly PersonaConfig[];
+}
+
 export interface Config {
   readonly project: Project;
+  readonly review?: ReviewConfig;
 }
 
 const configPath = (rootDir: string): string =>
@@ -36,6 +47,35 @@ const validate = (cfg: Config): void => {
   if (!cfg.project?.name) {
     throw new Error("config missing required field: project.name");
   }
+};
+
+const parsePersonaConfig = (raw: unknown): PersonaConfig | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.slug !== "string" || r.slug.length === 0) return null;
+  return {
+    slug: r.slug,
+    model: typeof r.model === "string" ? r.model : undefined,
+  };
+};
+
+const parseReviewConfig = (raw: unknown): ReviewConfig | undefined => {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+
+  const model = typeof r.model === "string" ? r.model : undefined;
+
+  let personas: PersonaConfig[] | undefined;
+  if (Array.isArray(r.personas)) {
+    const parsed = r.personas
+      .map(parsePersonaConfig)
+      .filter((p): p is PersonaConfig => p !== null);
+    if (parsed.length > 0) personas = parsed;
+  }
+
+  if (!model && !personas) return undefined;
+
+  return { model, personas };
 };
 
 export const load = (rootDir: string): Config => {
@@ -77,6 +117,7 @@ export const load = (rootDir: string): Config => {
       status: str("status"),
       repo: str("repo"),
     },
+    review: parseReviewConfig(raw.review),
   };
 
   validate(cfg);
