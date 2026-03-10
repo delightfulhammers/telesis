@@ -4,7 +4,10 @@ export type {
   EvalInput,
   EvalReport,
   DocumentScore,
+  GlobalAxisScores,
   AxisScore,
   Diagnostic,
   QualityAxis,
+  PerDocumentAxis,
+  GlobalAxis,
 } from "./types.js";

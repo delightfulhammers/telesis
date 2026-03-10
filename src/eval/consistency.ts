@@ -48,7 +48,7 @@ const checkNameConsistency = (
       diagnostics: [
         {
           axis: "consistency",
-          document: "vision",
+          document: "global",
           message: "Could not extract project name from any document heading",
           severity: "warning",
         },
@@ -67,7 +67,7 @@ const checkNameConsistency = (
   const diagnostics: Diagnostic[] = [
     {
       axis: "consistency",
-      document: "vision",
+      document: "global",
       message: `Project name inconsistent across documents: ${[...unique].map((n) => `"${n}"`).join(", ")}`,
       severity: "warning",
     },
@@ -116,8 +116,15 @@ const checkPrdMilestoneAlignment = (
     return { score: 1.0, diagnostics: [] }; // No clear requirements to check
   }
 
-  const milestonesLower = docs.milestones.toLowerCase();
-  const found = requirementTerms.filter((t) => milestonesLower.includes(t));
+  // Tokenize milestones into a Set for O(1) word lookups
+  const milestoneWords = new Set(
+    docs.milestones
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 0),
+  );
+  const found = requirementTerms.filter((t) => milestoneWords.has(t));
   const score = found.length / requirementTerms.length;
 
   const diagnostics: Diagnostic[] = [];
@@ -147,12 +154,12 @@ export const evaluateConsistency = (
   if (allEmpty) {
     return {
       axis: "consistency",
-      document: "vision",
+      document: "global",
       score: 0,
       diagnostics: [
         {
           axis: "consistency",
-          document: "vision",
+          document: "global",
           message: "All documents are empty",
           severity: "error",
         },
@@ -173,7 +180,7 @@ export const evaluateConsistency = (
 
   return {
     axis: "consistency",
-    document: "vision",
+    document: "global",
     score: Math.max(0, Math.min(1, score)),
     diagnostics,
   };

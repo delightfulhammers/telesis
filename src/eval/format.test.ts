@@ -3,7 +3,7 @@ import { formatReport } from "./format.js";
 import type { EvalReport } from "./types.js";
 
 describe("formatReport", () => {
-  it("produces human-readable output with overall score", () => {
+  it("produces human-readable output with overall score and global axes", () => {
     const report: EvalReport = {
       documents: [
         {
@@ -11,14 +11,26 @@ describe("formatReport", () => {
           overall: 0.9,
           axes: {
             completeness: 1.0,
-            coverage: 0.8,
             specificity: 0.9,
-            consistency: 1.0,
             actionability: 0.8,
           },
           diagnostics: [],
         },
       ],
+      globalAxes: {
+        coverage: {
+          axis: "coverage",
+          document: "global",
+          score: 0.85,
+          diagnostics: [],
+        },
+        consistency: {
+          axis: "consistency",
+          document: "global",
+          score: 1.0,
+          diagnostics: [],
+        },
+      },
       overall: 0.9,
       diagnostics: [],
     };
@@ -29,11 +41,28 @@ describe("formatReport", () => {
     expect(output).toContain("90%");
     expect(output).toContain("VISION.md");
     expect(output).toContain("Completeness");
+    expect(output).toContain("Cross-Document:");
+    expect(output).toContain("Coverage");
+    expect(output).toContain("Consistency");
   });
 
   it("includes diagnostics in output", () => {
     const report: EvalReport = {
       documents: [],
+      globalAxes: {
+        coverage: {
+          axis: "coverage",
+          document: "global",
+          score: 0.5,
+          diagnostics: [],
+        },
+        consistency: {
+          axis: "consistency",
+          document: "global",
+          score: 0.5,
+          diagnostics: [],
+        },
+      },
       overall: 0.5,
       diagnostics: [
         {

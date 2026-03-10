@@ -1,12 +1,20 @@
 import type { DocumentType } from "../agent/generate/types.js";
-import type { EvalReport, DocumentScore, QualityAxis } from "./types.js";
+import type {
+  EvalReport,
+  DocumentScore,
+  PerDocumentAxis,
+  GlobalAxis,
+} from "./types.js";
 
-const AXIS_LABELS: Readonly<Record<QualityAxis, string>> = {
+const PER_DOC_AXIS_LABELS: Readonly<Record<PerDocumentAxis, string>> = {
   completeness: "Completeness",
-  coverage: "Coverage",
   specificity: "Specificity",
-  consistency: "Consistency",
   actionability: "Actionability",
+};
+
+const GLOBAL_AXIS_LABELS: Readonly<Record<GlobalAxis, string>> = {
+  coverage: "Coverage",
+  consistency: "Consistency",
 };
 
 const DOC_DISPLAY_NAMES: Readonly<Record<DocumentType, string>> = {
@@ -38,10 +46,10 @@ const formatDocumentScore = (ds: DocumentScore): string => {
     `  ${docName}  ${scoreBar(ds.overall)} ${formatPercent(ds.overall)}`,
   );
 
-  for (const axis of Object.keys(AXIS_LABELS) as QualityAxis[]) {
+  for (const axis of Object.keys(PER_DOC_AXIS_LABELS) as PerDocumentAxis[]) {
     const axisScore = ds.axes[axis];
     const indicator = scoreColor(axisScore);
-    const label = AXIS_LABELS[axis].padEnd(15);
+    const label = PER_DOC_AXIS_LABELS[axis].padEnd(15);
     lines.push(`    ${indicator} ${label} ${formatPercent(axisScore)}`);
   }
 
@@ -71,6 +79,17 @@ export const formatReport = (report: EvalReport): string => {
     lines.push(formatDocumentScore(ds));
     lines.push("");
   }
+
+  // Global axes
+  lines.push("Cross-Document:");
+  lines.push("─".repeat(50));
+  for (const axis of Object.keys(GLOBAL_AXIS_LABELS) as GlobalAxis[]) {
+    const axisScore = report.globalAxes[axis].score;
+    const indicator = scoreColor(axisScore);
+    const label = GLOBAL_AXIS_LABELS[axis].padEnd(15);
+    lines.push(`  ${indicator} ${label} ${formatPercent(axisScore)}`);
+  }
+  lines.push("");
 
   // Diagnostics summary
   const warnings = report.diagnostics.filter((d) => d.severity === "warning");

@@ -5,7 +5,7 @@ import type {
   DocumentScore,
   EvalInput,
   EvalReport,
-  QualityAxis,
+  PerDocumentAxis,
 } from "./types.js";
 import { evaluateStructure } from "./structural.js";
 import { evaluateCoverage } from "./coverage.js";
@@ -13,11 +13,9 @@ import { evaluateSpecificity } from "./specificity.js";
 import { evaluateConsistency } from "./consistency.js";
 import { evaluateActionability } from "./actionability.js";
 
-const QUALITY_AXES: readonly QualityAxis[] = [
+const PER_DOC_AXES: readonly PerDocumentAxis[] = [
   "completeness",
-  "coverage",
   "specificity",
-  "consistency",
   "actionability",
 ];
 
@@ -25,14 +23,15 @@ const QUALITY_AXES: readonly QualityAxis[] = [
  * Runs all evaluators against the generated documents and produces a
  * structured report.
  *
- * Each document gets scores on every quality axis. The overall score
- * is the average across all documents.
+ * Per-document axes (completeness, specificity, actionability) are scored
+ * independently for each document. Cross-document axes (coverage, consistency)
+ * are scored once globally and reported separately.
  */
 export const evaluate = (input: EvalInput): EvalReport => {
   const { interviewState, generatedDocs } = input;
   const docs = generatedDocs as Required<GeneratedDocs>;
 
-  // Cross-document evaluations (run once, apply to all docs)
+  // Cross-document evaluations (run once, reported globally)
   const coverageResult = evaluateCoverage(interviewState, docs);
   const consistencyResult = evaluateConsistency(docs);
 
@@ -45,26 +44,24 @@ export const evaluate = (input: EvalInput): EvalReport => {
       const specificityResult = evaluateSpecificity(docType, content);
       const actionabilityResult = evaluateActionability(docType, content);
 
-      const axes: Record<QualityAxis, number> = {
+      const axes: Record<PerDocumentAxis, number> = {
         completeness: structuralResult.score,
-        coverage: coverageResult.score,
         specificity: specificityResult.score,
-        consistency: consistencyResult.score,
         actionability: actionabilityResult.score,
       };
 
       const diagnostics: Diagnostic[] = [
         ...structuralResult.diagnostics.map((d) => ({
           ...d,
-          document: docType,
+          document: docType as DocumentType,
         })),
         ...specificityResult.diagnostics.map((d) => ({
           ...d,
-          document: docType,
+          document: docType as DocumentType,
         })),
         ...actionabilityResult.diagnostics.map((d) => ({
           ...d,
-          document: docType,
+          document: docType as DocumentType,
         })),
       ];
 
@@ -76,23 +73,27 @@ export const evaluate = (input: EvalInput): EvalReport => {
     },
   );
 
-  // Collect cross-document diagnostics separately
-  const crossDocDiagnostics: Diagnostic[] = [
+  const globalAxes = {
+    coverage: coverageResult,
+    consistency: consistencyResult,
+  };
+
+  const allDiagnostics = [
+    ...documentScores.flatMap((ds) => ds.diagnostics),
     ...coverageResult.diagnostics,
     ...consistencyResult.diagnostics,
   ];
 
-  const allDiagnostics = [
-    ...documentScores.flatMap((ds) => ds.diagnostics),
-    ...crossDocDiagnostics,
-  ];
-
-  const overall =
+  // Overall: weighted average of per-document scores (60%) and global axes (40%)
+  const docAvg =
     documentScores.reduce((sum, ds) => sum + ds.overall, 0) /
     documentScores.length;
+  const globalAvg = (coverageResult.score + consistencyResult.score) / 2;
+  const overall = docAvg * 0.6 + globalAvg * 0.4;
 
   return {
     documents: documentScores,
+    globalAxes,
     overall,
     diagnostics: allDiagnostics,
   };

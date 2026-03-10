@@ -40,13 +40,20 @@ export const evalCommand = new Command("eval")
 
       const generatedDocs = loadGeneratedDocs(rootDir);
 
-      const missingDocs = Object.entries(DOCUMENT_PATHS)
-        .filter(([key]) => !generatedDocs[key as keyof GeneratedDocs])
-        .map(([, path]) => path);
+      const allDocKeys = Object.keys(DOCUMENT_PATHS);
+      const missingDocs = allDocKeys
+        .filter((key) => !generatedDocs[key as keyof GeneratedDocs])
+        .map((key) => DOCUMENT_PATHS[key as keyof typeof DOCUMENT_PATHS]);
 
-      if (missingDocs.length === 4) {
+      if (missingDocs.length === allDocKeys.length) {
         throw new Error(
           `No generated documents found. Run \`telesis init\` first.`,
+        );
+      }
+
+      if (missingDocs.length > 0) {
+        console.error(
+          `Warning: ${missingDocs.length} document(s) missing — report will be partial: ${missingDocs.join(", ")}`,
         );
       }
 

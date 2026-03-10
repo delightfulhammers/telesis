@@ -240,26 +240,16 @@ export const extractTopics = (state: InterviewState): readonly string[] => {
 };
 
 /**
- * Checks whether a topic appears anywhere in the combined document text.
- * Uses case-insensitive matching with word boundary awareness.
+ * Tokenizes text into a Set of lowercase words for O(1) lookup.
  */
-const topicFoundInDocs = (topic: string, combinedText: string): boolean => {
-  // For single words, check with word boundary
-  if (!topic.includes(" ")) {
-    const pattern = new RegExp(`\\b${escapeRegex(topic)}`, "i");
-    return pattern.test(combinedText);
-  }
-
-  // For multi-word topics, check if both words appear (not necessarily adjacent)
-  const words = topic.split(" ");
-  return words.every((w) => {
-    const pattern = new RegExp(`\\b${escapeRegex(w)}`, "i");
-    return pattern.test(combinedText);
-  });
+const tokenize = (text: string): Set<string> => {
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+  return new Set(words);
 };
-
-const escapeRegex = (s: string): string =>
-  s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * Evaluates how well the generated documents cover topics from the interview.
@@ -277,7 +267,7 @@ export const evaluateCoverage = (
   if (topics.length === 0) {
     return {
       axis: "coverage",
-      document: "vision", // arbitrary; coverage is cross-document
+      document: "global",
       score: 1.0,
       diagnostics: [],
     };
@@ -290,16 +280,25 @@ export const evaluateCoverage = (
     docs.milestones,
   ].join("\n\n");
 
+  // Tokenize once for O(1) single-word lookups
+  const wordSet = tokenize(combinedText);
+  // Lowercase combined text for bigram substring matching
+  const combinedLower = combinedText.toLowerCase();
+
   const diagnostics: Diagnostic[] = [];
   let covered = 0;
 
   for (const topic of topics) {
-    if (topicFoundInDocs(topic, combinedText)) {
+    const found = topic.includes(" ")
+      ? combinedLower.includes(topic) // Bigrams: exact phrase substring match
+      : wordSet.has(topic); // Single words: Set lookup
+
+    if (found) {
       covered++;
     } else {
       diagnostics.push({
         axis: "coverage",
-        document: "vision", // arbitrary for cross-document diagnostics
+        document: "global",
         message: `Interview topic not found in generated docs: "${topic}"`,
         severity: "warning",
       });
@@ -307,5 +306,5 @@ export const evaluateCoverage = (
   }
 
   const score = covered / topics.length;
-  return { axis: "coverage", document: "vision", score, diagnostics };
+  return { axis: "coverage", document: "global", score, diagnostics };
 };

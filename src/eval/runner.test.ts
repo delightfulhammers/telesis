@@ -189,7 +189,7 @@ Firebase Cloud Messaging for push notifications. Scheduled via cron jobs.
 });
 
 describe("evaluate (runner)", () => {
-  it("produces a complete report with all quality axes", () => {
+  it("produces a complete report with per-doc and global axes", () => {
     const input = makeInput();
     const report = evaluate(input);
 
@@ -197,21 +197,22 @@ describe("evaluate (runner)", () => {
     expect(report.overall).toBeGreaterThan(0);
     expect(report.overall).toBeLessThanOrEqual(1);
 
-    // Each document should have scores for all axes
+    // Each document has per-document axes only
     for (const doc of report.documents) {
       expect(doc.axes.completeness).toBeDefined();
-      expect(doc.axes.coverage).toBeDefined();
       expect(doc.axes.specificity).toBeDefined();
-      expect(doc.axes.consistency).toBeDefined();
       expect(doc.axes.actionability).toBeDefined();
     }
+
+    // Global axes are on the report, not per-document
+    expect(report.globalAxes.coverage.score).toBeDefined();
+    expect(report.globalAxes.consistency.score).toBeDefined();
   });
 
   it("scores high for well-crafted documents", () => {
     const input = makeInput();
     const report = evaluate(input);
 
-    // The fixture documents are well-crafted — should score well
     expect(report.overall).toBeGreaterThan(0.7);
   });
 
@@ -232,16 +233,12 @@ describe("evaluate (runner)", () => {
     };
 
     const report = evaluate(input);
-    // Not exactly 0 because coverage (vacuously 1.0 with no topics) and
-    // actionability (1.0 for non-actionable doc types) are "not applicable"
-    // and default to 1.0. The meaningful axes (completeness, specificity,
-    // consistency) should all be 0 for empty docs.
     expect(report.overall).toBeLessThan(0.5);
     for (const doc of report.documents) {
       expect(doc.axes.completeness).toBe(0);
       expect(doc.axes.specificity).toBe(0);
-      expect(doc.axes.consistency).toBe(0);
     }
+    expect(report.globalAxes.consistency.score).toBe(0);
   });
 
   it("collects diagnostics from all evaluators", () => {
@@ -258,7 +255,7 @@ describe("evaluate (runner)", () => {
     expect(report.diagnostics.length).toBeGreaterThan(0);
   });
 
-  it("per-document overall is average of per-document axes", () => {
+  it("per-document overall is average of per-document axes only", () => {
     const input = makeInput();
     const report = evaluate(input);
 
@@ -268,5 +265,27 @@ describe("evaluate (runner)", () => {
         axisValues.reduce((a, b) => a + b, 0) / axisValues.length;
       expect(doc.overall).toBeCloseTo(expectedOverall, 10);
     }
+  });
+
+  it("report overall combines per-doc and global axes", () => {
+    const input = makeInput();
+    const report = evaluate(input);
+
+    const docAvg =
+      report.documents.reduce((sum, ds) => sum + ds.overall, 0) /
+      report.documents.length;
+    const globalAvg =
+      (report.globalAxes.coverage.score + report.globalAxes.consistency.score) /
+      2;
+    const expected = docAvg * 0.6 + globalAvg * 0.4;
+    expect(report.overall).toBeCloseTo(expected, 10);
+  });
+
+  it("global axes use 'global' document scope", () => {
+    const input = makeInput();
+    const report = evaluate(input);
+
+    expect(report.globalAxes.coverage.document).toBe("global");
+    expect(report.globalAxes.consistency.document).toBe("global");
   });
 });
