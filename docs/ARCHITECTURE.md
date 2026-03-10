@@ -35,6 +35,7 @@ telesis/
       eval.ts             ← document quality evaluation command
       drift.ts            ← drift detection command (v0.3.0+)
       note.ts             ← development notes command (v0.4.0+)
+      review.ts           ← code review command (v0.5.0+)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection
     config/               ← .telesis/config.yml read/write
@@ -58,6 +59,14 @@ telesis/
       generate/
         generator.ts      ← DocumentGenerator implementation
         prompts/          ← per-document generation prompts
+      review/
+        types.ts          ← ReviewSession, ReviewFinding, ChangedFile types
+        diff.ts           ← diff resolver (only git interaction point)
+        context.ts        ← review context assembler (reads project docs)
+        agent.ts          ← core review agent (model call + response parsing)
+        prompts.ts        ← review system prompt
+        store.ts          ← per-session JSONL storage in .telesis/reviews/
+        format.ts         ← terminal report formatting
       model/
         client.ts         ← ModelClient abstraction (only Anthropic SDK import)
         types.ts          ← CompletionRequest/Response types

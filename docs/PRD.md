@@ -109,6 +109,21 @@ Manages lightweight development notes (session insights, gotchas, conventions to
 - `telesis note list --json` outputs notes as JSON
 - Notes surface in CLAUDE.md via `telesis context` (grouped by tag)
 
+### `telesis review`
+
+Reviews code changes against project conventions, architecture rules, and design decisions.
+
+- `telesis review` reviews staged changes (default)
+- `telesis review --all` reviews working + staged changes
+- `telesis review --ref <ref>` reviews diff against a ref (e.g., main, main...HEAD)
+- `telesis review --json` outputs findings as JSON
+- `telesis review --min-severity <level>` filters findings by minimum severity
+- `telesis review --list` lists past review sessions
+- `telesis review --show <id>` shows findings from a past session
+- Findings include severity, category, file path, line range, description, and suggestion
+- Review sessions stored in `.telesis/reviews/`
+- Exits with code 1 when critical or high severity findings are present
+
 ---
 
 ## CLAUDE.md Format

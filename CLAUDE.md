@@ -104,7 +104,7 @@ A `telesis note` command is introduced for capturing development insights into
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (2 component designs)
+- TDDs: `docs/tdd/` (3 component designs)
 
 ---
 

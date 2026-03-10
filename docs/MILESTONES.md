@@ -269,10 +269,49 @@ A `telesis note` command is introduced for capturing development insights into
 
 ---
 
+## v0.5.0 — Review Agent
+
+**Goal:** Native code review agent that reviews diffs against the project's own spec
+documents (architecture, requirements, conventions, decisions) and produces structured
+findings. Replaces the need for an external review tool by leveraging what Telesis already
+knows about the project.
+
+**Status:** Not Started
+
+**Reference:** TDD-003 (Review Agent)
+
+### What Changes
+
+A review agent is introduced under `src/agent/review/`. It accepts a diff (staged changes,
+branch diff, or commit range), assembles review criteria dynamically from project documents,
+sends the diff + criteria to the model, and produces structured findings with severity,
+category, file location, and suggestion. Review sessions are stored in `.telesis/reviews/`
+as per-session JSONL files.
+
+### Acceptance Criteria
+
+1. `telesis review` reviews staged changes and prints a formatted findings report
+2. `telesis review --all` reviews working + staged changes
+3. `telesis review --ref <ref>` reviews diff against the specified ref
+4. `telesis review --json` outputs the review as JSON
+5. `telesis review --min-severity <level>` filters findings by severity
+6. `telesis review --list` lists past review sessions
+7. `telesis review --show <id>` shows findings from a past session
+8. Empty diff prints a message and exits 0 (no model call)
+9. Review criteria are assembled dynamically from project documents (zero configuration)
+10. Findings include severity, category, file path, line range, description, and suggestion
+11. Review sessions are stored in `.telesis/reviews/<session-id>.jsonl`
+12. Malformed model responses produce a warning, not a crash
+13. All new business logic has colocated unit tests
+14. Running `telesis drift` on the Telesis repo produces zero errors after all changes
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
 
-- **v0.5.0 — Bop Integration:** ACP server interface, Telesis-driven code review
+- **v0.6.0 — Review Personas:** Multi-perspective review with persona-based lenses and
+  cross-round deduplication (informed by Bop's three-stage dedup architecture)
 - **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development
   lifecycle
