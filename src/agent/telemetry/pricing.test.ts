@@ -335,4 +335,37 @@ describe("pricing", () => {
       expect(calculateCost([], pricing)).toBe(0);
     });
   });
+
+  describe("prototype safety", () => {
+    it("does not resolve provider names that collide with Object.prototype", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "pricing.yml"),
+        [
+          'lastUpdated: "2026-03-09"',
+          "models:",
+          "  anthropic:",
+          "    claude-sonnet-4-6:",
+          "      inputPer1MTokens: 3",
+          "      outputPer1MTokens: 15",
+          "",
+        ].join("\n"),
+      );
+
+      const pricing = loadPricing(rootDir)!;
+      const records = [
+        makeRecord({
+          provider: "toString",
+          model: "name",
+          inputTokens: 1_000_000,
+        }),
+      ];
+
+      const cost = calculateCost(records, pricing);
+      expect(cost).toBe(0);
+      expect(Number.isNaN(cost)).toBe(false);
+    });
+  });
 });

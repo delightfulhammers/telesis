@@ -83,10 +83,14 @@ const validatePricing = (raw: unknown): PricingConfig | null => {
   if (typeof raw.lastUpdated !== "string") return null;
   if (!isPlainObject(raw.models)) return null;
 
-  const models: Record<string, Record<string, ModelPricing>> = {};
+  const models: Record<string, Record<string, ModelPricing>> = Object.create(
+    null,
+  ) as Record<string, Record<string, ModelPricing>>;
   for (const [provider, providerModels] of Object.entries(raw.models)) {
     if (!isPlainObject(providerModels)) continue;
-    const validModels: Record<string, ModelPricing> = {};
+    const validModels: Record<string, ModelPricing> = Object.create(
+      null,
+    ) as Record<string, ModelPricing>;
     for (const [model, pricing] of Object.entries(providerModels)) {
       if (isValidModelPricing(pricing)) {
         validModels[model] = pricing;
