@@ -6,15 +6,17 @@ import { adrCommand } from "./cli/adr.js";
 import { tddCommand } from "./cli/tdd.js";
 import { statusCommand } from "./cli/status.js";
 import { evalCommand } from "./cli/eval.js";
+import { driftCommand } from "./cli/drift.js";
 
 const program = new Command("telesis")
   .description("Development intelligence platform")
-  .version("0.2.0")
+  .version("0.3.0")
   .addCommand(initCommand)
   .addCommand(contextCommand)
   .addCommand(adrCommand)
   .addCommand(tddCommand)
   .addCommand(statusCommand)
-  .addCommand(evalCommand);
+  .addCommand(evalCommand)
+  .addCommand(driftCommand);
 
 program.parse();

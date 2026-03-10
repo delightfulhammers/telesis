@@ -85,6 +85,6 @@
 
 - If something is not in the current milestone's acceptance criteria, it is out of scope.
   Name it and park it; don't let it creep in.
-- Current out of scope: drift detection, milestone validation automation, swarm
+- Current out of scope: milestone validation automation, swarm
   orchestration, GitHub/Linear/Jira integrations, ACP server, web UI, multi-project
   management, auth/teams, OpenClaw TUI integration.

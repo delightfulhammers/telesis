@@ -32,6 +32,8 @@ telesis/
       adr.ts
       tdd.ts
       status.ts           ← reads telemetry for cost reporting (v0.2.0+)
+      eval.ts             ← document quality evaluation command
+      drift.ts            ← drift detection command (v0.3.0+)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection
     config/               ← .telesis/config.yml read/write
@@ -42,6 +44,9 @@ telesis/
     status/               ← project status aggregation
     milestones/           ← milestone parsing
     docgen/               ← shared document generation utilities
+    eval/                 ← document quality evaluation suite
+    drift/                ← drift detection checks and runner (v0.3.0+)
+      checks/             ← individual drift check implementations
     templates/            ← embedded document templates (.md.tmpl)
     agent/                ← AI agent layer (v0.2.0+)
       interview/

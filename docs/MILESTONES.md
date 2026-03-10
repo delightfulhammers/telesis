@@ -202,11 +202,43 @@ their own provider's rates.
 
 ---
 
+## v0.3.0 — Drift Detection
+
+**Goal:** Detect when implementation diverges from what the spec documents claim, using
+deterministic/structural checks only (no model calls).
+
+**Status:** Complete
+
+**Reference:** Planned milestone
+
+### What Changes
+
+A drift detection subsystem is introduced under `src/drift/`. Six structural checks verify
+falsifiable claims from ARCHITECTURE.md and PRD.md: SDK import containment, Commander import
+containment, no process.exit in business logic, expected directory structure, test colocation,
+and command registration parity between PRD and CLI.
+
+### Acceptance Criteria
+
+1. `telesis drift` runs all registered checks and prints a formatted pass/fail report
+2. `telesis drift --check <name>` runs only the named check
+3. `telesis drift --json` outputs the report as JSON
+4. `sdk-import-containment` detects `@anthropic-ai/sdk` imports outside `src/agent/model/client.ts`
+5. `commander-import-containment` detects `commander` imports outside `src/cli/` and `src/index.ts`
+6. `no-process-exit` detects `process.exit` calls in business logic packages
+7. `test-colocation` identifies source files missing colocated tests
+8. `expected-directories` verifies the documented directory structure exists
+9. `command-registration` verifies PRD commands match registered CLI commands
+10. Running `telesis drift` on the Telesis repo produces zero errors
+11. `telesis drift` exits 0 on all-pass, exits 1 on any error-severity finding
+12. All drift checks have colocated unit tests
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
 
-- **v0.3.0 — Drift Detection:** Compare implementation against spec; flag divergence
 - **v0.4.0 — Session Insight Capture:** Lightweight mechanism for feeding development
   observations back into project memory (see VISION.md, "The Insight Gap")
 - **v0.5.0 — Bop Integration:** ACP server interface, Telesis-driven code review

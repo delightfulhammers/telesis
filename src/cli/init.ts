@@ -1,11 +1,10 @@
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
-import Anthropic from "@anthropic-ai/sdk";
 import { Command } from "commander";
 import { handleAction } from "./handle-action.js";
 import { runInit } from "../agent/init/orchestrator.js";
 import type { InitDeps } from "../agent/init/orchestrator.js";
-import { createModelClient } from "../agent/model/client.js";
+import { createModelClient, createSdk } from "../agent/model/client.js";
 import { createTelemetryLogger } from "../agent/telemetry/logger.js";
 import { runInterview } from "../agent/interview/engine.js";
 import type { InterviewIO } from "../agent/interview/engine.js";
@@ -53,7 +52,7 @@ export const initCommand = new Command("init")
       const rootDir = process.cwd();
       const sessionId = randomUUID();
       const telemetry = createTelemetryLogger(rootDir);
-      const sdk = new Anthropic();
+      const sdk = createSdk();
 
       const interviewClient = createModelClient({
         sdk,
