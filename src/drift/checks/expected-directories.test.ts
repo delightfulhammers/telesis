@@ -2,36 +2,17 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { useTempDir } from "../../test-utils.js";
-import { expectedDirectoriesCheck } from "./expected-directories.js";
+import {
+  EXPECTED_DIRS,
+  expectedDirectoriesCheck,
+} from "./expected-directories.js";
 
 describe("expected-directories", () => {
   const makeTempDir = useTempDir("expected-dirs");
 
   it("passes when all expected directories exist", () => {
     const dir = makeTempDir();
-    const dirs = [
-      "src/adr",
-      "src/agent/generate",
-      "src/agent/init",
-      "src/agent/interview",
-      "src/agent/model",
-      "src/agent/telemetry",
-      "src/cli",
-      "src/config",
-      "src/context",
-      "src/docgen",
-      "src/drift",
-      "src/eval",
-      "src/milestones",
-      "src/scaffold",
-      "src/status",
-      "src/tdd",
-      "src/templates",
-      "docs/adr",
-      "docs/tdd",
-      "docs/context",
-    ];
-    for (const d of dirs) {
+    for (const d of EXPECTED_DIRS) {
       mkdirSync(join(dir, d), { recursive: true });
     }
 

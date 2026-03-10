@@ -52,6 +52,15 @@ describe("command-registration", () => {
     expect(result.passed).toBe(true);
   });
 
+  it("uses full variable name when it does not follow Command suffix convention", () => {
+    const prd = "### `telesis init`\n### `telesis drift`\n";
+    const index = `.addCommand(initCommand)\n.addCommand(drift)\n`;
+    const dir = setup(prd, index);
+
+    const result = commandRegistrationCheck.run(dir);
+    expect(result.passed).toBe(true);
+  });
+
   it("returns a failed finding with relative paths when PRD.md is missing", () => {
     const dir = makeTempDir();
     mkdirSync(join(dir, "src"), { recursive: true });

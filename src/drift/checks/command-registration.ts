@@ -12,12 +12,17 @@ const extractPrdCommands = (prdContent: string): readonly string[] => {
   return commands.sort();
 };
 
+/**
+ * Extracts command names from `.addCommand(fooCommand)` calls in index.ts.
+ * Assumes the convention: variable name is `<name>Command` (e.g., `initCommand`
+ * → `init`). If the variable doesn't follow this convention, the full variable
+ * name is used as the command name.
+ */
 const extractRegisteredCommands = (indexContent: string): readonly string[] => {
   const pattern = /\.addCommand\(\s*(\w+)/g;
   const commands: string[] = [];
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(indexContent)) !== null) {
-    // Extract the command name from the variable name (e.g., initCommand → init)
     const varName = match[1];
     const cmdName = varName.replace(/Command$/, "");
     commands.push(cmdName);

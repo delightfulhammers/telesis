@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { DriftCheck } from "../types.js";
 import { findTypeScriptFiles } from "../scan.js";
@@ -25,13 +24,11 @@ export const testColocationCheck: DriftCheck = {
   requiresModel: false,
   run: (rootDir) => {
     const files = findTypeScriptFiles(join(rootDir, "src"), EXCLUDED_DIRS);
+    const fileSet = new Set(files);
 
     const missing = files
       .filter((f) => !isExcluded(f))
-      .filter((f) => {
-        const testFile = f.replace(/\.ts$/, ".test.ts");
-        return !existsSync(join(rootDir, "src", testFile));
-      });
+      .filter((f) => !fileSet.has(f.replace(/\.ts$/, ".test.ts")));
 
     return {
       check: "test-colocation",

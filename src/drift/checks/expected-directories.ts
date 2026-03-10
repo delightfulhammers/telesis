@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DriftCheck } from "../types.js";
 
-const EXPECTED_DIRS: readonly string[] = [
+export const EXPECTED_DIRS: readonly string[] = [
   "src/adr",
   "src/agent",
   "src/agent/generate",
