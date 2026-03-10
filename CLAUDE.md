@@ -63,7 +63,7 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 memory. Notes are too small for an ADR, not a requirement, not a milestone item — but they
 prevent future mistakes.
 
-**Status:** In Progress
+**Status:** Complete
 
 **Reference:** Planned milestone
 
@@ -258,7 +258,7 @@ If any of those questions can't be answered from the docs, the docs need updatin
 - .gitignore must use /telesis (anchored) not telesis — otherwise matches src/ paths (2026-03-10)
 
 ### git
-- SSH remote required for workflow scope — HTTPS lacks workflow scope for pushing GitHub Actions files (2026-03-10)
 - .gitignore must use /telesis (anchored) not telesis — otherwise matches src/ paths (2026-03-10)
+- SSH remote required for workflow scope — HTTPS lacks workflow scope for pushing GitHub Actions files (2026-03-10)
 
 ---

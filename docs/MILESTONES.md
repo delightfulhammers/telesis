@@ -241,7 +241,7 @@ and command registration parity between PRD and CLI.
 memory. Notes are too small for an ADR, not a requirement, not a milestone item — but they
 prevent future mistakes.
 
-**Status:** In Progress
+**Status:** Complete
 
 **Reference:** Planned milestone
 
