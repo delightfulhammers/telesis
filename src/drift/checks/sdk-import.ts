@@ -14,9 +14,7 @@ export const sdkImportCheck: DriftCheck = {
   requiresModel: false,
   run: (rootDir) => {
     const srcDir = join(rootDir, "src");
-    const files = findTypeScriptFiles(srcDir).filter(
-      (f) => !isTestFile(f),
-    );
+    const files = findTypeScriptFiles(srcDir).filter((f) => !isTestFile(f));
     const hits = scanForPattern(srcDir, files, IMPORT_PATTERN).filter(
       (h) => `src/${h.file}` !== ALLOWED_FILE,
     );

@@ -97,6 +97,18 @@ Detects drift between spec documents and implementation.
 - `--json` outputs the report as JSON
 - Exits 0 on all-pass, exits 1 on any error-severity finding
 
+### `telesis note`
+
+Manages lightweight development notes (session insights, gotchas, conventions too small for an ADR).
+
+- `telesis note add "text"` appends a note to `.telesis/notes.jsonl`
+- `telesis note add --tag <tag> "text"` stores the note with tag(s)
+- `telesis note add -` reads note text from stdin
+- `telesis note list` displays all notes, newest first
+- `telesis note list --tag <tag>` filters by tag
+- `telesis note list --json` outputs notes as JSON
+- Notes surface in CLAUDE.md via `telesis context` (grouped by tag)
+
 ---
 
 ## CLAUDE.md Format

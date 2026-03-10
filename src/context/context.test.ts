@@ -5,6 +5,7 @@ import { platform } from "node:process";
 import { save } from "../config/config.js";
 import type { Config } from "../config/config.js";
 import { generate } from "./context.js";
+import { appendNote } from "../notes/store.js";
 import { useTempDir } from "../test-utils.js";
 
 const makeTempDir = useTempDir("context-test");
@@ -351,6 +352,27 @@ Appendix content should not appear.
     const output = generate(rootDir);
     expect(output).toContain("This should appear");
     expect(output).not.toContain("This should not appear");
+  });
+
+  it("includes Development Notes section when notes exist", () => {
+    const rootDir = setupProject();
+
+    appendNote(rootDir, "SSH required for workflow scope", ["git"]);
+    appendNote(rootDir, "bop v0.8.4 is the working version", []);
+
+    const output = generate(rootDir);
+    expect(output).toContain("## Development Notes");
+    expect(output).toContain("### git");
+    expect(output).toContain("SSH required for workflow scope");
+    expect(output).toContain("### General");
+    expect(output).toContain("bop v0.8.4 is the working version");
+  });
+
+  it("omits Development Notes section when no notes exist", () => {
+    const rootDir = setupProject();
+
+    const output = generate(rootDir);
+    expect(output).not.toContain("Development Notes");
   });
 
   it("returns error for unreadable ADR file", () => {

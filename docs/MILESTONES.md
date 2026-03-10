@@ -235,12 +235,44 @@ and command registration parity between PRD and CLI.
 
 ---
 
+## v0.4.0 — Session Insight Capture
+
+**Goal:** Lightweight mechanism for feeding development observations back into project
+memory. Notes are too small for an ADR, not a requirement, not a milestone item — but they
+prevent future mistakes.
+
+**Status:** In Progress
+
+**Reference:** Planned milestone
+
+### What Changes
+
+A `telesis note` command is introduced for capturing development insights into
+`.telesis/notes.jsonl`. Notes surface in CLAUDE.md via `telesis context`, grouped by tag.
+`telesis status` reports note count.
+
+### Acceptance Criteria
+
+1. `telesis note add "text"` appends a note to `.telesis/notes.jsonl` with UUID, timestamp, and text
+2. `telesis note add --tag <tag> "text"` stores the note with the specified tag(s)
+3. `telesis note add -` reads note text from stdin
+4. `telesis note list` displays all notes in reverse chronological order
+5. `telesis note list --tag <tag>` filters notes to those matching the tag
+6. `telesis note list --json` outputs notes as a JSON array
+7. `telesis context` includes a "Development Notes" section in CLAUDE.md when notes exist
+8. Notes in CLAUDE.md are grouped by tag with a "General" group for untagged notes
+9. `telesis context` omits the Development Notes section when no notes exist
+10. `telesis status` reports note count
+11. Write failures to `notes.jsonl` log to stderr and do not abort
+12. All new business logic has colocated unit tests
+13. Running `telesis drift` on the Telesis repo produces zero errors after all changes
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
 
-- **v0.4.0 — Session Insight Capture:** Lightweight mechanism for feeding development
-  observations back into project memory (see VISION.md, "The Insight Gap")
 - **v0.5.0 — Bop Integration:** ACP server interface, Telesis-driven code review
 - **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development
   lifecycle
