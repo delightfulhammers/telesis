@@ -104,6 +104,57 @@ building an evaluation suite to measure document quality systematically.
 
 ---
 
+## v0.2.1 — Document Quality Refinement
+
+**Goal:** Make the init agent's generated documents good enough that a developer can start
+building immediately — no significant manual editing needed. Establish a repeatable
+evaluation framework to measure document quality and drive prompt improvements with data.
+
+**Status:** In Progress
+
+**Reference:** Issues #15–#20
+
+### What Changes
+
+A document quality evaluation suite is introduced to score generated documents across
+defined axes (completeness, accuracy, specificity, actionability, consistency). With
+measurement in place, the interview and generation prompts are improved to address the
+five quality gaps identified during v0.2.0 validation.
+
+### Acceptance Criteria
+
+1. An evaluation suite exists that scores generated documents on defined quality axes
+2. The eval suite can run against any set of generated documents and produce a structured
+   report
+3. Interview context is fully preserved in generated documents — features, constraints,
+   and decisions discussed in the interview appear in the output (#18)
+4. ARCHITECTURE.md generation does not fabricate implementation details that were not
+   discussed in the interview (#17)
+5. VISION.md principles are project-specific, derived from the interview conversation,
+   not generic boilerplate (#15)
+6. Config extraction correctly identifies the primary language/framework from context (#16)
+7. PRD includes an explicit out-of-scope section when the interview surfaces out-of-scope
+   items (#19)
+8. Re-running the tic-tac-toe test case shows measurable improvement on eval scores
+   compared to v0.2.0 baseline
+
+### Build Sequence
+
+1. **Phase 1 — Eval suite:** Build the document quality evaluation framework (#20).
+   Define scoring axes, implement automated scoring, establish baseline from v0.2.0
+   output
+2. **Phase 2 — Interview context preservation:** Fix dropped context between interview
+   and generation (#18). Ensure all discussed topics flow through to documents
+3. **Phase 3 — Generation prompt improvements:** Address over-specification in
+   ARCHITECTURE.md (#17), generic VISION.md principles (#15), missing PRD out-of-scope
+   (#19)
+4. **Phase 4 — Config extraction fix:** Improve language/framework detection in config
+   extraction (#16)
+5. **Phase 5 — Validation:** Re-run eval suite, compare against baseline, validate all
+   acceptance criteria
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
