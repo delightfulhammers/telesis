@@ -1,6 +1,6 @@
 # TDD-003 — Review Agent
 
-**Status:** Draft
+**Status:** Accepted
 **Date:** 2026-03-10
 **Author:** Delightful Hammers
 **Related:** v0.5.0 milestone, TDD-001 (init agent patterns), Bop (prior art)

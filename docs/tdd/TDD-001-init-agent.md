@@ -1,6 +1,6 @@
 # TDD-001 — Init Agent
 
-**Status:** Draft
+**Status:** Accepted
 **Date:** 2026-03-08
 **Author:** Delightful Hammers
 **Related:** ADR-001 (TypeScript agent layer, superseded), ADR-002 (TypeScript rewrite)

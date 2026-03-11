@@ -5,6 +5,9 @@ import { noProcessExitCheck } from "./no-process-exit.js";
 import { expectedDirectoriesCheck } from "./expected-directories.js";
 import { testColocationCheck } from "./test-colocation.js";
 import { commandRegistrationCheck } from "./command-registration.js";
+import { milestoneTddConsistencyCheck } from "./milestone-tdd-consistency.js";
+import { staleReferencesCheck } from "./stale-references.js";
+import { claudeMdFreshnessCheck } from "./claude-md-freshness.js";
 
 /** All registered drift checks, in display order. */
 export const allChecks: readonly DriftCheck[] = [
@@ -14,4 +17,7 @@ export const allChecks: readonly DriftCheck[] = [
   expectedDirectoriesCheck,
   testColocationCheck,
   commandRegistrationCheck,
+  milestoneTddConsistencyCheck,
+  staleReferencesCheck,
+  claudeMdFreshnessCheck,
 ];
