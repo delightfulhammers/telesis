@@ -28,7 +28,7 @@ as the primary reviewer for the Telesis repo.
 - Does not support non-GitHub forges (GitLab, Bitbucket)
 - Does not implement webhook-driven triggering (GitHub Actions only)
 - Does not solve the review convergence problem (findings don't decrease across rounds;
-  tracked in #40)
+  tracked in #40, addressed in TDD-006)
 
 ---
 

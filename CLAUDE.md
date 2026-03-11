@@ -57,44 +57,54 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.8.0 — CI Integration
+## v0.8.1 — Review Convergence Fix
 
-**Goal:** Make `telesis review` and `telesis drift` run automatically on pull requests via
-GitHub Actions, closing the loop between local development and shared review.
+**Goal:** Fix review output quality so findings converge toward zero across rounds on the
+same diff. Address the noise problem exposed during v0.8.0 self-review (#40).
 
 **Status:** Complete
 
-**Reference:** TDD-005 (GitHub Integration), PR #39 (5 rounds of self-review)
+**Reference:** TDD-006 (Review Convergence), Issue #40
 
 ### What Changes
 
-A GitHub Actions workflow runs `telesis drift` and `telesis review` on every PR. Results
-are posted as PR comments or check annotations. The review agent replaces Bop as the
-primary PR reviewer for this repo.
+Three complementary noise reduction layers are added to the review pipeline:
 
-A new `src/github/` package handles all GitHub API interaction: PR context detection,
-finding-to-review mapping, comment formatting, and raw fetch wrappers. The CLI gains
-`--github-pr` flags on both `telesis review` and `telesis drift`.
+1. **Confidence scoring + prompt hardening.** Each finding carries a model-assessed
+   confidence score (0-100). Severity-specific thresholds filter low-confidence findings
+   (critical: 50, high: 60, medium: 70, low: 80 — lower severity requires higher
+   confidence). Anti-pattern guidance tells the model what NOT to report (hedging,
+   self-dismissing, speculative edge cases, style preferences). Medium severity tightened
+   to require specific rule references.
+
+2. **Enriched theme suppression.** Bare 5-10 word theme strings are replaced with structured
+   conclusions that carry the specific decision and an explicit anti-pattern. Instead of
+   "redirect prevention in fetch calls", the prompt now says exactly what was concluded and
+   what not to suggest — making theme matching precise across review rounds.
+
+3. **Deterministic noise filter.** A regex-based post-filter catches patterns the model
+   emits despite prompt guidance: hedging ("This is correct, but..."), self-dismissal
+   ("no action needed"), vague speculation, and low/style findings. Near-zero cost.
 
 ### Acceptance Criteria
 
-1. A GitHub Actions workflow runs `telesis drift` on every PR
-2. A GitHub Actions workflow runs `telesis review --ref origin/main...HEAD` on every PR
-3. Drift failures block PR merge (required check)
-4. Review findings are posted as PR comments or check annotations
-5. The workflow is self-contained (no external tool dependencies beyond Telesis itself)
-6. The Telesis repo uses this workflow as its primary review mechanism
+1. Review findings include a confidence score (0-100)
+2. Findings below their severity's confidence threshold are filtered
+3. Anti-pattern guidance appears in all review prompts (single-pass and persona)
+4. Theme extraction returns structured conclusions alongside bare theme strings
+5. Structured conclusions render as explicit suppression rules in persona prompts
+6. Deterministic noise filter removes hedging, self-dismissing, and speculative findings
+7. Filtered counts are logged to stderr for visibility
+8. All new and existing tests pass
+9. Running `telesis drift` produces zero errors
 
-### Implementation Notes
+### Design Notes
 
-The v0.8.0 PR went through 5 rounds of Telesis self-review (its own review agent reviewing
-its own CI integration code). Legitimate findings decreased across rounds (7→4→3→3→0) while
-total findings did not (19→16→11→19→21), exposing a convergence failure tracked in #40.
-
-Key fixes from self-review: input validation for GitHub event payloads, `redirect: 'error'`
-on all fetch calls to prevent Authorization header leaking, `Array.isArray` runtime guards,
-PR-scoped artifact names to prevent cross-PR theme contamination, orchestration logic moved
-from CLI to adapter layer.
+This is an incremental convergence fix, not a faithful reproduction of Bop's full solution.
+Bop uses a verification pass (each finding re-evaluated against the diff) which is effective
+but doubles model cost per review. That approach remains available as a future enhancement
+if the three-layer strategy proves insufficient. The goal is to discover the minimum
+intervention needed for convergence, not to replicate every mechanism.
 
 ---
 
@@ -111,7 +121,7 @@ from CLI to adapter layer.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (5 component designs)
+- TDDs: `docs/tdd/` (6 component designs)
 
 ---
 

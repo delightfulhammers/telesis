@@ -128,7 +128,9 @@ Reviews code changes against project conventions, architecture rules, and design
 - Orchestrator selects personas based on diff content and file types
 - Findings include severity, category, file path, line range, description, suggestion, and persona
 - Duplicate findings across personas are merged, keeping highest severity
-- Cross-round themes from prior sessions suppress repeat findings
+- Cross-round themes from prior sessions suppress repeat findings with structured conclusions
+- Findings include model-assessed confidence (0-100); low-confidence findings are filtered by severity-specific thresholds
+- Deterministic noise filter removes hedging, self-dismissing, and speculative findings
 - Review sessions stored in `.telesis/reviews/`
 - Personas configurable via `.telesis/config.yml` `review.personas` section
 - Exits with code 1 when critical or high severity findings are present

@@ -1,6 +1,6 @@
 import type { ModelClient } from "../model/client.js";
 import type { TokenUsage } from "../model/types.js";
-import type { ReviewFinding } from "./types.js";
+import type { ReviewFinding, ThemeConclusion } from "./types.js";
 import { listReviewSessions, loadReviewSession } from "./store.js";
 import { buildThemeExtractionPrompt } from "./prompts.js";
 import { parseJsonResponse } from "./json-parse.js";
@@ -10,6 +10,7 @@ const MIN_FINDINGS_FOR_THEMES = 3;
 
 export interface ThemeResult {
   readonly themes: readonly string[];
+  readonly conclusions: readonly ThemeConclusion[];
   readonly tokenUsage?: TokenUsage;
 }
 
@@ -36,20 +37,58 @@ const loadRecentFindings = (
   return findings;
 };
 
-const parseThemes = (content: string): readonly string[] => {
+const isThemeConclusion = (v: unknown): v is ThemeConclusion =>
+  typeof v === "object" &&
+  v !== null &&
+  typeof (v as Record<string, unknown>).theme === "string" &&
+  typeof (v as Record<string, unknown>).conclusion === "string" &&
+  typeof (v as Record<string, unknown>).antiPattern === "string";
+
+interface StructuredThemeResponse {
+  readonly themes: readonly string[];
+  readonly conclusions: readonly ThemeConclusion[];
+}
+
+const parseStructuredThemes = (content: string): StructuredThemeResponse => {
   try {
     const parsed = parseJsonResponse(content);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((t): t is string => typeof t === "string");
+
+    // New structured format: { themes: string[], conclusions: ThemeConclusion[] }
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
+      const obj = parsed as Record<string, unknown>;
+      const themes = Array.isArray(obj.themes)
+        ? (obj.themes as unknown[]).filter(
+            (t): t is string => typeof t === "string",
+          )
+        : [];
+      const conclusions = Array.isArray(obj.conclusions)
+        ? (obj.conclusions as unknown[]).filter(isThemeConclusion)
+        : [];
+      return { themes, conclusions };
+    }
+
+    // Fallback: old format — bare array of theme strings
+    if (Array.isArray(parsed)) {
+      const themes = (parsed as unknown[]).filter(
+        (t): t is string => typeof t === "string",
+      );
+      return { themes, conclusions: [] };
+    }
+
+    return { themes: [], conclusions: [] };
   } catch {
-    return [];
+    return { themes: [], conclusions: [] };
   }
 };
 
 /**
  * Extracts themes from recent review sessions via an LLM call.
- * Returns an empty array if there are no prior sessions or insufficient
- * findings for meaningful theme extraction.
+ * Returns structured conclusions alongside bare theme strings.
+ * Falls back to bare themes if the model doesn't return structured output.
  */
 export const extractThemes = async (
   rootDir: string,
@@ -60,7 +99,7 @@ export const extractThemes = async (
   const findings = loadRecentFindings(rootDir, maxSessions);
 
   if (findings.length < MIN_FINDINGS_FOR_THEMES) {
-    return { themes: [] };
+    return { themes: [], conclusions: [] };
   }
 
   const summaries = findings.map((f) => ({
@@ -80,9 +119,9 @@ export const extractThemes = async (
       ],
     });
 
-    const themes = parseThemes(response.content);
+    const result = parseStructuredThemes(response.content);
     return {
-      themes,
+      ...result,
       tokenUsage: {
         inputTokens: response.usage.inputTokens,
         outputTokens: response.usage.outputTokens,
@@ -92,6 +131,6 @@ export const extractThemes = async (
     console.error(
       "Warning: theme extraction failed, proceeding without themes.",
     );
-    return { themes: [] };
+    return { themes: [], conclusions: [] };
   }
 };

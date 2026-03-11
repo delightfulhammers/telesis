@@ -47,6 +47,20 @@ const makeFinding = (
   suggestion: "Fix it",
 });
 
+const seedFindings = (dir: string): void => {
+  mkdirSync(join(dir, ".telesis", "reviews"), { recursive: true });
+  const session = makeSession(
+    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "2026-03-10T12:00:00Z",
+  );
+  const findings = [
+    makeFinding("f1", session.id, "SQL injection risk"),
+    makeFinding("f2", session.id, "Path traversal vulnerability"),
+    makeFinding("f3", session.id, "Missing input validation"),
+  ];
+  saveReviewSession(dir, { ...session, findingCount: 3 }, findings);
+};
+
 describe("extractThemes", () => {
   it("returns empty themes when no prior sessions exist", async () => {
     const dir = makeTempDir();
@@ -55,6 +69,7 @@ describe("extractThemes", () => {
     const client = makeClient("should not be called");
     const result = await extractThemes(dir, client, "model");
     expect(result.themes).toEqual([]);
+    expect(result.conclusions).toEqual([]);
     expect(result.tokenUsage).toBeUndefined();
   });
 
@@ -72,22 +87,44 @@ describe("extractThemes", () => {
     const client = makeClient("should not be called");
     const result = await extractThemes(dir, client, "model");
     expect(result.themes).toEqual([]);
+    expect(result.conclusions).toEqual([]);
   });
 
-  it("extracts themes from sufficient prior findings", async () => {
+  it("extracts structured themes with conclusions", async () => {
     const dir = makeTempDir();
-    mkdirSync(join(dir, ".telesis", "reviews"), { recursive: true });
+    seedFindings(dir);
 
-    const session = makeSession(
-      "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-      "2026-03-10T12:00:00Z",
+    const response = JSON.stringify({
+      themes: ["SQL injection", "path traversal", "input validation"],
+      conclusions: [
+        {
+          theme: "SQL injection in query builder",
+          conclusion: "All queries use parameterized statements",
+          antiPattern:
+            "Do not suggest additional SQL escaping on parameterized queries",
+        },
+      ],
+    });
+    const client = makeClient(response);
+    const result = await extractThemes(dir, client, "model");
+
+    expect(result.themes).toEqual([
+      "SQL injection",
+      "path traversal",
+      "input validation",
+    ]);
+    expect(result.conclusions).toHaveLength(1);
+    expect(result.conclusions[0].theme).toBe("SQL injection in query builder");
+    expect(result.conclusions[0].conclusion).toBe(
+      "All queries use parameterized statements",
     );
-    const findings = [
-      makeFinding("f1", session.id, "SQL injection risk"),
-      makeFinding("f2", session.id, "Path traversal vulnerability"),
-      makeFinding("f3", session.id, "Missing input validation"),
-    ];
-    saveReviewSession(dir, { ...session, findingCount: 3 }, findings);
+    expect(result.conclusions[0].antiPattern).toContain("Do not suggest");
+    expect(result.tokenUsage).toBeDefined();
+  });
+
+  it("falls back to bare themes on old-format array response", async () => {
+    const dir = makeTempDir();
+    seedFindings(dir);
 
     const themes = '["SQL injection", "path traversal", "input validation"]';
     const client = makeClient(themes);
@@ -98,23 +135,37 @@ describe("extractThemes", () => {
       "path traversal",
       "input validation",
     ]);
+    expect(result.conclusions).toEqual([]);
     expect(result.tokenUsage).toBeDefined();
+  });
+
+  it("falls back gracefully on malformed conclusions", async () => {
+    const dir = makeTempDir();
+    seedFindings(dir);
+
+    const response = JSON.stringify({
+      themes: ["valid theme"],
+      conclusions: [
+        { theme: "incomplete" },
+        {
+          theme: "valid",
+          conclusion: "this is valid",
+          antiPattern: "do not do X",
+        },
+      ],
+    });
+    const client = makeClient(response);
+    const result = await extractThemes(dir, client, "model");
+
+    expect(result.themes).toEqual(["valid theme"]);
+    // Only the valid conclusion passes the type guard
+    expect(result.conclusions).toHaveLength(1);
+    expect(result.conclusions[0].theme).toBe("valid");
   });
 
   it("returns empty themes on LLM failure", async () => {
     const dir = makeTempDir();
-    mkdirSync(join(dir, ".telesis", "reviews"), { recursive: true });
-
-    const session = makeSession(
-      "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-      "2026-03-10T12:00:00Z",
-    );
-    const findings = [
-      makeFinding("f1", session.id, "Issue one"),
-      makeFinding("f2", session.id, "Issue two"),
-      makeFinding("f3", session.id, "Issue three"),
-    ];
-    saveReviewSession(dir, { ...session, findingCount: 3 }, findings);
+    seedFindings(dir);
 
     const failClient: ModelClient = {
       complete: async () => {
@@ -127,6 +178,7 @@ describe("extractThemes", () => {
 
     const result = await extractThemes(dir, failClient, "model");
     expect(result.themes).toEqual([]);
+    expect(result.conclusions).toEqual([]);
   });
 
   it("limits to N most recent sessions", async () => {
@@ -149,7 +201,10 @@ describe("extractThemes", () => {
       complete: async (req: CompletionRequest): Promise<CompletionResponse> => {
         capturedPrompt = req.messages[0].content;
         return {
-          content: '["theme"]',
+          content: JSON.stringify({
+            themes: ["theme"],
+            conclusions: [],
+          }),
           usage: { inputTokens: 50, outputTokens: 30 },
           durationMs: 200,
         };

@@ -2,13 +2,16 @@ import { randomUUID } from "node:crypto";
 import type { ModelClient } from "../model/client.js";
 import {
   SEVERITIES,
+  DEFAULT_CONFIDENCE_THRESHOLDS,
   type ChangedFile,
+  type ConfidenceThresholds,
   type PersonaDefinition,
   type PersonaResult,
   type ReviewContext,
   type ReviewFinding,
   type Category,
   type Severity,
+  type ThemeConclusion,
 } from "./types.js";
 import {
   buildSinglePassPrompt,
@@ -35,6 +38,7 @@ interface RawModelFinding {
   readonly endLine?: number;
   readonly description?: string;
   readonly suggestion?: string;
+  readonly confidence?: number;
 }
 
 const isValidSeverity = (s: string): s is Severity =>
@@ -79,6 +83,14 @@ const normalizeFinding = (
       ? undefined
       : endLine;
 
+  // Parse confidence: default to 70 for backward compatibility
+  const confidence =
+    typeof raw.confidence === "number" &&
+    raw.confidence >= 0 &&
+    raw.confidence <= 100
+      ? Math.round(raw.confidence)
+      : 70;
+
   return {
     id: randomUUID(),
     sessionId,
@@ -89,8 +101,35 @@ const normalizeFinding = (
     endLine: validEndLine,
     description: raw.description,
     suggestion: raw.suggestion,
+    confidence,
     persona,
   };
+};
+
+/**
+ * Filters findings below their severity's confidence threshold.
+ * Lower severity requires higher confidence to survive — a critical
+ * finding only needs 50% confidence because the cost of missing it
+ * is high, while a low finding needs 80%.
+ */
+export const filterByConfidence = (
+  findings: readonly ReviewFinding[],
+  thresholds: ConfidenceThresholds = DEFAULT_CONFIDENCE_THRESHOLDS,
+): { findings: readonly ReviewFinding[]; filteredCount: number } => {
+  const passed: ReviewFinding[] = [];
+  let filteredCount = 0;
+
+  for (const f of findings) {
+    const threshold = thresholds[f.severity];
+    const confidence = f.confidence ?? 70;
+    if (confidence >= threshold) {
+      passed.push(f);
+    } else {
+      filteredCount++;
+    }
+  }
+
+  return { findings: passed, filteredCount };
 };
 
 export const parseFindings = (
@@ -192,6 +231,7 @@ export const reviewWithPersonas = async (
   model: string,
   personas: readonly PersonaDefinition[],
   themes: readonly string[] = [],
+  conclusions: readonly ThemeConclusion[] = [],
 ): Promise<readonly PersonaResult[]> => {
   validateDiffSize(diff);
 
@@ -200,7 +240,12 @@ export const reviewWithPersonas = async (
   const results = await Promise.all(
     personas.map(async (persona): Promise<PersonaResult> => {
       const personaModel = persona.model ?? model;
-      const systemPrompt = buildPersonaSystemPrompt(persona, context, themes);
+      const systemPrompt = buildPersonaSystemPrompt(
+        persona,
+        context,
+        themes,
+        conclusions,
+      );
 
       const response = await client.complete({
         model: personaModel,

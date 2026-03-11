@@ -28,6 +28,8 @@ import {
 } from "../agent/review/personas.js";
 import { deduplicateFindings } from "../agent/review/dedup.js";
 import { extractThemes } from "../agent/review/themes.js";
+import { filterByConfidence } from "../agent/review/agent.js";
+import { filterNoise } from "../agent/review/noise-filter.js";
 import { load as loadConfig } from "../config/config.js";
 import { extractPRContext } from "../github/environment.js";
 import { postReviewToGitHub } from "../github/adapter.js";
@@ -194,7 +196,11 @@ export const reviewCommand = new Command("review")
         const themeResult =
           opts.themes !== false
             ? await extractThemes(rootDir, client, model)
-            : { themes: [] as readonly string[] };
+            : {
+                themes: [] as readonly string[],
+                conclusions:
+                  [] as readonly import("../agent/review/types.js").ThemeConclusion[],
+              };
 
         // Resolve personas (config overrides applied to built-in definitions)
         const configOverrides = reviewConfig?.personas ?? [];
@@ -218,6 +224,7 @@ export const reviewCommand = new Command("review")
           model,
           personaDefs,
           themeResult.themes,
+          themeResult.conclusions,
         );
 
         // Deduplication (unless disabled)
@@ -228,6 +235,27 @@ export const reviewCommand = new Command("review")
                 findings: personaResults.flatMap((r) => [...r.findings]),
                 mergedCount: 0,
               };
+
+        // Confidence threshold filtering
+        const confidenceResult = filterByConfidence(dedupResult.findings);
+        if (confidenceResult.filteredCount > 0) {
+          console.error(
+            `Filtered ${confidenceResult.filteredCount} low-confidence findings`,
+          );
+        }
+
+        // Deterministic noise filtering
+        const noiseResult = filterNoise(confidenceResult.findings);
+        if (noiseResult.filteredCount > 0) {
+          const reasons = Object.entries(noiseResult.filteredReasons)
+            .map(([reason, count]) => `${count} ${reason}`)
+            .join(", ");
+          console.error(
+            `Filtered ${noiseResult.filteredCount} low-signal findings (${reasons})`,
+          );
+        }
+
+        const finalFindings = noiseResult.findings;
 
         // Aggregate token usage across persona calls + dedup + themes
         let totalTokens = personaResults.reduce(
@@ -248,7 +276,7 @@ export const reviewCommand = new Command("review")
           timestamp: new Date().toISOString(),
           ref: resolved.ref,
           files: resolved.files,
-          findingCount: dedupResult.findings.length,
+          findingCount: finalFindings.length,
           model,
           durationMs,
           tokenUsage: totalTokens,
@@ -258,12 +286,12 @@ export const reviewCommand = new Command("review")
             themeResult.themes.length > 0 ? [...themeResult.themes] : undefined,
         };
 
-        saveSessionSafe(rootDir, session, dedupResult.findings);
-        displayFindings(session, dedupResult.findings, opts, {
+        saveSessionSafe(rootDir, session, finalFindings);
+        displayFindings(session, finalFindings, opts, {
           mergedCount: dedupResult.mergedCount,
         });
         if (opts.githubPr) {
-          await postToGitHubSafe(session, dedupResult.findings, {
+          await postToGitHubSafe(session, finalFindings, {
             mergedCount: dedupResult.mergedCount,
           });
         }

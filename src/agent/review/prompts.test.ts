@@ -48,7 +48,7 @@ describe("buildSinglePassPrompt", () => {
 
   it("omits themes section when no themes provided", () => {
     const prompt = buildSinglePassPrompt(context);
-    expect(prompt).not.toContain("Previously Identified Themes");
+    expect(prompt).not.toContain("Previously Resolved Issues");
   });
 
   it("includes themes section when themes provided", () => {
@@ -56,10 +56,53 @@ describe("buildSinglePassPrompt", () => {
       "path traversal via session ID",
       "shell injection in git commands",
     ]);
-    expect(prompt).toContain("Previously Identified Themes");
+    expect(prompt).toContain("Previously Resolved Issues");
     expect(prompt).toContain("path traversal via session ID");
     expect(prompt).toContain("shell injection in git commands");
-    expect(prompt).toContain("Do not re-report");
+    expect(prompt).toContain("Do NOT re-report");
+  });
+
+  it("includes confidence guidelines", () => {
+    const prompt = buildSinglePassPrompt(context);
+    expect(prompt).toContain("Confidence Scoring");
+    expect(prompt).toContain("90-100");
+    expect(prompt).toContain("Below 50");
+  });
+
+  it("includes anti-pattern guidance", () => {
+    const prompt = buildSinglePassPrompt(context);
+    expect(prompt).toContain("What NOT to Report");
+    expect(prompt).toContain("Hedging");
+    expect(prompt).toContain("Self-dismissing");
+    expect(prompt).toContain("Over-engineering");
+  });
+
+  it("includes confidence field in response format", () => {
+    const prompt = buildSinglePassPrompt(context);
+    expect(prompt).toContain('"confidence"');
+  });
+
+  it("renders enriched theme conclusions", () => {
+    const prompt = buildSinglePassPrompt(
+      context,
+      ["redirect prevention"],
+      [
+        {
+          theme: "redirect prevention in HTTP calls",
+          conclusion:
+            "All fetch calls use redirect: 'error' to prevent credential leaks",
+          antiPattern:
+            "Do not suggest removing redirect: 'error' or switching to follow mode",
+        },
+      ],
+    );
+    expect(prompt).toContain("### redirect prevention in HTTP calls");
+    expect(prompt).toContain(
+      "**Conclusion:** All fetch calls use redirect: 'error' to prevent credential leaks",
+    );
+    expect(prompt).toContain(
+      "**Do NOT suggest:** Do not suggest removing redirect: 'error'",
+    );
   });
 });
 
@@ -105,8 +148,19 @@ describe("buildPersonaSystemPrompt", () => {
     const prompt = buildPersonaSystemPrompt(persona, context, [
       "input validation on CLI args",
     ]);
-    expect(prompt).toContain("Previously Identified Themes");
+    expect(prompt).toContain("Previously Resolved Issues");
     expect(prompt).toContain("input validation on CLI args");
+  });
+
+  it("includes anti-patterns in persona prompts", () => {
+    const prompt = buildPersonaSystemPrompt(persona, context);
+    expect(prompt).toContain("What NOT to Report");
+    expect(prompt).toContain("Hedging");
+  });
+
+  it("includes confidence guidelines in persona prompts", () => {
+    const prompt = buildPersonaSystemPrompt(persona, context);
+    expect(prompt).toContain("Confidence Scoring");
   });
 
   it("omits focus section when no focus or ignore categories", () => {
@@ -159,7 +213,7 @@ describe("buildDedupPrompt", () => {
 });
 
 describe("buildThemeExtractionPrompt", () => {
-  it("includes findings and requests themes", () => {
+  it("includes findings and requests structured themes", () => {
     const findings = [
       {
         severity: "high",
@@ -171,6 +225,8 @@ describe("buildThemeExtractionPrompt", () => {
     const prompt = buildThemeExtractionPrompt(findings);
     expect(prompt).toContain("SQL injection risk");
     expect(prompt).toContain("theme");
-    expect(prompt).toContain("JSON array");
+    expect(prompt).toContain("conclusion");
+    expect(prompt).toContain("antiPattern");
+    expect(prompt).toContain("JSON object");
   });
 });
