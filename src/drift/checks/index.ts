@@ -10,6 +10,7 @@ import { staleReferencesCheck } from "./stale-references.js";
 import { claudeMdFreshnessCheck } from "./claude-md-freshness.js";
 import { versionConsistencyCheck } from "./version-consistency.js";
 import { tddCoverageCheck } from "./tdd-coverage.js";
+import { cliVersionSyncCheck } from "./cli-version-sync.js";
 
 /** All registered drift checks, in display order. */
 export const allChecks: readonly DriftCheck[] = [
@@ -24,4 +25,5 @@ export const allChecks: readonly DriftCheck[] = [
   claudeMdFreshnessCheck,
   versionConsistencyCheck,
   tddCoverageCheck,
+  cliVersionSyncCheck,
 ];

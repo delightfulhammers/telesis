@@ -145,31 +145,41 @@ export const postPRComment = async (
   return { commentId: data.id };
 };
 
+const MAX_COMMENT_PAGES = 10;
+
 /**
  * Finds an existing PR comment containing a specific marker string.
  * Returns the comment ID if found, null otherwise.
  *
- * Note: only searches the first 100 comments. PRs with 100+ comments
- * may get a duplicate drift comment instead of an update. Pagination is
- * not implemented because this scenario is extremely rare in practice.
+ * Paginates through comments (100 per page, up to 10 pages) to handle
+ * PRs with heavy review activity.
  */
 export const findCommentByMarker = async (
   ctx: GitHubPRContext,
   marker: string,
 ): Promise<number | null> => {
-  const url = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.pullNumber}/comments?per_page=100`;
+  const baseUrl = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.pullNumber}/comments?per_page=100`;
 
-  const data = await fetchWithRetry(
-    url,
-    { method: "GET", headers: headers(ctx.token) },
-    "list comments",
-  );
+  for (let page = 1; page <= MAX_COMMENT_PAGES; page++) {
+    const url = `${baseUrl}&page=${page}`;
 
-  if (!Array.isArray(data)) return null;
+    const data = await fetchWithRetry(
+      url,
+      { method: "GET", headers: headers(ctx.token) },
+      "list comments",
+    );
 
-  const comments = data as readonly { id: number; body: string }[];
-  const match = comments.find((c) => c.body.includes(marker));
-  return match?.id ?? null;
+    if (!Array.isArray(data)) return null;
+
+    const comments = data as readonly { id: number; body: string }[];
+    const match = comments.find((c) => c.body.includes(marker));
+    if (match) return match.id;
+
+    // Last page — fewer results than per_page means no more pages
+    if (comments.length < 100) break;
+  }
+
+  return null;
 };
 
 /**
