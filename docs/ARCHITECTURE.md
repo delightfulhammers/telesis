@@ -83,7 +83,9 @@ telesis/
         orchestrator.ts   ← persona selection heuristics based on diff content
         dedup.ts          ← within-session LLM-based deduplication across personas
         themes.ts         ← cross-round theme extraction from prior sessions
-        prompts.ts        ← single-pass, persona, dedup, and theme prompts
+        noise-filter.ts   ← deterministic post-filter for hedging/self-dismissal patterns (v0.8.1)
+        verify.ts         ← full-file verification pass to filter false positives (v0.8.1)
+        prompts.ts        ← single-pass, persona, dedup, theme, verification, and prior findings prompts
         json-parse.ts     ← shared JSON response parser (fence extraction)
         store.ts          ← per-session JSONL storage in .telesis/reviews/
         format.ts         ← terminal report formatting (flat + persona-grouped)

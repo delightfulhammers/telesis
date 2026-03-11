@@ -36,9 +36,26 @@ export interface ReviewFinding {
   readonly endLine?: number;
   readonly description: string;
   readonly suggestion: string;
+  readonly confidence?: number; // 0-100, self-assessed by model
   readonly persona?: string;
   readonly dedupGroupId?: string;
 }
+
+// --- Confidence Thresholds ---
+
+export interface ConfidenceThresholds {
+  readonly critical: number; // default: 50
+  readonly high: number; // default: 60
+  readonly medium: number; // default: 70
+  readonly low: number; // default: 80
+}
+
+export const DEFAULT_CONFIDENCE_THRESHOLDS: ConfidenceThresholds = {
+  critical: 50,
+  high: 60,
+  medium: 70,
+  low: 80,
+};
 
 // --- Review Session ---
 
@@ -94,4 +111,48 @@ export interface DedupResult {
   readonly findings: readonly ReviewFinding[];
   readonly mergedCount: number;
   readonly tokenUsage?: TokenUsage;
+}
+
+// --- Theme Conclusions ---
+
+export interface ThemeConclusion {
+  readonly theme: string; // "redirect prevention in fetch calls"
+  readonly conclusion: string; // "All fetch calls use redirect: 'error' intentionally"
+  readonly antiPattern: string; // "Do not suggest removing redirect: 'error'"
+}
+
+// --- Finding Utilities ---
+
+/**
+ * Formats a finding's file location as a compact string.
+ * Shared across prompts, verification, and GitHub formatting.
+ */
+export const formatFindingLocation = (finding: {
+  readonly path: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+}): string => {
+  if (finding.startLine !== undefined) {
+    return finding.endLine !== undefined &&
+      finding.endLine !== finding.startLine
+      ? `${finding.path}:${finding.startLine}-${finding.endLine}`
+      : `${finding.path}:${finding.startLine}`;
+  }
+  return finding.path;
+};
+
+// --- Verification ---
+
+export interface VerificationEntry {
+  readonly index: number;
+  readonly verified: boolean;
+  readonly confidence: number; // 0-100, independently assessed by verifier
+  readonly evidence: string;
+}
+
+export interface VerificationResult {
+  readonly findings: readonly ReviewFinding[];
+  readonly filteredCount: number;
+  readonly tokenUsage?: TokenUsage;
+  readonly durationMs?: number;
 }

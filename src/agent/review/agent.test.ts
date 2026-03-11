@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { ModelClient } from "../model/client.js";
 import type { CompletionRequest, CompletionResponse } from "../model/types.js";
 import type { ChangedFile, ReviewContext } from "./types.js";
-import { reviewDiff, reviewWithPersonas } from "./agent.js";
+import { reviewDiff, reviewWithPersonas, filterByConfidence } from "./agent.js";
 import {
   securityPersona,
   architecturePersona,
@@ -527,5 +527,167 @@ describe("reviewWithPersonas", () => {
 
     expect(capturedModels).toContain("claude-opus-4-6");
     expect(capturedModels).toContain("claude-sonnet-4-6");
+  });
+});
+
+describe("parseFindings — confidence", () => {
+  it("includes confidence from model response", async () => {
+    const findings = [
+      {
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        description: "Missing null check",
+        suggestion: "Add null check",
+        confidence: 85,
+      },
+    ];
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].confidence).toBe(85);
+  });
+
+  it("defaults confidence to 70 when missing", async () => {
+    const findings = [
+      {
+        severity: "medium",
+        category: "bug",
+        path: "src/foo.ts",
+        description: "Issue found",
+        suggestion: "Fix it",
+      },
+    ];
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].confidence).toBe(70);
+  });
+
+  it("clamps confidence above 100 to 100", async () => {
+    const findings = [
+      {
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        description: "Very confident",
+        suggestion: "Fix it",
+        confidence: 150,
+      },
+    ];
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].confidence).toBe(100);
+  });
+
+  it("clamps negative confidence to 0", async () => {
+    const findings = [
+      {
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        description: "Negative confidence",
+        suggestion: "Fix it",
+        confidence: -10,
+      },
+    ];
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].confidence).toBe(0);
+  });
+});
+
+describe("filterByConfidence", () => {
+  const makeFinding = (
+    severity: "critical" | "high" | "medium" | "low",
+    confidence: number,
+  ): import("./types.js").ReviewFinding => ({
+    id: "test",
+    sessionId: "test",
+    severity,
+    category: "bug",
+    path: "src/foo.ts",
+    description: "Test",
+    suggestion: "Fix",
+    confidence,
+  });
+
+  it("passes critical finding at threshold", () => {
+    const result = filterByConfidence([makeFinding("critical", 50)]);
+    expect(result.findings).toHaveLength(1);
+    expect(result.filteredCount).toBe(0);
+  });
+
+  it("filters critical finding below threshold", () => {
+    const result = filterByConfidence([makeFinding("critical", 49)]);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredCount).toBe(1);
+  });
+
+  it("passes high finding at threshold", () => {
+    const result = filterByConfidence([makeFinding("high", 60)]);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  it("filters high finding below threshold", () => {
+    const result = filterByConfidence([makeFinding("high", 59)]);
+    expect(result.findings).toHaveLength(0);
+  });
+
+  it("filters medium finding at 60 (below 70 threshold)", () => {
+    const result = filterByConfidence([makeFinding("medium", 60)]);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredCount).toBe(1);
+  });
+
+  it("passes medium finding at 75", () => {
+    const result = filterByConfidence([makeFinding("medium", 75)]);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  it("filters low finding at 75 (below 80 threshold)", () => {
+    const result = filterByConfidence([makeFinding("low", 75)]);
+    expect(result.findings).toHaveLength(0);
+  });
+
+  it("passes low finding at 80", () => {
+    const result = filterByConfidence([makeFinding("low", 80)]);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  it("supports custom thresholds", () => {
+    const result = filterByConfidence([makeFinding("medium", 50)], {
+      critical: 30,
+      high: 40,
+      medium: 50,
+      low: 60,
+    });
+    expect(result.findings).toHaveLength(1);
   });
 });

@@ -10,13 +10,18 @@ import type { DriftReport } from "../drift/types.js";
 import type { GitHubPRContext } from "./types.js";
 import { DRIFT_COMMENT_MARKER } from "./format.js";
 import * as client from "./client.js";
+import { GitHubApiError } from "./client.js";
 
-vi.mock("./client.js", () => ({
-  postPullRequestReview: vi.fn(),
-  postPRComment: vi.fn(),
-  findCommentByMarker: vi.fn(),
-  updatePRComment: vi.fn(),
-}));
+vi.mock("./client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./client.js")>();
+  return {
+    ...actual,
+    postPullRequestReview: vi.fn(),
+    postPRComment: vi.fn(),
+    findCommentByMarker: vi.fn(),
+    updatePRComment: vi.fn(),
+  };
+});
 
 const makeSession = (
   overrides: Partial<ReviewSession> = {},
@@ -204,6 +209,66 @@ describe("postReviewToGitHub", () => {
 
     const [, , body] = vi.mocked(client.postPullRequestReview).mock.calls[0];
     expect(body).toContain("3 merged");
+  });
+
+  it("falls back to summary body on 422 with findings rendered", async () => {
+    // First call (with inline comments) fails with 422
+    vi.mocked(client.postPullRequestReview)
+      .mockRejectedValueOnce(
+        new GitHubApiError(422, '{"message":"Validation Failed"}', "422 error"),
+      )
+      // Second call (summary-only fallback) succeeds
+      .mockResolvedValueOnce({
+        reviewId: 2,
+        commentCount: 0,
+        summaryFindingCount: 0,
+      });
+
+    const findings = [
+      makeFinding({
+        startLine: 10,
+        endLine: 15,
+        description: "Out of diff finding",
+      }),
+    ];
+    const result = await postReviewToGitHub(makeCtx(), makeSession(), findings);
+
+    expect(client.postPullRequestReview).toHaveBeenCalledTimes(2);
+    expect(result.reviewId).toBe(2);
+    expect(result.commentCount).toBe(0);
+    expect(result.summaryFindingCount).toBe(1);
+
+    // The fallback body should contain the finding description
+    const [, , fallbackBody, fallbackComments] = vi.mocked(
+      client.postPullRequestReview,
+    ).mock.calls[1];
+    expect(fallbackComments).toEqual([]);
+    expect(fallbackBody).toContain("Out of diff finding");
+    expect(fallbackBody).toContain("inline comments could not be posted");
+  });
+
+  it("does not fall back on 422 when there are no inline comments", async () => {
+    vi.mocked(client.postPullRequestReview).mockRejectedValueOnce(
+      new GitHubApiError(422, '{"message":"Validation Failed"}', "422 error"),
+    );
+
+    const findings = [
+      makeFinding({ startLine: undefined, description: "Summary only" }),
+    ];
+    await expect(
+      postReviewToGitHub(makeCtx(), makeSession(), findings),
+    ).rejects.toThrow("422");
+  });
+
+  it("rethrows non-422 errors", async () => {
+    vi.mocked(client.postPullRequestReview).mockRejectedValueOnce(
+      new GitHubApiError(500, "Internal Server Error", "500 error"),
+    );
+
+    const findings = [makeFinding({ startLine: 10 })];
+    await expect(
+      postReviewToGitHub(makeCtx(), makeSession(), findings),
+    ).rejects.toThrow("500");
   });
 });
 

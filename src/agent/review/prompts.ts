@@ -1,4 +1,10 @@
-import type { PersonaDefinition, ReviewContext } from "./types.js";
+import {
+  formatFindingLocation,
+  type PersonaDefinition,
+  type ReviewContext,
+  type ReviewFinding,
+  type ThemeConclusion,
+} from "./types.js";
 
 const RESPONSE_FORMAT = `## Response Format
 
@@ -11,6 +17,7 @@ Return a JSON array of findings. Each finding must have these fields:
 - "endLine": the line number where the issue ends, or null
 - "description": a concise description of the problem (1-2 sentences)
 - "suggestion": a concrete suggestion for how to fix it (not just "fix this")
+- "confidence": your confidence (0-100) that this is a real, actionable issue
 
 If there are no findings, return an empty array: []
 
@@ -20,8 +27,29 @@ const SEVERITY_GUIDELINES = `## Severity Guidelines
 
 - **critical**: Will cause data loss, security breach, or crash in production
 - **high**: Bug that will cause incorrect behavior, or significant architecture violation
-- **medium**: Maintainability concern, minor convention violation, potential edge case
-- **low**: Style nit, minor improvement suggestion`;
+- **medium**: Documented convention violation with specific rule reference, or edge case with concrete trigger scenario
+- **low**: Style nit with specific documented convention reference`;
+
+const CONFIDENCE_GUIDELINES = `## Confidence Scoring
+
+Rate your confidence that each finding is a real, actionable issue:
+
+- **90-100**: Definitively confirmed — you can see the exact bug/violation in the diff
+- **70-89**: Very likely — strong evidence from code patterns and project conventions
+- **50-69**: Plausible but uncertain — depends on runtime behavior or context you can't see
+- **Below 50**: Speculative — do not report findings below 50 confidence`;
+
+const ANTI_PATTERNS = `## What NOT to Report
+
+Do NOT report findings that match these patterns — they are noise, not signal:
+
+- **Hedging**: "This is correct, but consider..." — if the code is correct, don't report it
+- **Self-dismissing**: "No action needed" or "this is fine as-is" — if no action is needed, it's not a finding
+- **Speculative edge cases**: "What if someone passes X?" without evidence it can happen
+- **Over-engineering**: Suggesting abstractions, interfaces, or config for one-time code
+- **Style preferences**: Naming opinions, formatting choices, comment suggestions that aren't documented conventions
+- **Redundant safety**: Suggesting null checks where the type system already prevents null
+- **Documented intentional patterns**: If the code follows a pattern documented in the project conventions, don't suggest alternatives`;
 
 const SINGLE_PASS_PREAMBLE = `Your job is to review a code diff against the project's own conventions, architecture rules, and design decisions. Focus on:
 
@@ -32,15 +60,71 @@ const SINGLE_PASS_PREAMBLE = `Your job is to review a code diff against the proj
 5. **Performance** — obvious inefficiencies (not micro-optimizations)
 6. **Style** — violations of documented conventions`;
 
-const formatThemesSection = (themes: readonly string[]): string => {
-  if (themes.length === 0) return "";
+const formatThemesSection = (
+  themes: readonly string[],
+  conclusions: readonly ThemeConclusion[] = [],
+): string => {
+  if (themes.length === 0 && conclusions.length === 0) return "";
 
-  const themeList = themes.map((t) => `- ${t}`).join("\n");
-  return `\n\n## Previously Identified Themes
+  const parts: string[] = [];
+  parts.push(`\n\n## Previously Resolved Issues
 
-The following issues have been identified in prior reviews. Do not re-report these unless the same issue appears in NEW code introduced by this diff:
+The following issues have been reviewed and resolved. Do NOT re-report them or semantic variations of them:`);
 
-${themeList}`;
+  // Render structured conclusions first (more specific)
+  for (const c of conclusions) {
+    parts.push(`
+### ${c.theme}
+**Conclusion:** ${c.conclusion}
+**Do NOT suggest:** ${c.antiPattern}`);
+  }
+
+  // Render bare themes that don't have a corresponding conclusion.
+  // Only suppress a bare theme when it is a substring of a conclusion theme
+  // (e.g., bare "redirect prevention" is covered by conclusion "redirect prevention
+  // in HTTP calls"). The reverse direction (conclusion is substring of bare) is NOT
+  // checked — short conclusion themes like "error" should not suppress unrelated
+  // bare themes that happen to contain that word.
+  const concludedThemesLower = conclusions.map((c) => c.theme.toLowerCase());
+  const bareThemes = themes.filter((t) => {
+    const lower = t.toLowerCase();
+    return !concludedThemesLower.some(
+      (ct) => ct === lower || ct.includes(lower),
+    );
+  });
+  if (bareThemes.length > 0) {
+    parts.push("\n" + bareThemes.map((t) => `- ${t}`).join("\n"));
+  }
+
+  return parts.join("\n");
+};
+
+/**
+ * Formats prior findings as concrete suppression context.
+ * Unlike themes (abstract patterns), prior findings are specific instances
+ * that reviewers must not re-report.
+ */
+export const formatPriorFindings = (
+  findings: readonly ReviewFinding[],
+): string => {
+  if (findings.length === 0) return "";
+
+  // Cap at 30 findings to keep prompt size reasonable
+  const capped = findings.slice(0, 30);
+
+  const items = capped.map((f) => {
+    const location = formatFindingLocation(f);
+    const persona = f.persona ? ` (${f.persona})` : "";
+    return `- \`${location}\` [${f.severity}/${f.category}]${persona}: ${f.description}\n  > Suggestion: ${f.suggestion}`;
+  });
+
+  return `\n\n## Previously Reported Findings (IMPORTANT)
+
+The following findings were reported in previous review rounds. They have already been
+reviewed and addressed. Do NOT re-report them, variations of them, or similar findings
+on the same code locations:
+
+${items.join("\n\n")}`;
 };
 
 const formatFocusSection = (persona: PersonaDefinition): string => {
@@ -59,6 +143,8 @@ const formatFocusSection = (persona: PersonaDefinition): string => {
 export const buildSinglePassPrompt = (
   context: ReviewContext,
   themes: readonly string[] = [],
+  conclusions: readonly ThemeConclusion[] = [],
+  priorFindings: readonly ReviewFinding[] = [],
 ): string =>
   `You are a code reviewer for the ${context.projectName} project (${context.primaryLanguage}).
 
@@ -70,12 +156,18 @@ ${context.conventions}
 
 ${RESPONSE_FORMAT}
 
-${SEVERITY_GUIDELINES}${formatThemesSection(themes)}`;
+${SEVERITY_GUIDELINES}
+
+${CONFIDENCE_GUIDELINES}
+
+${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}`;
 
 export const buildPersonaSystemPrompt = (
   persona: PersonaDefinition,
   context: ReviewContext,
   themes: readonly string[] = [],
+  conclusions: readonly ThemeConclusion[] = [],
+  priorFindings: readonly ReviewFinding[] = [],
 ): string =>
   `You are the ${persona.name} for the ${context.projectName} project (${context.primaryLanguage}).
 
@@ -87,7 +179,11 @@ ${context.conventions}
 
 ${RESPONSE_FORMAT}
 
-${SEVERITY_GUIDELINES}${formatThemesSection(themes)}`;
+${SEVERITY_GUIDELINES}
+
+${CONFIDENCE_GUIDELINES}
+
+${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}`;
 
 export const buildUserMessage = (
   diff: string,
@@ -141,7 +237,7 @@ export const buildThemeExtractionPrompt = (
     readonly path: string;
     readonly description: string;
   }[],
-): string => `Extract the key themes from these code review findings. A theme is a short summary (5-10 words) of a recurring concern or specific issue that was identified.
+): string => `Extract themes AND specific conclusions from these code review findings.
 
 ## Findings
 
@@ -149,8 +245,92 @@ ${JSON.stringify(findings, null, 2)}
 
 ## Instructions
 
-Return a JSON array of theme strings. Each theme should be specific enough to identify the issue if it appears again (e.g., "path traversal via session ID validation" not just "security").
+For each significant finding, extract:
+- "theme": short theme phrase (5-10 words)
+- "conclusion": the specific decision or observation (1 sentence)
+- "antiPattern": what a reviewer should NOT suggest based on this conclusion
+
+Example:
+{
+  "theme": "redirect prevention in HTTP calls",
+  "conclusion": "All fetch calls intentionally use redirect: 'error' to prevent credential leaks",
+  "antiPattern": "Do not suggest removing redirect: 'error' or switching to follow mode"
+}
+
+Return a JSON object with:
+- "themes": array of short theme strings (for backward compatibility)
+- "conclusions": array of objects with theme, conclusion, and antiPattern fields
 
 Extract at most 10 themes. Focus on the most significant findings.
 
+Return ONLY the JSON object. No markdown fences, no explanation text, no preamble.`;
+
+/**
+ * Builds the verification prompt for the batch verification pass.
+ * Includes full file contents and findings to verify.
+ */
+export const buildVerificationPrompt = (
+  fileContents: ReadonlyMap<string, string>,
+  findings: readonly {
+    readonly index: number;
+    readonly severity: string;
+    readonly category: string;
+    readonly path: string;
+    readonly startLine?: number;
+    readonly endLine?: number;
+    readonly description: string;
+    readonly suggestion: string;
+  }[],
+): string => {
+  const fileSections = [...fileContents.entries()]
+    .map(([path, content]) => {
+      const numbered = content
+        .split("\n")
+        .map((line, i) => `${String(i + 1).padStart(4)} | ${line}`)
+        .join("\n");
+      return `### File: ${path}\n\`\`\`\n${numbered}\n\`\`\``;
+    })
+    .join("\n\n");
+
+  const findingSections = findings
+    .map((f) => {
+      const location =
+        f.startLine !== undefined
+          ? f.endLine !== undefined
+            ? `${f.path}:${f.startLine}-${f.endLine}`
+            : `${f.path}:${f.startLine}`
+          : f.path;
+      return `- **[${f.index}]** \`${location}\` [${f.severity}/${f.category}]: ${f.description}\n  > Suggestion: ${f.suggestion}`;
+    })
+    .join("\n\n");
+
+  return `## Source Files
+
+${fileSections}
+
+## Findings to Verify
+
+${findingSections}
+
+## Instructions
+
+For EACH finding above, read the FULL file content provided and determine whether the
+finding is a real, actionable issue. Do NOT assume the finding is correct — verify it
+by checking the actual code.
+
+Specifically:
+- If a finding claims something is missing (import, check, guard), search the file to verify
+- If a finding claims a bug, trace the logic to confirm
+- If a finding references a line number, check what is actually on that line
+- Style issues should almost always be verified=false unless they violate a documented convention
+
+For each finding, return:
+- "index": the finding index number
+- "verified": true if the finding is a real issue, false if it's a false positive
+- "confidence": your confidence (0-100) that your verification is correct
+- "evidence": a brief explanation citing specific lines (1-2 sentences)
+
+Return a JSON array of verification results. One entry per finding.
+
 Return ONLY the JSON array. No markdown fences, no explanation text, no preamble.`;
+};

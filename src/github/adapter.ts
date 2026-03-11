@@ -13,6 +13,7 @@ import {
   DRIFT_COMMENT_MARKER,
 } from "./format.js";
 import {
+  GitHubApiError,
   postPullRequestReview,
   postPRComment,
   findCommentByMarker,
@@ -82,7 +83,8 @@ export const driftToComment = (report: DriftReport): string =>
 
 /**
  * Posts review findings as a PR review with inline comments.
- * Constructs the payload, posts it, and returns the result.
+ * On 422 (lines outside diff), falls back to posting all findings in the
+ * review body as summary entries — no findings are lost.
  */
 export const postReviewToGitHub = async (
   ctx: GitHubPRContext,
@@ -91,7 +93,35 @@ export const postReviewToGitHub = async (
   extra?: { mergedCount?: number },
 ): Promise<PostReviewResult> => {
   const { event, body, comments } = findingsToReview(session, findings, extra);
-  return postPullRequestReview(ctx, event, body, comments);
+
+  try {
+    return await postPullRequestReview(ctx, event, body, comments);
+  } catch (err) {
+    // On 422 with inline comments, re-render with all findings as summary
+    if (
+      err instanceof GitHubApiError &&
+      err.status === 422 &&
+      comments.length > 0
+    ) {
+      const allAsSummary = formatReviewSummaryBody(
+        session,
+        [], // no inline findings
+        findings, // all findings become summary
+        extra,
+      );
+      const fallbackBody =
+        allAsSummary +
+        "\n\n_Note: inline comments could not be posted (lines outside diff). All findings shown above._";
+
+      const result = await postPullRequestReview(ctx, event, fallbackBody, []);
+      return {
+        ...result,
+        commentCount: 0,
+        summaryFindingCount: findings.length,
+      };
+    }
+    throw err;
+  }
 };
 
 /**

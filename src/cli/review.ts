@@ -20,7 +20,11 @@ import {
   filterBySeverity,
 } from "../agent/review/format.js";
 import { SEVERITIES, type Severity } from "../agent/review/types.js";
-import type { ReviewSession, ReviewFinding } from "../agent/review/types.js";
+import type {
+  ReviewSession,
+  ReviewFinding,
+  ThemeConclusion,
+} from "../agent/review/types.js";
 import { selectPersonas } from "../agent/review/orchestrator.js";
 import {
   resolvePersonaSlugs,
@@ -28,6 +32,9 @@ import {
 } from "../agent/review/personas.js";
 import { deduplicateFindings } from "../agent/review/dedup.js";
 import { extractThemes } from "../agent/review/themes.js";
+import { verifyFindings } from "../agent/review/verify.js";
+import { filterByConfidence } from "../agent/review/agent.js";
+import { filterNoise } from "../agent/review/noise-filter.js";
 import { load as loadConfig } from "../config/config.js";
 import { extractPRContext } from "../github/environment.js";
 import { postReviewToGitHub } from "../github/adapter.js";
@@ -39,6 +46,33 @@ const addTokenUsage = (
   inputTokens: a.inputTokens + b.inputTokens,
   outputTokens: a.outputTokens + b.outputTokens,
 });
+
+/**
+ * Shared filtering pipeline: confidence thresholds → deterministic noise filter.
+ * Applied to both single-pass and persona review paths.
+ */
+const applyFilters = (
+  findings: readonly ReviewFinding[],
+): readonly ReviewFinding[] => {
+  const confidenceResult = filterByConfidence(findings);
+  if (confidenceResult.filteredCount > 0) {
+    console.error(
+      `Filtered ${confidenceResult.filteredCount} low-confidence findings`,
+    );
+  }
+
+  const noiseResult = filterNoise(confidenceResult.findings);
+  if (noiseResult.filteredCount > 0) {
+    const reasons = Object.entries(noiseResult.filteredReasons)
+      .map(([reason, count]) => `${count} ${reason}`)
+      .join(", ");
+    console.error(
+      `Filtered ${noiseResult.filteredCount} low-signal findings (${reasons})`,
+    );
+  }
+
+  return noiseResult.findings;
+};
 
 export const reviewCommand = new Command("review")
   .description("Review code changes against project conventions")
@@ -57,7 +91,11 @@ export const reviewCommand = new Command("review")
   .option("--single", "Use single-pass review (no personas)")
   .option("--personas <slugs>", "Comma-separated list of persona slugs to use")
   .option("--no-dedup", "Skip cross-persona deduplication")
-  .option("--no-themes", "Skip cross-round theme extraction")
+  .option(
+    "--no-themes",
+    "Skip cross-round theme extraction and prior findings injection",
+  )
+  .option("--no-verify", "Skip full-file verification pass")
   .option("--github-pr", "Post findings as GitHub PR review comments")
   .action(
     handleAction(
@@ -72,6 +110,7 @@ export const reviewCommand = new Command("review")
         personas?: string;
         dedup?: boolean;
         themes?: boolean;
+        verify?: boolean;
         githubPr?: boolean;
       }) => {
         const rootDir = resolve(projectRoot());
@@ -158,6 +197,17 @@ export const reviewCommand = new Command("review")
 
         // Single-pass mode
         if (opts.single) {
+          // Theme + prior findings extraction (same as persona path)
+          const singleThemeResult =
+            opts.themes !== false
+              ? await extractThemes(rootDir, client, model)
+              : {
+                  themes: [] as readonly string[],
+                  conclusions: [] as readonly ThemeConclusion[],
+                  recentFindings: [] as readonly ReviewFinding[],
+                };
+          const singlePriorFindings = singleThemeResult.recentFindings;
+
           const result = await reviewDiff(
             client,
             resolved.diff,
@@ -165,24 +215,56 @@ export const reviewCommand = new Command("review")
             context,
             sessionId,
             model,
+            singleThemeResult.themes,
+            singleThemeResult.conclusions,
+            singlePriorFindings,
           );
+
+          // Verification pass (same as persona path)
+          const singleVerifyResult =
+            opts.verify !== false
+              ? await verifyFindings(client, model, rootDir, result.findings)
+              : { findings: result.findings, filteredCount: 0 };
+
+          if (singleVerifyResult.filteredCount > 0) {
+            console.error(
+              `Verification filtered ${singleVerifyResult.filteredCount} false positive findings`,
+            );
+          }
+
+          const finalFindings = applyFilters(singleVerifyResult.findings);
+
+          // Aggregate token usage
+          let singleTokens = result.tokenUsage;
+          if (singleThemeResult.tokenUsage) {
+            singleTokens = addTokenUsage(
+              singleTokens,
+              singleThemeResult.tokenUsage,
+            );
+          }
+          if (singleVerifyResult.tokenUsage) {
+            singleTokens = addTokenUsage(
+              singleTokens,
+              singleVerifyResult.tokenUsage,
+            );
+          }
 
           const session: ReviewSession = {
             id: sessionId,
             timestamp: new Date().toISOString(),
             ref: resolved.ref,
             files: resolved.files,
-            findingCount: result.findings.length,
+            findingCount: finalFindings.length,
             model: result.model,
             durationMs: result.durationMs,
-            tokenUsage: result.tokenUsage,
+            tokenUsage: singleTokens,
             mode: "single",
           };
 
-          saveSessionSafe(rootDir, session, result.findings);
-          displayFindings(session, result.findings, opts);
+          saveSessionSafe(rootDir, session, finalFindings);
+          displayFindings(session, finalFindings, opts);
           if (opts.githubPr) {
-            await postToGitHubSafe(session, result.findings);
+            await postToGitHubSafe(session, finalFindings);
           }
           return;
         }
@@ -194,7 +276,14 @@ export const reviewCommand = new Command("review")
         const themeResult =
           opts.themes !== false
             ? await extractThemes(rootDir, client, model)
-            : { themes: [] as readonly string[] };
+            : {
+                themes: [] as readonly string[],
+                conclusions: [] as readonly ThemeConclusion[],
+                recentFindings: [] as readonly ReviewFinding[],
+              };
+
+        // Prior findings come from the same session load that themes used
+        const priorFindings = themeResult.recentFindings;
 
         // Resolve personas (config overrides applied to built-in definitions)
         const configOverrides = reviewConfig?.personas ?? [];
@@ -209,6 +298,12 @@ export const reviewCommand = new Command("review")
         const personaSlugs = personaDefs.map((p) => p.slug);
 
         // Parallel persona calls
+        if (priorFindings.length > 0) {
+          console.error(
+            `Injecting ${priorFindings.length} prior findings for suppression`,
+          );
+        }
+
         const personaResults = await reviewWithPersonas(
           client,
           resolved.diff,
@@ -218,6 +313,8 @@ export const reviewCommand = new Command("review")
           model,
           personaDefs,
           themeResult.themes,
+          themeResult.conclusions,
+          priorFindings,
         );
 
         // Deduplication (unless disabled)
@@ -229,7 +326,21 @@ export const reviewCommand = new Command("review")
                 mergedCount: 0,
               };
 
-        // Aggregate token usage across persona calls + dedup + themes
+        // Verification pass (unless disabled)
+        const verifyResult =
+          opts.verify !== false
+            ? await verifyFindings(client, model, rootDir, dedupResult.findings)
+            : { findings: dedupResult.findings, filteredCount: 0 };
+
+        if (verifyResult.filteredCount > 0) {
+          console.error(
+            `Verification filtered ${verifyResult.filteredCount} false positive findings`,
+          );
+        }
+
+        const finalFindings = applyFilters(verifyResult.findings);
+
+        // Aggregate token usage across persona calls + dedup + themes + verify
         let totalTokens = personaResults.reduce(
           (acc, r) => addTokenUsage(acc, r.tokenUsage),
           { inputTokens: 0, outputTokens: 0 },
@@ -240,6 +351,9 @@ export const reviewCommand = new Command("review")
         if (themeResult.tokenUsage) {
           totalTokens = addTokenUsage(totalTokens, themeResult.tokenUsage);
         }
+        if (verifyResult.tokenUsage) {
+          totalTokens = addTokenUsage(totalTokens, verifyResult.tokenUsage);
+        }
 
         const durationMs = Date.now() - startTime;
 
@@ -248,7 +362,7 @@ export const reviewCommand = new Command("review")
           timestamp: new Date().toISOString(),
           ref: resolved.ref,
           files: resolved.files,
-          findingCount: dedupResult.findings.length,
+          findingCount: finalFindings.length,
           model,
           durationMs,
           tokenUsage: totalTokens,
@@ -258,12 +372,12 @@ export const reviewCommand = new Command("review")
             themeResult.themes.length > 0 ? [...themeResult.themes] : undefined,
         };
 
-        saveSessionSafe(rootDir, session, dedupResult.findings);
-        displayFindings(session, dedupResult.findings, opts, {
+        saveSessionSafe(rootDir, session, finalFindings);
+        displayFindings(session, finalFindings, opts, {
           mergedCount: dedupResult.mergedCount,
         });
         if (opts.githubPr) {
-          await postToGitHubSafe(session, dedupResult.findings, {
+          await postToGitHubSafe(session, finalFindings, {
             mergedCount: dedupResult.mergedCount,
           });
         }

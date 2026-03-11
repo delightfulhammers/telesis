@@ -83,35 +83,15 @@ describe("postPullRequestReview", () => {
     expect(body.comments[0].line).toBe(15);
   });
 
-  it("falls back to summary-only on 422", async () => {
-    mockFetch.mockResolvedValueOnce(
-      errorResponse(422, '{"message":"Validation Failed"}'),
-    );
-    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 103 }));
-
-    const result = await postPullRequestReview(
-      mockCtx,
-      "COMMENT",
-      "Review body",
-      [{ path: "src/a.ts", body: "Fix", line: 10, side: "RIGHT" }],
-    );
-
-    expect(result.commentCount).toBe(0);
-    expect(result.summaryFindingCount).toBe(1);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-
-    const fallbackBody = JSON.parse(mockFetch.mock.calls[1][1]!.body as string);
-    expect(fallbackBody.comments).toEqual([]);
-    expect(fallbackBody.body).toContain("inline comments could not be posted");
-  });
-
-  it("does not fall back on 422 when there are no inline comments", async () => {
+  it("throws GitHubApiError on 422", async () => {
     mockFetch.mockResolvedValueOnce(
       errorResponse(422, '{"message":"Validation Failed"}'),
     );
 
     await expect(
-      postPullRequestReview(mockCtx, "COMMENT", "body", []),
+      postPullRequestReview(mockCtx, "COMMENT", "Review body", [
+        { path: "src/a.ts", body: "Fix", line: 10, side: "RIGHT" },
+      ]),
     ).rejects.toThrow("422");
   });
 

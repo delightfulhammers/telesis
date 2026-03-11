@@ -1,4 +1,8 @@
-import type { ReviewFinding, ReviewSession } from "../agent/review/types.js";
+import {
+  formatFindingLocation,
+  type ReviewFinding,
+  type ReviewSession,
+} from "../agent/review/types.js";
 import type { DriftReport } from "../drift/types.js";
 
 /** The hidden HTML marker used for idempotent drift comment updates. */
@@ -25,6 +29,19 @@ export const formatFindingComment = (finding: ReviewFinding): string => {
   }
 
   return lines.join("\n");
+};
+
+/**
+ * Formats a finding as a markdown block for the summary body.
+ * Used when findings can't be posted as inline comments.
+ */
+export const formatFindingAsSummary = (finding: ReviewFinding): string => {
+  const location = formatFindingLocation(finding);
+  const persona = finding.persona ? ` _(${finding.persona})_` : "";
+  const suggestion = finding.suggestion
+    ? `\n  > **Suggestion:** ${finding.suggestion}`
+    : "";
+  return `- \`${location}\`: ${finding.description}${persona}${suggestion}`;
 };
 
 /**
