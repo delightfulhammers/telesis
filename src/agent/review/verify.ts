@@ -1,7 +1,5 @@
 import { readFileSync, statSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
-
-const MAX_FILE_SIZE = 200_000; // ~200KB — skip files that would blow up the verification prompt
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type { ModelClient } from "../model/client.js";
 import type { TokenUsage } from "../model/types.js";
 import type {
@@ -11,6 +9,8 @@ import type {
 } from "./types.js";
 import { buildVerificationPrompt } from "./prompts.js";
 import { parseJsonResponse } from "./json-parse.js";
+
+const MAX_FILE_SIZE = 200_000; // ~200KB — skip files that would blow up the verification prompt
 
 /**
  * Reads full file contents for all paths referenced by findings.
@@ -29,7 +29,8 @@ export const gatherFileContents = (
     try {
       const fullPath = resolve(join(rootDir, path));
       // Prevent path traversal outside the project root
-      if (!fullPath.startsWith(resolvedRoot + sep)) continue;
+      const rel = relative(resolvedRoot, fullPath);
+      if (rel.startsWith("..") || isAbsolute(rel)) continue;
       // Skip files that are too large for the verification prompt
       const stat = statSync(fullPath);
       if (stat.size > MAX_FILE_SIZE) continue;
