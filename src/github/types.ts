@@ -11,7 +11,7 @@ export interface GitHubPRContext {
 export interface PRReviewComment {
   readonly path: string;
   readonly body: string;
-  readonly line?: number;
+  readonly line: number;
   readonly startLine?: number;
   readonly side: "RIGHT";
 }

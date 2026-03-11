@@ -1,7 +1,8 @@
 import type { ReviewFinding, ReviewSession } from "../agent/review/types.js";
 import type { DriftReport } from "../drift/types.js";
 
-const DRIFT_MARKER = "<!-- telesis:drift -->";
+/** The hidden HTML marker used for idempotent drift comment updates. */
+export const DRIFT_COMMENT_MARKER = "<!-- telesis:drift -->";
 
 /**
  * Formats a single review finding as a GitHub-flavored markdown comment body.
@@ -91,7 +92,7 @@ export const formatReviewSummaryBody = (
 export const formatDriftComment = (report: DriftReport): string => {
   const lines: string[] = [];
 
-  lines.push(DRIFT_MARKER);
+  lines.push(DRIFT_COMMENT_MARKER);
   lines.push("## Telesis Drift Report");
   lines.push("");
   lines.push("| Check | Status | Details |");
@@ -110,7 +111,7 @@ export const formatDriftComment = (report: DriftReport): string => {
         : "❌";
     const details = check.passed
       ? "—"
-      : check.details.map((d) => `\`${d}\``).join(", ");
+      : check.details.map((d) => `\`${escapePipe(d)}\``).join(", ");
     lines.push(`| ${check.check} | ${icon} ${status} | ${details} |`);
   }
 
@@ -126,10 +127,9 @@ export const formatDriftComment = (report: DriftReport): string => {
   return lines.join("\n");
 };
 
-/** The hidden HTML marker used for idempotent drift comment updates. */
-export const DRIFT_COMMENT_MARKER = DRIFT_MARKER;
-
 // --- Helpers ---
+
+const escapePipe = (s: string): string => s.replace(/\|/g, "\\|");
 
 type Severity = ReviewFinding["severity"];
 

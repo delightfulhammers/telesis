@@ -60,6 +60,19 @@ describe("claude-md-freshness", () => {
     expect(result.passed).toBe(true);
   });
 
+  it("passes when only the Development Notes section differs", () => {
+    const rootDir = setupProject();
+    const content = generate(rootDir);
+    // Append a notes section that wouldn't exist in CI (notes are gitignored)
+    const withNotes =
+      content +
+      "\n---\n\n## Development Notes\n\n### architecture\n- Agent layer lives under src/agent/ (2026-03-10)\n";
+    writeFileSync(join(rootDir, "CLAUDE.md"), withNotes);
+
+    const result = claudeMdFreshnessCheck.run(rootDir);
+    expect(result.passed).toBe(true);
+  });
+
   it("warns when CLAUDE.md does not exist", () => {
     const rootDir = setupProject();
 

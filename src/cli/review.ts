@@ -329,10 +329,10 @@ const postToGitHubSafe = async (
   try {
     const ctx = extractPRContext();
     if (!ctx) {
-      throw new Error(
-        "--github-pr specified but no PR context detected. " +
-          "Ensure GITHUB_EVENT_PATH and GITHUB_TOKEN are set.",
+      console.error(
+        "Warning: --github-pr specified but no PR context detected. Skipping.",
       );
+      return;
     }
 
     const { event, body, comments } = findingsToReview(

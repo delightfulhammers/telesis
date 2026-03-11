@@ -36,11 +36,13 @@ export const findingsToReview = (
     }
   }
 
+  // inlineFindings are guaranteed to have startLine defined (filtered above)
   const comments: PRReviewComment[] = inlineFindings.map((f) => {
+    const line = f.endLine ?? (f.startLine as number);
     const comment: PRReviewComment = {
       path: f.path,
       body: formatFindingComment(f),
-      line: f.endLine ?? f.startLine,
+      line,
       side: "RIGHT" as const,
       ...(f.startLine !== undefined &&
         f.endLine !== undefined &&

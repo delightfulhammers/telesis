@@ -55,6 +55,11 @@ const handleResponse = async (
   );
 };
 
+/**
+ * Fetch with a single retry on 5xx. Uses a flat delay (not exponential)
+ * because we only retry once. Only safe with string bodies — do not use
+ * with ReadableStream request bodies.
+ */
 const fetchWithRetry = async (
   url: string,
   init: RequestInit,
@@ -63,6 +68,8 @@ const fetchWithRetry = async (
   const response = await fetch(url, init);
 
   if (response.status >= 500) {
+    // Drain the failed response body to release the connection
+    await response.text();
     await sleep(RETRY_DELAY_MS);
     const retry = await fetch(url, init);
     return handleResponse(retry, context);
@@ -90,7 +97,7 @@ export const postPullRequestReview = async (
     comments: comments.map((c) => ({
       path: c.path,
       body: c.body,
-      ...(c.line !== undefined && { line: c.line }),
+      line: c.line,
       ...(c.startLine !== undefined && { start_line: c.startLine }),
       side: c.side,
     })),
@@ -129,13 +136,15 @@ export const postPullRequestReview = async (
         comments: [],
       };
 
-      const data = (await fetchWithRetry(
-        url,
-        {
-          method: "POST",
-          headers: headers(ctx.token),
-          body: JSON.stringify(fallbackBody),
-        },
+      // Plain fetch for fallback — no retry needed since we already
+      // stripped inline comments, which were the likely cause of the 422.
+      const fallbackResponse = await fetch(url, {
+        method: "POST",
+        headers: headers(ctx.token),
+        body: JSON.stringify(fallbackBody),
+      });
+      const data = (await handleResponse(
+        fallbackResponse,
         "post review (fallback)",
       )) as { id: number };
 
