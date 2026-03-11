@@ -54,6 +54,20 @@ describe("stale-references", () => {
     expect(result.passed).toBe(true);
   });
 
+  it("skips paths inside tilde-fenced code blocks", () => {
+    const dir = setup({
+      "docs/ARCHITECTURE.md": [
+        "Some text",
+        "~~~",
+        "`src/nonexistent.ts`",
+        "~~~",
+        "",
+      ].join("\n"),
+    });
+    const result = staleReferencesCheck.run(dir);
+    expect(result.passed).toBe(true);
+  });
+
   it("skips template and glob patterns", () => {
     const dir = setup({
       "docs/PRD.md": [

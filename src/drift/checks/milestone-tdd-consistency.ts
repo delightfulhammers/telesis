@@ -9,10 +9,10 @@ interface MilestoneInfo {
 }
 
 const MILESTONE_HEADING_RE = /^##\s+(.+)/;
-const STATUS_RE = /^\*\*Status:\*\*\s+(.+)/;
+const STATUS_RE = /^\*\*Status:\*\*\s+(\S+)/;
 const REFERENCE_RE = /^\*\*Reference:\*\*/;
 const TDD_NUM_RE = /TDD-(\d+)/g; // used only via matchAll — never exec'd directly
-const TDD_STATUS_RE = /^\*\*Status:\*\*\s+(.+)/m;
+const TDD_STATUS_RE = /^\*\*Status:\*\*\s+(\S+)/m;
 
 const parseMilestones = (content: string): readonly MilestoneInfo[] => {
   const milestones: MilestoneInfo[] = [];
