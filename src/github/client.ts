@@ -183,6 +183,10 @@ export const postPRComment = async (
 /**
  * Finds an existing PR comment containing a specific marker string.
  * Returns the comment ID if found, null otherwise.
+ *
+ * Note: only searches the first 100 comments. PRs with 100+ comments
+ * may get a duplicate drift comment instead of an update. Pagination is
+ * not implemented because this scenario is extremely rare in practice.
  */
 export const findCommentByMarker = async (
   ctx: GitHubPRContext,

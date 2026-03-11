@@ -6,13 +6,7 @@ import { formatDriftReport } from "../drift/format.js";
 import { handleAction } from "./handle-action.js";
 import { projectRoot } from "./project-root.js";
 import { extractPRContext } from "../github/environment.js";
-import { driftToComment } from "../github/adapter.js";
-import { DRIFT_COMMENT_MARKER } from "../github/format.js";
-import {
-  findCommentByMarker,
-  updatePRComment,
-  postPRComment,
-} from "../github/client.js";
+import { upsertDriftComment } from "../github/adapter.js";
 
 export const driftCommand = new Command("drift")
   .description("Detect drift between spec documents and implementation")
@@ -59,7 +53,7 @@ export const driftCommand = new Command("drift")
   );
 
 const postDriftToGitHubSafe = async (
-  report: Parameters<typeof driftToComment>[0],
+  report: Parameters<typeof upsertDriftComment>[1],
 ): Promise<void> => {
   try {
     const ctx = extractPRContext();
@@ -70,16 +64,9 @@ const postDriftToGitHubSafe = async (
       return;
     }
 
-    const body = driftToComment(report);
-    const existingId = await findCommentByMarker(ctx, DRIFT_COMMENT_MARKER);
-
-    if (existingId) {
-      await updatePRComment(ctx, existingId, body);
-      console.error(`Updated drift comment on PR #${ctx.pullNumber}`);
-    } else {
-      await postPRComment(ctx, body);
-      console.error(`Posted drift comment to PR #${ctx.pullNumber}`);
-    }
+    const { updated } = await upsertDriftComment(ctx, report);
+    const verb = updated ? "Updated" : "Posted";
+    console.error(`${verb} drift comment on PR #${ctx.pullNumber}`);
   } catch (err) {
     console.error(
       "Warning: could not post drift report to GitHub:",

@@ -30,8 +30,7 @@ import { deduplicateFindings } from "../agent/review/dedup.js";
 import { extractThemes } from "../agent/review/themes.js";
 import { load as loadConfig } from "../config/config.js";
 import { extractPRContext } from "../github/environment.js";
-import { findingsToReview } from "../github/adapter.js";
-import { postPullRequestReview } from "../github/client.js";
+import { postReviewToGitHub } from "../github/adapter.js";
 
 const addTokenUsage = (
   a: { inputTokens: number; outputTokens: number },
@@ -181,7 +180,7 @@ export const reviewCommand = new Command("review")
           };
 
           saveSessionSafe(rootDir, session, result.findings);
-          displayAndExit(session, result.findings, opts);
+          displayFindings(session, result.findings, opts);
           if (opts.githubPr) {
             await postToGitHubSafe(session, result.findings);
           }
@@ -260,7 +259,7 @@ export const reviewCommand = new Command("review")
         };
 
         saveSessionSafe(rootDir, session, dedupResult.findings);
-        displayAndExit(session, dedupResult.findings, opts, {
+        displayFindings(session, dedupResult.findings, opts, {
           mergedCount: dedupResult.mergedCount,
         });
         if (opts.githubPr) {
@@ -287,7 +286,7 @@ const saveSessionSafe = (
   }
 };
 
-const displayAndExit = (
+const displayFindings = (
   session: ReviewSession,
   findings: readonly ReviewFinding[],
   opts: {
@@ -335,12 +334,7 @@ const postToGitHubSafe = async (
       return;
     }
 
-    const { event, body, comments } = findingsToReview(
-      session,
-      findings,
-      extra,
-    );
-    const result = await postPullRequestReview(ctx, event, body, comments);
+    const result = await postReviewToGitHub(ctx, session, findings, extra);
 
     console.error(
       `Posted ${result.commentCount} inline comments to PR #${ctx.pullNumber}` +

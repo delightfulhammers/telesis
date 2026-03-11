@@ -1,11 +1,23 @@
 import type { ReviewFinding, ReviewSession } from "../agent/review/types.js";
 import type { DriftReport } from "../drift/types.js";
-import type { PRReviewComment, ReviewEvent } from "./types.js";
+import type {
+  GitHubPRContext,
+  PRReviewComment,
+  PostReviewResult,
+  ReviewEvent,
+} from "./types.js";
 import {
   formatFindingComment,
   formatReviewSummaryBody,
   formatDriftComment,
+  DRIFT_COMMENT_MARKER,
 } from "./format.js";
+import {
+  postPullRequestReview,
+  postPRComment,
+  findCommentByMarker,
+  updatePRComment,
+} from "./client.js";
 
 interface ReviewPayload {
   readonly event: ReviewEvent;
@@ -67,6 +79,41 @@ export const findingsToReview = (
  */
 export const driftToComment = (report: DriftReport): string =>
   formatDriftComment(report);
+
+/**
+ * Posts review findings as a PR review with inline comments.
+ * Constructs the payload, posts it, and returns the result.
+ */
+export const postReviewToGitHub = async (
+  ctx: GitHubPRContext,
+  session: ReviewSession,
+  findings: readonly ReviewFinding[],
+  extra?: { mergedCount?: number },
+): Promise<PostReviewResult> => {
+  const { event, body, comments } = findingsToReview(session, findings, extra);
+  return postPullRequestReview(ctx, event, body, comments);
+};
+
+/**
+ * Posts or updates a drift report as an idempotent PR comment.
+ * Searches for an existing comment with the drift marker and updates it,
+ * or creates a new one if none exists.
+ */
+export const upsertDriftComment = async (
+  ctx: GitHubPRContext,
+  report: DriftReport,
+): Promise<{ updated: boolean }> => {
+  const body = driftToComment(report);
+  const existingId = await findCommentByMarker(ctx, DRIFT_COMMENT_MARKER);
+
+  if (existingId) {
+    await updatePRComment(ctx, existingId, body);
+    return { updated: true };
+  }
+
+  await postPRComment(ctx, body);
+  return { updated: false };
+};
 
 // --- Helpers ---
 

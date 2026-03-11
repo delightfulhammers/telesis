@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { GitHubPRContext } from "./types.js";
 
 const SAFE_NAME_RE = /^[\w.-]+$/;
-const SHA_RE = /^[0-9a-f]{4,40}$/i;
+const SHA_RE = /^[0-9a-f]{40}$/i;
 
 /** Returns true when running inside GitHub Actions. */
 export const isGitHubActions = (): boolean =>
@@ -40,7 +40,8 @@ export const extractPRContext = (): GitHubPRContext | null => {
   const repo = payload.repository as Record<string, unknown> | undefined;
   const fullName = repo?.full_name as string | undefined;
 
-  if (typeof number !== "number" || number <= 0) return null;
+  if (typeof number !== "number" || !Number.isInteger(number) || number <= 0)
+    return null;
   if (typeof sha !== "string" || !SHA_RE.test(sha)) return null;
   if (!fullName) return null;
 

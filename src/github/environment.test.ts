@@ -49,7 +49,7 @@ describe("extractPRContext", () => {
     const payload = {
       pull_request: {
         number: 42,
-        head: { sha: "abc123def456" },
+        head: { sha: "abc123def456abc123def456abc123def456abc1" },
       },
       repository: { full_name: "delightfulhammers/telesis" },
     };
@@ -69,7 +69,7 @@ describe("extractPRContext", () => {
       owner: "delightfulhammers",
       repo: "telesis",
       pullNumber: 42,
-      commitSha: "abc123def456",
+      commitSha: "abc123def456abc123def456abc123def456abc1",
       token: "ghp_test123",
     });
   });
