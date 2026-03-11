@@ -67,7 +67,9 @@ const criteriaToManualResults = (
 export const checkMilestone = (rootDir: string): MilestoneCheckReport => {
   const info = parseActiveMilestone(rootDir);
   if (!info) {
-    throw new Error("No active milestone found in docs/MILESTONES.md");
+    throw new Error(
+      "No milestone is currently In Progress — set a milestone's status to 'In Progress' in docs/MILESTONES.md",
+    );
   }
 
   return checkMilestoneFromInfo(info, rootDir);
