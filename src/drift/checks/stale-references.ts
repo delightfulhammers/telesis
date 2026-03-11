@@ -13,7 +13,7 @@ const BACKTICK_PATH_RE = /`((?:src|docs)\/[^`\s]+)`/g;
 const RELATIVE_LINK_RE = /\[([^\]]*)\]\(((?!https?:\/\/|\/|#)[^)]+)\)/g;
 const FENCE_RE = /^```/;
 const TEMPLATE_PATTERN_RE = /[{}<>*]/;
-const FRAGMENT_RE = /#.*$/;
+const QUERY_OR_FRAGMENT_RE = /[?#].*$/;
 
 interface StaleRef {
   readonly doc: string;
@@ -40,6 +40,7 @@ const scanDoc = (
 
   const refs: StaleRef[] = [];
   const lines = content.split("\n");
+  const docDir = dirname(docPath);
   let inFence = false;
 
   const checkExists = (absPath: string): boolean => {
@@ -58,9 +59,7 @@ const scanDoc = (
     if (inFence) continue;
 
     // Backtick-quoted paths
-    let match: RegExpExecArray | null;
-    BACKTICK_PATH_RE.lastIndex = 0;
-    while ((match = BACKTICK_PATH_RE.exec(line)) !== null) {
+    for (const match of line.matchAll(BACKTICK_PATH_RE)) {
       const refPath = match[1]!;
       if (TEMPLATE_PATTERN_RE.test(refPath)) continue;
 
@@ -73,15 +72,13 @@ const scanDoc = (
     }
 
     // Relative markdown links
-    RELATIVE_LINK_RE.lastIndex = 0;
-    while ((match = RELATIVE_LINK_RE.exec(line)) !== null) {
+    for (const match of line.matchAll(RELATIVE_LINK_RE)) {
       const linkTarget = match[2]!;
       if (TEMPLATE_PATTERN_RE.test(linkTarget)) continue;
 
-      const stripped = linkTarget.replace(FRAGMENT_RE, "");
+      const stripped = linkTarget.replace(QUERY_OR_FRAGMENT_RE, "");
       if (!stripped) continue;
 
-      const docDir = dirname(docPath);
       const absPath = resolve(docDir, stripped);
       if (!isWithinRoot(absPath, resolvedRoot)) continue;
       if (!checkExists(absPath)) {
