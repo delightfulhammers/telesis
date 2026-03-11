@@ -65,13 +65,15 @@ const fetchWithRetry = async (
   init: RequestInit,
   context: string,
 ): Promise<unknown> => {
-  const response = await fetch(url, init);
+  // Disable redirects to prevent leaking the Authorization header to third-party hosts
+  const opts: RequestInit = { ...init, redirect: "error" };
+  const response = await fetch(url, opts);
 
   if (response.status >= 500) {
     // Drain the failed response body to release the connection
     await response.text();
     await sleep(RETRY_DELAY_MS);
-    const retry = await fetch(url, init);
+    const retry = await fetch(url, opts);
     return handleResponse(retry, context);
   }
 
@@ -143,6 +145,7 @@ export const postPullRequestReview = async (
         method: "POST",
         headers: headers(ctx.token),
         body: JSON.stringify(fallbackBody),
+        redirect: "error",
       });
       const data = (await handleResponse(
         fallbackResponse,
@@ -195,13 +198,16 @@ export const findCommentByMarker = async (
 ): Promise<number | null> => {
   const url = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.pullNumber}/comments?per_page=100`;
 
-  const data = (await fetchWithRetry(
+  const data = await fetchWithRetry(
     url,
     { method: "GET", headers: headers(ctx.token) },
     "list comments",
-  )) as readonly { id: number; body: string }[];
+  );
 
-  const match = data.find((c) => c.body.includes(marker));
+  if (!Array.isArray(data)) return null;
+
+  const comments = data as readonly { id: number; body: string }[];
+  const match = comments.find((c) => c.body.includes(marker));
   return match?.id ?? null;
 };
 
