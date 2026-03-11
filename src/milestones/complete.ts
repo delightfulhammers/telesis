@@ -17,7 +17,7 @@ export interface CompletionResult {
 }
 
 const TDD_FILENAME_RE = /^TDD-0*(\d+)\b/;
-const TDD_STATUS_RE = /\*\*Status:\*\*\s+\S+/;
+const TDD_STATUS_RE = /\*\*Status:\*\*\s+.+/;
 
 const updateMilestonesStatus = (rootDir: string): CompletionStep => {
   const path = join(rootDir, "docs", "MILESTONES.md");
@@ -56,7 +56,7 @@ const bumpPackageVersion = (
   const path = join(rootDir, "package.json");
   try {
     const content = readFileSync(path, "utf-8");
-    const pkg = JSON.parse(content) as { version?: string };
+    const pkg = JSON.parse(content) as Record<string, unknown>;
     if (pkg.version === version) {
       return {
         name: "Bump package.json",
@@ -64,11 +64,8 @@ const bumpPackageVersion = (
         message: `Already at ${version}`,
       };
     }
-    const updated = content.replace(
-      /"version":\s*"[^"]*"/,
-      `"version": "${version}"`,
-    );
-    writeFileSync(path, updated, "utf-8");
+    pkg.version = version;
+    writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n", "utf-8");
     return {
       name: "Bump package.json",
       passed: true,
@@ -95,8 +92,9 @@ const buildTddIndex = (tddDir: string): ReadonlyMap<number, string> => {
       }
     }
     return index;
-  } catch {
-    return new Map();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return new Map();
+    throw err;
   }
 };
 

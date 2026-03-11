@@ -177,4 +177,36 @@ describe("completeMilestoneFromInfo", () => {
     expect(tddStep!.passed).toBe(true);
     expect(tddStep!.message).toContain("No TDD references");
   });
+
+  it("handles multi-word TDD status like In Progress", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, "docs", "tdd"), { recursive: true });
+    mkdirSync(join(dir, ".telesis"), { recursive: true });
+    writeFileSync(
+      join(dir, "docs", "MILESTONES.md"),
+      ["## v0.9.0 — Test", "**Status:** In Progress", "---"].join("\n"),
+    );
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "test", version: "0.8.1" }),
+    );
+    writeFileSync(
+      join(dir, ".telesis", "config.yml"),
+      "project:\n  name: test\n  owner: test\n  language: TypeScript\n  status: active\n  repo: test\n",
+    );
+    writeFileSync(
+      join(dir, "docs", "tdd", "TDD-007-test.md"),
+      "# TDD-007\n\n**Status:** In Progress\n",
+    );
+
+    completeMilestoneFromInfo(makeInfo({ tddReferences: [7] }), dir);
+
+    const content = readFileSync(
+      join(dir, "docs", "tdd", "TDD-007-test.md"),
+      "utf-8",
+    );
+    expect(content).toContain("**Status:** Accepted");
+    expect(content).not.toContain("In Progress");
+    expect(content).not.toContain("Progress");
+  });
 });

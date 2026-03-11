@@ -17,6 +17,14 @@ export interface MilestoneCheckReport {
   readonly passed: boolean;
 }
 
+const extractStderr = (err: unknown): string => {
+  if (err instanceof Error && "stderr" in err) {
+    const stderr = String((err as { stderr: unknown }).stderr).trim();
+    if (stderr) return stderr.slice(0, 200);
+  }
+  return "FAIL";
+};
+
 const runShellCheck = (
   name: string,
   command: string,
@@ -29,8 +37,8 @@ const runShellCheck = (
       timeout: 120_000,
     });
     return { name, kind: "auto", passed: true, message: "PASS" };
-  } catch {
-    return { name, kind: "auto", passed: false, message: "FAIL" };
+  } catch (err) {
+    return { name, kind: "auto", passed: false, message: extractStderr(err) };
   }
 };
 

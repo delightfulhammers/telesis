@@ -88,8 +88,8 @@ export const extractActiveMilestone = (path: string): string => {
  * Exported for testing; prefer `parseActiveMilestone` in production code.
  */
 export const parseMilestoneText = (raw: string): MilestoneInfo | undefined => {
+  if (!raw.trim()) return undefined;
   const lines = raw.split("\n");
-  if (lines.length === 0) return undefined;
 
   const headingMatch = HEADING_RE.exec(lines[0]?.trim() ?? "");
   if (!headingMatch?.[1]) return undefined;
