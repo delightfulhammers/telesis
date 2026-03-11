@@ -42,6 +42,33 @@ const addTokenUsage = (
   outputTokens: a.outputTokens + b.outputTokens,
 });
 
+/**
+ * Shared filtering pipeline: confidence thresholds → deterministic noise filter.
+ * Applied to both single-pass and persona review paths.
+ */
+const applyFilters = (
+  findings: readonly ReviewFinding[],
+): readonly ReviewFinding[] => {
+  const confidenceResult = filterByConfidence(findings);
+  if (confidenceResult.filteredCount > 0) {
+    console.error(
+      `Filtered ${confidenceResult.filteredCount} low-confidence findings`,
+    );
+  }
+
+  const noiseResult = filterNoise(confidenceResult.findings);
+  if (noiseResult.filteredCount > 0) {
+    const reasons = Object.entries(noiseResult.filteredReasons)
+      .map(([reason, count]) => `${count} ${reason}`)
+      .join(", ");
+    console.error(
+      `Filtered ${noiseResult.filteredCount} low-signal findings (${reasons})`,
+    );
+  }
+
+  return noiseResult.findings;
+};
+
 export const reviewCommand = new Command("review")
   .description("Review code changes against project conventions")
   .option("--all", "Review working + staged changes (default: staged only)")
@@ -169,22 +196,24 @@ export const reviewCommand = new Command("review")
             model,
           );
 
+          const finalFindings = applyFilters(result.findings);
+
           const session: ReviewSession = {
             id: sessionId,
             timestamp: new Date().toISOString(),
             ref: resolved.ref,
             files: resolved.files,
-            findingCount: result.findings.length,
+            findingCount: finalFindings.length,
             model: result.model,
             durationMs: result.durationMs,
             tokenUsage: result.tokenUsage,
             mode: "single",
           };
 
-          saveSessionSafe(rootDir, session, result.findings);
-          displayFindings(session, result.findings, opts);
+          saveSessionSafe(rootDir, session, finalFindings);
+          displayFindings(session, finalFindings, opts);
           if (opts.githubPr) {
-            await postToGitHubSafe(session, result.findings);
+            await postToGitHubSafe(session, finalFindings);
           }
           return;
         }
@@ -236,26 +265,7 @@ export const reviewCommand = new Command("review")
                 mergedCount: 0,
               };
 
-        // Confidence threshold filtering
-        const confidenceResult = filterByConfidence(dedupResult.findings);
-        if (confidenceResult.filteredCount > 0) {
-          console.error(
-            `Filtered ${confidenceResult.filteredCount} low-confidence findings`,
-          );
-        }
-
-        // Deterministic noise filtering
-        const noiseResult = filterNoise(confidenceResult.findings);
-        if (noiseResult.filteredCount > 0) {
-          const reasons = Object.entries(noiseResult.filteredReasons)
-            .map(([reason, count]) => `${count} ${reason}`)
-            .join(", ");
-          console.error(
-            `Filtered ${noiseResult.filteredCount} low-signal findings (${reasons})`,
-          );
-        }
-
-        const finalFindings = noiseResult.findings;
+        const finalFindings = applyFilters(dedupResult.findings);
 
         // Aggregate token usage across persona calls + dedup + themes
         let totalTokens = personaResults.reduce(
