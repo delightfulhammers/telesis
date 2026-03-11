@@ -153,6 +153,51 @@ describe("findCommentByMarker", () => {
     const id = await findCommentByMarker(mockCtx, "<!-- telesis:drift -->");
     expect(id).toBeNull();
   });
+
+  it("paginates to find marker on a later page", async () => {
+    // Page 1: 100 comments, no marker
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      id: i + 1,
+      body: `comment ${i + 1}`,
+    }));
+    // Page 2: marker found
+    const page2 = [
+      { id: 201, body: "more comments" },
+      { id: 202, body: "<!-- telesis:drift -->\nDrift report" },
+    ];
+
+    mockFetch.mockResolvedValueOnce(jsonResponse(page1));
+    mockFetch.mockResolvedValueOnce(jsonResponse(page2));
+
+    const id = await findCommentByMarker(mockCtx, "<!-- telesis:drift -->");
+    expect(id).toBe(202);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops paginating when page has fewer than 100 results", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse([{ id: 1, body: "only comment" }]),
+    );
+
+    const id = await findCommentByMarker(mockCtx, "<!-- telesis:drift -->");
+    expect(id).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops after max pages", async () => {
+    // 10 full pages of 100 comments each, no marker
+    for (let i = 0; i < 10; i++) {
+      const page = Array.from({ length: 100 }, (_, j) => ({
+        id: i * 100 + j + 1,
+        body: `comment ${i * 100 + j + 1}`,
+      }));
+      mockFetch.mockResolvedValueOnce(jsonResponse(page));
+    }
+
+    const id = await findCommentByMarker(mockCtx, "<!-- telesis:drift -->");
+    expect(id).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(10);
+  });
 });
 
 describe("updatePRComment", () => {
