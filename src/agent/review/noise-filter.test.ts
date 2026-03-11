@@ -207,4 +207,129 @@ describe("filterNoise", () => {
     expect(result.filteredCount).toBe(0);
     expect(result.filteredReasons).toEqual({});
   });
+
+  // --- Self-contradicting patterns ---
+
+  it("filters self-contradicting — 'actually correct'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The logic is actually correct for path traversal prevention, but could use path.relative()",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["self-contradicting"]).toBe(1);
+  });
+
+  it("filters self-contradicting — 'not wrong'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The override is redundant but not wrong. The real issue is...",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["self-contradicting"]).toBe(1);
+  });
+
+  it("filters self-contradicting — 'is correct but'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The approach is correct but could be simplified using a helper",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["self-contradicting"]).toBe(1);
+  });
+
+  it("filters self-contradicting — 'works correctly'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The function works correctly, however the naming could be improved",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["self-contradicting"]).toBe(1);
+  });
+
+  it("keeps findings that discuss correctness of something else", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The null check is missing — the caller does not correctly validate the input",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  // --- Uncited architecture findings ---
+
+  it("filters architecture findings citing vague authority", () => {
+    const findings = [
+      makeFinding({
+        category: "architecture",
+        description:
+          "Per the architecture, business logic should not live in the CLI layer",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["uncited-architecture"]).toBe(1);
+  });
+
+  it("filters architecture findings with 'per documented conventions'", () => {
+    const findings = [
+      makeFinding({
+        category: "architecture",
+        description:
+          "Per documented conventions, this import creates coupling between packages",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["uncited-architecture"]).toBe(1);
+  });
+
+  it("keeps architecture findings that cite a specific file", () => {
+    const findings = [
+      makeFinding({
+        category: "architecture",
+        description:
+          "Per ARCHITECTURE.md section 'Package discipline', src/cli/ should not import from agent internals",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  it("keeps architecture findings that cite a specific section", () => {
+    const findings = [
+      makeFinding({
+        category: "architecture",
+        description:
+          "Violates the 'Model calls' convention in CLAUDE.md — direct SDK import outside client.ts",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  it("does not apply uncited-architecture filter to non-architecture findings", () => {
+    const findings = [
+      makeFinding({
+        category: "bug",
+        description:
+          "Per the architecture, this should not happen, but the null check is missing",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(1);
+  });
 });

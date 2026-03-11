@@ -39,6 +39,26 @@ const NOISE_PATTERNS: readonly NoisePattern[] = [
     name: "low-style",
     test: (f) => f.severity === "low" && f.category === "style",
   },
+  {
+    name: "self-contradicting",
+    test: (f) =>
+      /\bactually correct\b/i.test(f.description) ||
+      /\bnot wrong\b/i.test(f.description) ||
+      /\bis correct but\b/i.test(f.description) ||
+      /\bworks correctly\b/i.test(f.description),
+  },
+  {
+    name: "uncited-architecture",
+    test: (f) =>
+      f.category === "architecture" &&
+      /\bper (the |documented )(architecture|convention)/i.test(
+        f.description,
+      ) &&
+      // Keep if a specific file or section is cited
+      !/\b[A-Z]+\.(md|ts|yml|yaml|json)\b/.test(f.description) &&
+      !/section\s+['"]/i.test(f.description) &&
+      !/'[^']+' convention/i.test(f.description),
+  },
 ];
 
 /**
