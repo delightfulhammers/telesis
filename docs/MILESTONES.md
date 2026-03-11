@@ -437,7 +437,7 @@ GitHub Actions, closing the loop between local development and shared review.
 
 **Status:** Complete
 
-**Reference:** PR #39 (5 rounds of self-review)
+**Reference:** TDD-005 (GitHub Integration), PR #39 (5 rounds of self-review)
 
 ### What Changes
 

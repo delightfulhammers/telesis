@@ -69,6 +69,19 @@
 
 ---
 
+### TDD discipline
+
+- Any milestone that introduces a **new package or subsystem** with its own interface
+  boundary should have a TDD.
+- Any milestone with **significant design decisions** (containment patterns, retry
+  strategies, protocol choices, adapter layering) should have a TDD.
+- Pure workflow/configuration milestones (wiring existing pieces) may skip a TDD.
+- TDDs should be written **before implementation** when possible, to serve as a design
+  contract. When written retroactively, they still document the rationale and scope
+  boundary — set status directly to "Accepted".
+- TDD status: `Draft` → `Accepted`. A TDD is Accepted when the implementation matches
+  the design. Superseded TDDs should reference their replacement.
+
 ### ADR discipline
 
 - Significant architectural decisions get an ADR. When in doubt, write one.

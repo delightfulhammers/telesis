@@ -64,7 +64,7 @@ GitHub Actions, closing the loop between local development and shared review.
 
 **Status:** Complete
 
-**Reference:** PR #39 (5 rounds of self-review)
+**Reference:** TDD-005 (GitHub Integration), PR #39 (5 rounds of self-review)
 
 ### What Changes
 
@@ -111,7 +111,7 @@ from CLI to adapter layer.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (4 component designs)
+- TDDs: `docs/tdd/` (5 component designs)
 
 ---
 
@@ -207,6 +207,19 @@ The provenance trail, the decision log, the living spec — these emerge from th
 - Generated files include a header noting they are generated and how to regenerate.
 
 ---
+
+### TDD discipline
+
+- Any milestone that introduces a **new package or subsystem** with its own interface
+  boundary should have a TDD.
+- Any milestone with **significant design decisions** (containment patterns, retry
+  strategies, protocol choices, adapter layering) should have a TDD.
+- Pure workflow/configuration milestones (wiring existing pieces) may skip a TDD.
+- TDDs should be written **before implementation** when possible, to serve as a design
+  contract. When written retroactively, they still document the rationale and scope
+  boundary — set status directly to "Accepted".
+- TDD status: `Draft` → `Accepted`. A TDD is Accepted when the implementation matches
+  the design. Superseded TDDs should reference their replacement.
 
 ### ADR discipline
 
