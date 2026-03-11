@@ -70,6 +70,7 @@ describe("extractThemes", () => {
     const result = await extractThemes(dir, client, "model");
     expect(result.themes).toEqual([]);
     expect(result.conclusions).toEqual([]);
+    expect(result.recentFindings).toEqual([]);
     expect(result.tokenUsage).toBeUndefined();
   });
 
@@ -88,6 +89,7 @@ describe("extractThemes", () => {
     const result = await extractThemes(dir, client, "model");
     expect(result.themes).toEqual([]);
     expect(result.conclusions).toEqual([]);
+    expect(result.recentFindings).toHaveLength(1);
   });
 
   it("extracts structured themes with conclusions", async () => {
@@ -119,6 +121,7 @@ describe("extractThemes", () => {
       "All queries use parameterized statements",
     );
     expect(result.conclusions[0].antiPattern).toContain("Do not suggest");
+    expect(result.recentFindings).toHaveLength(3);
     expect(result.tokenUsage).toBeDefined();
   });
 

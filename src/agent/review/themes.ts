@@ -11,6 +11,7 @@ const MIN_FINDINGS_FOR_THEMES = 3;
 export interface ThemeResult {
   readonly themes: readonly string[];
   readonly conclusions: readonly ThemeConclusion[];
+  readonly recentFindings: readonly ReviewFinding[];
   readonly tokenUsage?: TokenUsage;
 }
 
@@ -99,7 +100,7 @@ export const extractThemes = async (
   const findings = loadRecentFindings(rootDir, maxSessions);
 
   if (findings.length < MIN_FINDINGS_FOR_THEMES) {
-    return { themes: [], conclusions: [] };
+    return { themes: [], conclusions: [], recentFindings: findings };
   }
 
   const summaries = findings.map((f) => ({
@@ -122,6 +123,7 @@ export const extractThemes = async (
     const result = parseStructuredThemes(response.content);
     return {
       ...result,
+      recentFindings: findings,
       tokenUsage: {
         inputTokens: response.usage.inputTokens,
         outputTokens: response.usage.outputTokens,
@@ -131,6 +133,6 @@ export const extractThemes = async (
     console.error(
       "Warning: theme extraction failed, proceeding without themes.",
     );
-    return { themes: [], conclusions: [] };
+    return { themes: [], conclusions: [], recentFindings: findings };
   }
 };

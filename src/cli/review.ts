@@ -31,7 +31,7 @@ import {
   applyPersonaOverrides,
 } from "../agent/review/personas.js";
 import { deduplicateFindings } from "../agent/review/dedup.js";
-import { extractThemes, loadRecentFindings } from "../agent/review/themes.js";
+import { extractThemes } from "../agent/review/themes.js";
 import { verifyFindings } from "../agent/review/verify.js";
 import { filterByConfidence } from "../agent/review/agent.js";
 import { filterNoise } from "../agent/review/noise-filter.js";
@@ -204,9 +204,9 @@ export const reviewCommand = new Command("review")
               : {
                   themes: [] as readonly string[],
                   conclusions: [] as readonly ThemeConclusion[],
+                  recentFindings: [] as readonly ReviewFinding[],
                 };
-          const singlePriorFindings =
-            opts.themes !== false ? loadRecentFindings(rootDir, 3) : [];
+          const singlePriorFindings = singleThemeResult.recentFindings;
 
           const result = await reviewDiff(
             client,
@@ -279,11 +279,11 @@ export const reviewCommand = new Command("review")
             : {
                 themes: [] as readonly string[],
                 conclusions: [] as readonly ThemeConclusion[],
+                recentFindings: [] as readonly ReviewFinding[],
               };
 
-        // Load prior findings for suppression context
-        const priorFindings =
-          opts.themes !== false ? loadRecentFindings(rootDir, 3) : [];
+        // Prior findings come from the same session load that themes used
+        const priorFindings = themeResult.recentFindings;
 
         // Resolve personas (config overrides applied to built-in definitions)
         const configOverrides = reviewConfig?.personas ?? [];
