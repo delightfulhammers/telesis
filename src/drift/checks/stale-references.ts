@@ -134,7 +134,9 @@ export const staleReferencesCheck: DriftCheck = {
     const existsCache = new Map<string, boolean>();
 
     for (const doc of allDocs) {
-      allRefs.push(...scanDoc(resolvedRoot, doc, existsCache));
+      for (const ref of scanDoc(resolvedRoot, doc, existsCache)) {
+        allRefs.push(ref);
+      }
     }
 
     const details = allRefs.map(
