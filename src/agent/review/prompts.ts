@@ -79,13 +79,16 @@ The following issues have been reviewed and resolved. Do NOT re-report them or s
   }
 
   // Render bare themes that don't have a corresponding conclusion.
-  // Use substring matching: a bare theme "redirect prevention" is covered
-  // by a conclusion with theme "redirect prevention in HTTP calls".
+  // Only suppress a bare theme when it is a substring of a conclusion theme
+  // (e.g., bare "redirect prevention" is covered by conclusion "redirect prevention
+  // in HTTP calls"). The reverse direction (conclusion is substring of bare) is NOT
+  // checked — short conclusion themes like "error" should not suppress unrelated
+  // bare themes that happen to contain that word.
   const concludedThemesLower = conclusions.map((c) => c.theme.toLowerCase());
   const bareThemes = themes.filter((t) => {
     const lower = t.toLowerCase();
     return !concludedThemesLower.some(
-      (ct) => ct === lower || ct.includes(lower) || lower.includes(ct),
+      (ct) => ct === lower || ct.includes(lower),
     );
   });
   if (bareThemes.length > 0) {

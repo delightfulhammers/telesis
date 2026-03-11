@@ -91,7 +91,10 @@ export const reviewCommand = new Command("review")
   .option("--single", "Use single-pass review (no personas)")
   .option("--personas <slugs>", "Comma-separated list of persona slugs to use")
   .option("--no-dedup", "Skip cross-persona deduplication")
-  .option("--no-themes", "Skip cross-round theme extraction")
+  .option(
+    "--no-themes",
+    "Skip cross-round theme extraction and prior findings injection",
+  )
   .option("--no-verify", "Skip full-file verification pass")
   .option("--github-pr", "Post findings as GitHub PR review comments")
   .action(
@@ -194,6 +197,17 @@ export const reviewCommand = new Command("review")
 
         // Single-pass mode
         if (opts.single) {
+          // Theme + prior findings extraction (same as persona path)
+          const singleThemeResult =
+            opts.themes !== false
+              ? await extractThemes(rootDir, client, model)
+              : {
+                  themes: [] as readonly string[],
+                  conclusions: [] as readonly ThemeConclusion[],
+                };
+          const singlePriorFindings =
+            opts.themes !== false ? loadRecentFindings(rootDir, 3) : [];
+
           const result = await reviewDiff(
             client,
             resolved.diff,
@@ -201,9 +215,39 @@ export const reviewCommand = new Command("review")
             context,
             sessionId,
             model,
+            singleThemeResult.themes,
+            singleThemeResult.conclusions,
+            singlePriorFindings,
           );
 
-          const finalFindings = applyFilters(result.findings);
+          // Verification pass (same as persona path)
+          const singleVerifyResult =
+            opts.verify !== false
+              ? await verifyFindings(client, model, rootDir, result.findings)
+              : { findings: result.findings, filteredCount: 0 };
+
+          if (singleVerifyResult.filteredCount > 0) {
+            console.error(
+              `Verification filtered ${singleVerifyResult.filteredCount} false positive findings`,
+            );
+          }
+
+          const finalFindings = applyFilters(singleVerifyResult.findings);
+
+          // Aggregate token usage
+          let singleTokens = result.tokenUsage;
+          if (singleThemeResult.tokenUsage) {
+            singleTokens = addTokenUsage(
+              singleTokens,
+              singleThemeResult.tokenUsage,
+            );
+          }
+          if (singleVerifyResult.tokenUsage) {
+            singleTokens = addTokenUsage(
+              singleTokens,
+              singleVerifyResult.tokenUsage,
+            );
+          }
 
           const session: ReviewSession = {
             id: sessionId,
@@ -213,7 +257,7 @@ export const reviewCommand = new Command("review")
             findingCount: finalFindings.length,
             model: result.model,
             durationMs: result.durationMs,
-            tokenUsage: result.tokenUsage,
+            tokenUsage: singleTokens,
             mode: "single",
           };
 

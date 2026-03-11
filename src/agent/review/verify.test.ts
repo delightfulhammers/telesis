@@ -72,6 +72,25 @@ describe("gatherFileContents", () => {
     rmSync(dir, { recursive: true });
   });
 
+  it("rejects path traversal attempts", () => {
+    const dir = makeTmpDir();
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src/foo.ts"), "safe content");
+
+    const findings = [
+      makeFinding({ path: "../../etc/passwd" }),
+      makeFinding({ path: "src/foo.ts" }),
+    ];
+    const contents = gatherFileContents(dir, findings);
+
+    // Only the safe file should be read
+    expect(contents.size).toBe(1);
+    expect(contents.has("src/foo.ts")).toBe(true);
+    expect(contents.has("../../etc/passwd")).toBe(false);
+
+    rmSync(dir, { recursive: true });
+  });
+
   it("reads multiple distinct files", () => {
     const dir = makeTmpDir();
     mkdirSync(join(dir, "src"), { recursive: true });
@@ -243,6 +262,42 @@ describe("verifyFindings", () => {
 
     // Both should be kept — finding 1 verified, finding 2 kept conservatively
     expect(result.findings).toHaveLength(2);
+
+    rmSync(dir, { recursive: true });
+  });
+
+  it("keeps findings with unreadable files without sending to verifier", async () => {
+    // One finding has a readable file, one has a deleted file
+    const findings = [
+      makeFinding({ path: "src/foo.ts", description: "Real file finding" }),
+      makeFinding({
+        path: "deleted/file.ts",
+        description: "Deleted file finding",
+      }),
+    ];
+
+    const client = makeClient(
+      JSON.stringify([
+        {
+          index: 0,
+          verified: true,
+          confidence: 90,
+          evidence: "Confirmed in foo.ts.",
+        },
+        // No entry for index 1 — deleted file finding was not sent
+      ]),
+    );
+
+    const result = await verifyFindings(client, "test-model", dir, findings);
+
+    // Both should be present: verified + conservatively kept
+    expect(result.findings).toHaveLength(2);
+    expect(
+      result.findings.some((f) => f.description === "Deleted file finding"),
+    ).toBe(true);
+    expect(
+      result.findings.some((f) => f.description === "Real file finding"),
+    ).toBe(true);
 
     rmSync(dir, { recursive: true });
   });

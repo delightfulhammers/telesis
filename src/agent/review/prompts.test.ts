@@ -128,6 +128,23 @@ describe("buildSinglePassPrompt", () => {
     // "unrelated theme" has no matching conclusion — should appear
     expect(prompt).toContain("- unrelated theme");
   });
+
+  it("does not over-suppress bare themes when conclusion theme is shorter", () => {
+    const prompt = buildSinglePassPrompt(
+      context,
+      ["error handling in API calls"],
+      [
+        {
+          theme: "error",
+          conclusion: "Errors are logged",
+          antiPattern: "Do not suppress errors",
+        },
+      ],
+    );
+    // "error" is a substring of "error handling in API calls" but the match
+    // direction is wrong — conclusion should not suppress longer bare themes
+    expect(prompt).toContain("- error handling in API calls");
+  });
 });
 
 describe("buildPersonaSystemPrompt", () => {

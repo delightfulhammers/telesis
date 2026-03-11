@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import type { ModelClient } from "../model/client.js";
 import type { TokenUsage } from "../model/types.js";
 import type {
@@ -21,9 +21,13 @@ export const gatherFileContents = (
   const paths = new Set(findings.map((f) => f.path));
   const contents = new Map<string, string>();
 
+  const resolvedRoot = resolve(rootDir);
+
   for (const path of paths) {
     try {
-      const fullPath = join(rootDir, path);
+      const fullPath = resolve(join(rootDir, path));
+      // Prevent path traversal outside the project root
+      if (!fullPath.startsWith(resolvedRoot + sep)) continue;
       contents.set(path, readFileSync(fullPath, "utf-8"));
     } catch {
       // Skip files that can't be read (deleted, moved, etc.)
@@ -80,15 +84,33 @@ export const verifyFindings = async (
     return { findings, filteredCount: 0 };
   }
 
-  const indexedFindings = findings.map((f, i) => ({
-    index: i,
-    severity: f.severity,
-    category: f.category,
-    path: f.path,
-    startLine: f.startLine,
-    endLine: f.endLine,
-    description: f.description,
-    suggestion: f.suggestion,
+  // Split findings into verifiable (file readable) and unverifiable (file missing).
+  // Only send verifiable findings to the LLM; keep unverifiable ones conservatively.
+  const verifiable: { finding: ReviewFinding; index: number }[] = [];
+  const unverifiable: ReviewFinding[] = [];
+
+  for (let i = 0; i < findings.length; i++) {
+    if (fileContents.has(findings[i].path)) {
+      verifiable.push({ finding: findings[i], index: verifiable.length });
+    } else {
+      unverifiable.push(findings[i]);
+    }
+  }
+
+  // If no findings have readable files, return all conservatively
+  if (verifiable.length === 0) {
+    return { findings, filteredCount: 0 };
+  }
+
+  const indexedFindings = verifiable.map(({ finding, index }) => ({
+    index,
+    severity: finding.severity,
+    category: finding.category,
+    path: finding.path,
+    startLine: finding.startLine,
+    endLine: finding.endLine,
+    description: finding.description,
+    suggestion: finding.suggestion,
   }));
 
   const prompt = buildVerificationPrompt(fileContents, indexedFindings);
@@ -106,23 +128,23 @@ export const verifyFindings = async (
     // Build a map of index → verification entry for efficient lookup
     const entryMap = new Map(entries.map((e) => [e.index, e]));
 
-    const verified: ReviewFinding[] = [];
+    const verified: ReviewFinding[] = [...unverifiable]; // Keep unverifiable findings conservatively
     let filteredCount = 0;
 
-    for (let i = 0; i < findings.length; i++) {
+    for (let i = 0; i < verifiable.length; i++) {
       const entry = entryMap.get(i);
 
       if (!entry) {
         // If the verifier didn't return a result for this finding,
         // keep it (conservative — don't silently drop findings)
-        verified.push(findings[i]);
+        verified.push(verifiable[i].finding);
         continue;
       }
 
       if (entry.verified) {
         // Update confidence with the verifier's independent assessment
         verified.push({
-          ...findings[i],
+          ...verifiable[i].finding,
           confidence: Math.round(Math.max(0, Math.min(100, entry.confidence))),
         });
       } else {
