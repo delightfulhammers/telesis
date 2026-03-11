@@ -1,0 +1,152 @@
+name: Telesis CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get head commit message
+        id: get-commit
+        run: |
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --format=%B ${{ github.event.pull_request.head.sha }} >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Check for skip trigger
+        id: skip-check
+        env:
+          COMMIT_MSG: ${{ steps.get-commit.outputs.message }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if echo "$COMMIT_MSG" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if echo "$PR_TITLE" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if echo "$PR_BODY" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Bun
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        if: steps.skip-check.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        if: steps.skip-check.outputs.skip != 'true'
+        run: pnpm run build
+
+      - name: Run drift checks
+        if: steps.skip-check.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./telesis drift --github-pr
+
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get head commit message
+        id: get-commit
+        run: |
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --format=%B ${{ github.event.pull_request.head.sha }} >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Check for skip trigger
+        id: skip-check
+        env:
+          COMMIT_MSG: ${{ steps.get-commit.outputs.message }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if echo "$COMMIT_MSG" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if echo "$PR_TITLE" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if echo "$PR_BODY" | grep -qiE '\[skip (code-)?review\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Bun
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        if: steps.skip-check.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        if: steps.skip-check.outputs.skip != 'true'
+        run: pnpm run build
+
+      - name: Download review cache
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: telesis-review-sessions-${{ github.event.pull_request.number }}
+          path: .telesis/reviews/
+        continue-on-error: true
+
+      - name: Run review
+        if: steps.skip-check.outputs.skip != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./telesis review --ref origin/main...HEAD --github-pr
+
+      - name: Upload review cache
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: telesis-review-sessions-${{ github.event.pull_request.number }}
+          path: .telesis/reviews/
+          retention-days: 30
+          overwrite: true

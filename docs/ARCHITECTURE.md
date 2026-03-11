@@ -59,6 +59,12 @@ telesis/
         claude-md-freshness.ts  ← CLAUDE.md matches generated output (v0.7.0)
         stale-references.ts     ← living docs reference existing paths (v0.7.0)
         milestone-tdd-consistency.ts ← complete milestones have accepted TDDs (v0.7.0)
+    github/               ← GitHub CI integration (v0.8.0)
+      types.ts            ← GitHubPRContext, PRReviewComment, PostReviewResult
+      environment.ts      ← CI detection, PR context extraction from GITHUB_EVENT_PATH
+      format.ts           ← Finding → markdown comment body, drift → markdown comment body
+      adapter.ts          ← ReviewFinding[] → { event, body, comments[] } mapping
+      client.ts           ← Raw fetch wrappers for GitHub REST API (only file that calls fetch)
     templates/            ← embedded document templates (.md.tmpl)
     agent/                ← AI agent layer (v0.2.0+)
       interview/
@@ -131,11 +137,13 @@ telesis/
 
 - **`src/cli/`** contains Commander command definitions — flag parsing, calling into business
   logic packages, printing output. This is the only directory that imports Commander.
-- **`src/{config,context,scaffold,adr,tdd,status,milestones,docgen,notes}`** contain business
+- **`src/{config,context,scaffold,adr,tdd,status,milestones,docgen,notes,github}`** contain business
   logic. They know nothing about the CLI framework.
 - **`src/agent/model/client.ts`** is the only file that imports `@anthropic-ai/sdk` directly.
   All other code calls `ModelClient`. This is a hard rule — it keeps provider coupling
   contained.
+- **`src/github/client.ts`** is the only file that calls `fetch` for the GitHub API.
+  All other code uses the adapter and format modules. Same containment pattern as the model client.
 - **`src/agent/`** packages (`interview/`, `generate/`, `telemetry/`) know nothing about the
   CLI entrypoint. `src/cli/init.ts` wires them together.
 - **`src/templates/`** contains Mustache templates imported at build time via Bun file imports.

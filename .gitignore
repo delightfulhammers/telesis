@@ -37,7 +37,6 @@ coverage/
 review-output/
 
 # Runtime data
-.telesis/notes.jsonl
 .telesis/telemetry.jsonl
 .telesis/reviews/
 
