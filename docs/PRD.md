@@ -137,6 +137,19 @@ Reviews code changes against project conventions, architecture rules, and design
 - Personas configurable via `.telesis/config.yml` `review.personas` section
 - Exits with code 1 when critical or high severity findings are present
 
+### `telesis milestone`
+
+Milestone validation and completion.
+
+- `telesis milestone check` validates the active milestone is ready for completion
+- Runs automated checks: drift clean, tests pass, build succeeds, lint passes
+- Lists acceptance criteria from the milestone for manual confirmation
+- Exits with code 1 when any automated check fails
+- `telesis milestone complete` runs checks first, then marks the milestone done
+- Completion automates: set MILESTONES.md status to Complete, bump package.json version,
+  update referenced TDD statuses to Accepted, regenerate CLAUDE.md
+- Does not auto-commit; prints remaining manual steps (PRD/ARCHITECTURE updates, commit, tag)
+
 ---
 
 ## CLAUDE.md Format

@@ -57,65 +57,27 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.8.1 — Review Convergence Fix
+## v0.9.0 — Milestone Validation
 
-**Goal:** Fix review output quality so findings converge toward zero across rounds on the
-same diff. Address the noise problem exposed during v0.8.0 self-review (#40).
+**Goal:** Automated validation of milestone acceptance criteria, replacing manual
+verification with structured checks that confirm a milestone is actually done.
 
-**Status:** Complete
-
-**Reference:** TDD-006 (Review Convergence), Issue #40
+**Status:** In Progress
 
 ### What Changes
 
-Five complementary noise reduction layers are added to the review pipeline:
-
-1. **Confidence scoring + prompt hardening.** Each finding carries a model-assessed
-   confidence score (0-100). Severity-specific thresholds filter low-confidence findings
-   (critical: 50, high: 60, medium: 70, low: 80 — lower severity requires higher
-   confidence). Anti-pattern guidance tells the model what NOT to report (hedging,
-   self-dismissing, speculative edge cases, style preferences). Medium severity tightened
-   to require specific rule references.
-
-2. **Enriched theme suppression.** Bare 5-10 word theme strings are replaced with structured
-   conclusions that carry the specific decision and an explicit anti-pattern. Instead of
-   "redirect prevention in fetch calls", the prompt now says exactly what was concluded and
-   what not to suggest — making theme matching precise across review rounds.
-
-3. **Prior findings injection.** Concrete findings from previous review rounds are loaded
-   and injected into reviewer prompts as specific "do not re-report" context. Unlike themes
-   (abstract patterns), prior findings include exact locations, severities, and descriptions.
-
-4. **Full-file verification pass.** After dedup, a second LLM call reads the full source
-   files (not just the diff) and independently verifies each finding. False positives are
-   filtered. Verified findings get updated confidence from the verifier's independent
-   assessment.
-
-5. **Deterministic noise filter.** A regex-based post-filter catches patterns the model
-   emits despite prompt guidance: hedging ("This is correct, but..."), self-dismissal
-   ("no action needed"), vague speculation, and low/style findings. Near-zero cost.
+`telesis milestone check` evaluates the current milestone's acceptance criteria against
+the actual state of the project — tests passing, drift clean, docs updated, required
+commands implemented. This is the gate that prevents "marking done" before it's actually
+done.
 
 ### Acceptance Criteria
 
-1. Review findings include a confidence score (0-100)
-2. Findings below their severity's confidence threshold are filtered
-3. Anti-pattern guidance appears in all review prompts (single-pass and persona)
-4. Theme extraction returns structured conclusions alongside bare theme strings
-5. Structured conclusions render as explicit suppression rules in persona prompts
-6. Prior findings from recent sessions are injected into reviewer prompts
-7. Verification pass reads full file contents and filters false positives
-8. Deterministic noise filter removes hedging, self-dismissing, and speculative findings
-9. Filtered counts are logged to stderr for visibility
-10. All new and existing tests pass
-11. Running `telesis drift` produces zero errors
-
-### Design Notes
-
-This is an incremental convergence fix, not a faithful reproduction of Bop's full solution.
-Bop uses a verification pass (each finding re-evaluated against the diff) which is effective
-but doubles model cost per review. That approach remains available as a future enhancement
-if the three-layer strategy proves insufficient. The goal is to discover the minimum
-intervention needed for convergence, not to replicate every mechanism.
+1. `telesis milestone check` evaluates acceptance criteria for the active milestone
+2. Criteria that can be verified automatically are checked (tests pass, drift clean, commands exist)
+3. Criteria that require human judgment are listed for manual confirmation
+4. `telesis milestone complete` marks the milestone done only after checks pass
+5. Completing a milestone automatically runs the post-milestone checklist (doc updates, context regen)
 
 ---
 

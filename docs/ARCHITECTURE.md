@@ -36,6 +36,7 @@ telesis/
       drift.ts            ← drift detection command (v0.3.0+)
       note.ts             ← development notes command (v0.4.0+)
       review.ts           ← code review command (v0.5.0+)
+      milestone.ts        ← milestone check + complete commands (v0.9.0)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection
     config/               ← .telesis/config.yml read/write
@@ -44,7 +45,11 @@ telesis/
     adr/                  ← ADR file management
     tdd/                  ← TDD file management
     status/               ← project status aggregation
-    milestones/           ← milestone parsing
+    milestones/           ← milestone parsing, validation, and completion (v0.9.0)
+      parse.ts            ← extractActiveMilestone, parseActiveMilestone, MilestoneInfo
+      check.ts            ← checkMilestone — drift/test/build/lint validation
+      complete.ts         ← completeMilestone — status update, version bump, TDD update, context regen
+      format.ts           ← formatCheckReport — terminal output for milestone check
     notes/                ← development notes (JSONL store, formatting)
     docgen/               ← shared document generation utilities
     eval/                 ← document quality evaluation suite
