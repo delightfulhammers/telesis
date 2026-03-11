@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DriftCheck, DriftFinding } from "../types.js";
 import { generate } from "../../context/context.js";
@@ -15,11 +15,19 @@ export const claudeMdFreshnessCheck: DriftCheck = {
   run: (rootDir): DriftFinding => {
     const claudePath = join(rootDir, "CLAUDE.md");
 
-    if (!existsSync(claudePath)) {
+    let actual: string;
+    try {
+      actual = readFileSync(claudePath, "utf-8");
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      const message =
+        code === "ENOENT"
+          ? "CLAUDE.md not found — run `telesis context` to generate it"
+          : `Failed to read CLAUDE.md: ${err instanceof Error ? err.message : String(err)}`;
       return {
         check: "claude-md-freshness",
         passed: false,
-        message: "CLAUDE.md not found — run `telesis context` to generate it",
+        message,
         severity: "warning",
         details: [],
       };
@@ -33,19 +41,6 @@ export const claudeMdFreshnessCheck: DriftCheck = {
         check: "claude-md-freshness",
         passed: false,
         message: `Failed to generate expected CLAUDE.md: ${err instanceof Error ? err.message : String(err)}`,
-        severity: "warning",
-        details: [],
-      };
-    }
-
-    let actual: string;
-    try {
-      actual = readFileSync(claudePath, "utf-8");
-    } catch (err) {
-      return {
-        check: "claude-md-freshness",
-        passed: false,
-        message: `Failed to read CLAUDE.md: ${err instanceof Error ? err.message : String(err)}`,
         severity: "warning",
         details: [],
       };
