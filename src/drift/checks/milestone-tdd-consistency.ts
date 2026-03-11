@@ -18,16 +18,29 @@ const parseMilestones = (content: string): readonly MilestoneInfo[] => {
   const milestones: MilestoneInfo[] = [];
   const lines = content.split("\n");
 
-  let current: { name: string; status: string; tddNumbers: number[] } | null =
-    null;
+  let current: {
+    name: string;
+    status: string;
+    tddNumbers: Set<number>;
+  } | null = null;
+
+  const finalize = (ms: {
+    name: string;
+    status: string;
+    tddNumbers: Set<number>;
+  }): MilestoneInfo => ({
+    name: ms.name,
+    status: ms.status,
+    tddNumbers: [...ms.tddNumbers],
+  });
 
   for (const line of lines) {
     const trimmed = line.trim();
 
     const headingMatch = MILESTONE_HEADING_RE.exec(trimmed);
     if (headingMatch && headingMatch[1]) {
-      if (current) milestones.push(current);
-      current = { name: headingMatch[1], status: "", tddNumbers: [] };
+      if (current) milestones.push(finalize(current));
+      current = { name: headingMatch[1], status: "", tddNumbers: new Set() };
       continue;
     }
 
@@ -44,13 +57,13 @@ const parseMilestones = (content: string): readonly MilestoneInfo[] => {
       while ((match = TDD_NUM_RE.exec(trimmed)) !== null) {
         if (match[1]) {
           const n = parseInt(match[1], 10);
-          if (!isNaN(n)) current.tddNumbers.push(n);
+          if (!isNaN(n)) current.tddNumbers.add(n);
         }
       }
     }
   }
 
-  if (current) milestones.push(current);
+  if (current) milestones.push(finalize(current));
   return milestones;
 };
 
@@ -59,20 +72,27 @@ const extractTddStatus = (content: string): string => {
   return match?.[1]?.trim() ?? "";
 };
 
-const findTddFile = (
-  entries: readonly string[],
-  num: number,
-): string | undefined => {
-  const pattern = new RegExp(`^TDD-0*${num}\\b`);
-  return entries.find((name) => pattern.test(name));
-};
+const TDD_FILENAME_RE = /^TDD-0*(\d+)\b/;
 
-const readTddEntries = (tddDir: string): readonly string[] => {
+const buildTddIndex = (tddDir: string): ReadonlyMap<number, string> => {
+  let entries: string[];
   try {
-    return readdirSync(tddDir);
+    entries = readdirSync(tddDir);
   } catch {
-    return [];
+    return new Map();
   }
+
+  const index = new Map<number, string>();
+  for (const name of entries) {
+    const match = TDD_FILENAME_RE.exec(name);
+    if (match?.[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && !index.has(num)) {
+        index.set(num, name);
+      }
+    }
+  }
+  return index;
 };
 
 export const milestoneTddConsistencyCheck: DriftCheck = {
@@ -107,7 +127,7 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
     }
 
     const milestones = parseMilestones(milestonesContent);
-    const tddEntries = readTddEntries(tddDir);
+    const tddIndex = buildTddIndex(tddDir);
     const details: string[] = [];
 
     for (const ms of milestones) {
@@ -115,7 +135,7 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
       if (ms.tddNumbers.length === 0) continue;
 
       for (const num of ms.tddNumbers) {
-        const tddFile = findTddFile(tddEntries, num);
+        const tddFile = tddIndex.get(num);
         if (!tddFile) {
           details.push(
             `${ms.name}: references TDD-${String(num).padStart(3, "0")} but file not found in docs/tdd/`,

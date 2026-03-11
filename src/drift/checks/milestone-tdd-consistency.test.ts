@@ -107,6 +107,16 @@ describe("milestone-tdd-consistency", () => {
     expect(result.details[0]).toContain("Superseded");
   });
 
+  it("deduplicates repeated TDD references within a milestone", () => {
+    const dir = setup(
+      "## v0.2.0\n\n**Status:** Complete\n\n**Reference:** TDD-001, TDD-001\n\n---\n",
+      { "TDD-001-init.md": "# TDD-001\n\n**Status:** Draft\n" },
+    );
+    const result = milestoneTddConsistencyCheck.run(dir);
+    expect(result.passed).toBe(false);
+    expect(result.details).toHaveLength(1);
+  });
+
   it("warns on empty TDD status", () => {
     const dir = setup(
       "## v0.2.0\n\n**Status:** Complete\n\n**Reference:** TDD-001\n\n---\n",
