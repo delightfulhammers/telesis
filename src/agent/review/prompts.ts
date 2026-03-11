@@ -77,13 +77,16 @@ The following issues have been reviewed and resolved. Do NOT re-report them or s
 **Do NOT suggest:** ${c.antiPattern}`);
   }
 
-  // Render bare themes that don't have a corresponding conclusion
-  const concludedThemes = new Set(
-    conclusions.map((c) => c.theme.toLowerCase()),
-  );
-  const bareThemes = themes.filter(
-    (t) => !concludedThemes.has(t.toLowerCase()),
-  );
+  // Render bare themes that don't have a corresponding conclusion.
+  // Use substring matching: a bare theme "redirect prevention" is covered
+  // by a conclusion with theme "redirect prevention in HTTP calls".
+  const concludedThemesLower = conclusions.map((c) => c.theme.toLowerCase());
+  const bareThemes = themes.filter((t) => {
+    const lower = t.toLowerCase();
+    return !concludedThemesLower.some(
+      (ct) => ct === lower || ct.includes(lower) || lower.includes(ct),
+    );
+  });
   if (bareThemes.length > 0) {
     parts.push("\n" + bareThemes.map((t) => `- ${t}`).join("\n"));
   }

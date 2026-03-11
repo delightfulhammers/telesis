@@ -114,7 +114,12 @@ export const postReviewToGitHub = async (
         allAsSummary +
         "\n\n_Note: inline comments could not be posted (lines outside diff). All findings shown above._";
 
-      return postPullRequestReview(ctx, event, fallbackBody, []);
+      const result = await postPullRequestReview(ctx, event, fallbackBody, []);
+      return {
+        ...result,
+        commentCount: 0,
+        summaryFindingCount: findings.length,
+      };
     }
     throw err;
   }

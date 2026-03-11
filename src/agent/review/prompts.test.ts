@@ -104,6 +104,24 @@ describe("buildSinglePassPrompt", () => {
       "**Do NOT suggest:** Do not suggest removing redirect: 'error'",
     );
   });
+
+  it("deduplicates bare themes covered by conclusion themes via substring match", () => {
+    const prompt = buildSinglePassPrompt(
+      context,
+      ["redirect prevention", "unrelated theme"],
+      [
+        {
+          theme: "redirect prevention in HTTP calls",
+          conclusion: "All fetch calls use redirect: 'error'",
+          antiPattern: "Do not suggest removing redirect: 'error'",
+        },
+      ],
+    );
+    // "redirect prevention" is a substring of the conclusion theme — should be suppressed
+    expect(prompt).not.toContain("- redirect prevention");
+    // "unrelated theme" has no matching conclusion — should appear
+    expect(prompt).toContain("- unrelated theme");
+  });
 });
 
 describe("buildPersonaSystemPrompt", () => {

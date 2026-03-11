@@ -235,6 +235,8 @@ describe("postReviewToGitHub", () => {
 
     expect(client.postPullRequestReview).toHaveBeenCalledTimes(2);
     expect(result.reviewId).toBe(2);
+    expect(result.commentCount).toBe(0);
+    expect(result.summaryFindingCount).toBe(1);
 
     // The fallback body should contain the finding description
     const [, , fallbackBody, fallbackComments] = vi.mocked(
