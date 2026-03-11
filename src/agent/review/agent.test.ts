@@ -576,13 +576,13 @@ describe("parseFindings — confidence", () => {
     expect(result.findings[0].confidence).toBe(70);
   });
 
-  it("clamps confidence to valid range", async () => {
+  it("clamps confidence above 100 to 100", async () => {
     const findings = [
       {
         severity: "high",
         category: "bug",
         path: "src/foo.ts",
-        description: "Out of range",
+        description: "Very confident",
         suggestion: "Fix it",
         confidence: 150,
       },
@@ -596,8 +596,30 @@ describe("parseFindings — confidence", () => {
       SESSION_ID,
       "claude-sonnet-4-6",
     );
-    // Out of range → defaults to 70
-    expect(result.findings[0].confidence).toBe(70);
+    expect(result.findings[0].confidence).toBe(100);
+  });
+
+  it("clamps negative confidence to 0", async () => {
+    const findings = [
+      {
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        description: "Negative confidence",
+        suggestion: "Fix it",
+        confidence: -10,
+      },
+    ];
+    const client = makeClient(JSON.stringify(findings));
+    const result = await reviewDiff(
+      client,
+      "diff",
+      files,
+      context,
+      SESSION_ID,
+      "claude-sonnet-4-6",
+    );
+    expect(result.findings[0].confidence).toBe(0);
   });
 });
 

@@ -29,8 +29,9 @@ const NOISE_PATTERNS: readonly NoisePattern[] = [
     name: "vague-speculation",
     test: (f) =>
       /\bconsider whether\b/i.test(f.description) &&
-      !/\bwhen\b/i.test(f.description) &&
-      !/\bif\s+\w+\s+(is|are|calls|passes|sends|returns)\b/i.test(
+      // Keep if there's a concrete scenario: mentions specific inputs, errors,
+      // conditions, or technical terms after the speculative framing
+      !/\b(when|if|for|throws|fails|returns|null|undefined|empty|zero|negative|invalid|missing)\b/i.test(
         f.description,
       ),
   },

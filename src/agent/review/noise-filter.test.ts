@@ -97,11 +97,31 @@ describe("filterNoise", () => {
     expect(result.filteredReasons["vague-speculation"]).toBe(1);
   });
 
-  it("keeps 'consider whether' with concrete scenario", () => {
+  it("keeps 'consider whether' with concrete scenario using 'when'", () => {
     const findings = [
       makeFinding({
         description:
           "Consider whether this fails when the user passes an empty string",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  it("keeps 'consider whether' with concrete scenario using 'throws'", () => {
+    const findings = [
+      makeFinding({
+        description: "Consider whether this throws for null inputs",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(1);
+  });
+
+  it("keeps 'consider whether' with concrete scenario using 'if'", () => {
+    const findings = [
+      makeFinding({
+        description: "Consider whether this fails if the input is empty",
       }),
     ];
     const result = filterNoise(findings);

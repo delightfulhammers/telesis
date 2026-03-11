@@ -39,7 +39,10 @@ export const formatFindingAsSummary = (finding: ReviewFinding): string => {
         : `${finding.path}:${finding.startLine}`
       : finding.path;
   const persona = finding.persona ? ` _(${finding.persona})_` : "";
-  return `- \`${location}\`: ${finding.description}${persona}`;
+  const suggestion = finding.suggestion
+    ? `\n  > **Suggestion:** ${finding.suggestion}`
+    : "";
+  return `- \`${location}\`: ${finding.description}${persona}${suggestion}`;
 };
 
 /**

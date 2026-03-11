@@ -108,6 +108,15 @@ describe("formatFindingAsSummary", () => {
     const result = formatFindingAsSummary(makeFinding({ persona: "security" }));
     expect(result).toContain("_(security)_");
   });
+
+  it("includes suggestion when present", () => {
+    const result = formatFindingAsSummary(
+      makeFinding({ suggestion: "Add a null check before access" }),
+    );
+    expect(result).toContain(
+      "> **Suggestion:** Add a null check before access",
+    );
+  });
 });
 
 describe("formatReviewSummaryBody", () => {

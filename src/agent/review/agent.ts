@@ -83,12 +83,10 @@ const normalizeFinding = (
       ? undefined
       : endLine;
 
-  // Parse confidence: default to 70 for backward compatibility
+  // Parse confidence: clamp to [0, 100], default to 70 for backward compatibility
   const confidence =
-    typeof raw.confidence === "number" &&
-    raw.confidence >= 0 &&
-    raw.confidence <= 100
-      ? Math.round(raw.confidence)
+    typeof raw.confidence === "number"
+      ? Math.round(Math.max(0, Math.min(100, raw.confidence)))
       : 70;
 
   return {
