@@ -13,10 +13,12 @@ const STATUS_RE = /^\*\*Status:\*\*\s+(\S+)/;
 const REFERENCE_RE = /^\*\*Reference:\*\*/;
 const TDD_NUM_RE = /TDD-(\d+)/g; // used only via matchAll — never exec'd directly
 const TDD_STATUS_RE = /^\*\*Status:\*\*\s+(\S+)/m;
+const FENCE_RE = /^(```|~~~)/;
 
 const parseMilestones = (content: string): readonly MilestoneInfo[] => {
   const milestones: MilestoneInfo[] = [];
   const lines = content.split("\n");
+  let inFence = false;
 
   let current: {
     name: string;
@@ -36,6 +38,12 @@ const parseMilestones = (content: string): readonly MilestoneInfo[] => {
 
   for (const line of lines) {
     const trimmed = line.trim();
+
+    if (FENCE_RE.test(trimmed)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
 
     const headingMatch = MILESTONE_HEADING_RE.exec(trimmed);
     if (headingMatch && headingMatch[1]) {

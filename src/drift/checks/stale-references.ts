@@ -21,9 +21,15 @@ interface StaleRef {
   readonly path: string;
 }
 
-const isWithinRoot = (resolvedPath: string, normalizedRoot: string): boolean =>
-  resolvedPath === normalizedRoot ||
-  resolvedPath.startsWith(normalizedRoot + sep);
+const isWithinRoot = (
+  resolvedPath: string,
+  normalizedRoot: string,
+): boolean => {
+  const prefix = normalizedRoot.endsWith(sep)
+    ? normalizedRoot
+    : normalizedRoot + sep;
+  return resolvedPath === normalizedRoot || resolvedPath.startsWith(prefix);
+};
 
 const scanDoc = (
   resolvedRoot: string,
@@ -35,7 +41,7 @@ const scanDoc = (
   try {
     content = readFileSync(docPath, "utf-8");
   } catch (err) {
-    if (!existsSync(docPath)) return [];
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
     return [
       {
         doc: docRelPath,
@@ -83,11 +89,18 @@ const scanDoc = (
       if (TEMPLATE_PATTERN_RE.test(linkTarget)) continue;
 
       const stripped = linkTarget
+        .trim()
         .split(/\s+/)[0]!
         .replace(QUERY_OR_FRAGMENT_RE, "");
       if (!stripped) continue;
 
-      const absPath = resolve(docDir, stripped);
+      let decoded: string;
+      try {
+        decoded = decodeURIComponent(stripped);
+      } catch {
+        decoded = stripped;
+      }
+      const absPath = resolve(docDir, decoded);
       if (!isWithinRoot(absPath, resolvedRoot)) continue;
       if (!checkExists(absPath)) {
         refs.push({ doc: docRelPath, path: linkTarget });
