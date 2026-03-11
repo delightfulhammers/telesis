@@ -31,7 +31,7 @@ const NOISE_PATTERNS: readonly NoisePattern[] = [
       /\bconsider whether\b/i.test(f.description) &&
       // Keep if there's a concrete scenario: mentions specific inputs, errors,
       // conditions, or technical terms after the speculative framing
-      !/\b(when|if|for|throws|fails|returns|null|undefined|empty|zero|negative|invalid|missing)\b/i.test(
+      !/\b(when|if|throws|fails|returns|null|undefined|empty|zero|negative|invalid|missing)\b/i.test(
         f.description,
       ),
   },

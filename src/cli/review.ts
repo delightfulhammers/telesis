@@ -20,7 +20,11 @@ import {
   filterBySeverity,
 } from "../agent/review/format.js";
 import { SEVERITIES, type Severity } from "../agent/review/types.js";
-import type { ReviewSession, ReviewFinding } from "../agent/review/types.js";
+import type {
+  ReviewSession,
+  ReviewFinding,
+  ThemeConclusion,
+} from "../agent/review/types.js";
 import { selectPersonas } from "../agent/review/orchestrator.js";
 import {
   resolvePersonaSlugs,
@@ -227,8 +231,7 @@ export const reviewCommand = new Command("review")
             ? await extractThemes(rootDir, client, model)
             : {
                 themes: [] as readonly string[],
-                conclusions:
-                  [] as readonly import("../agent/review/types.js").ThemeConclusion[],
+                conclusions: [] as readonly ThemeConclusion[],
               };
 
         // Resolve personas (config overrides applied to built-in definitions)

@@ -128,6 +128,17 @@ describe("filterNoise", () => {
     expect(result.findings).toHaveLength(1);
   });
 
+  it("filters vague 'consider whether' with common preposition 'for'", () => {
+    const findings = [
+      makeFinding({
+        description: "Consider whether this could be improved for performance",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["vague-speculation"]).toBe(1);
+  });
+
   it("filters low-severity style findings", () => {
     const findings = [
       makeFinding({
