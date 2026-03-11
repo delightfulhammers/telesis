@@ -93,6 +93,7 @@ Detects drift between spec documents and implementation.
 - Runs all registered drift checks and prints a formatted pass/fail report
 - `--check <name>` runs only the named check(s)
 - `--json` outputs the report as JSON
+- `--github-pr` posts drift results as a PR comment (idempotent — updates existing comment on subsequent pushes)
 - Exits 0 on all-pass, exits 1 on any error-severity finding
 
 ### `telesis note`
@@ -122,6 +123,7 @@ Reviews code changes against project conventions, architecture rules, and design
 - `telesis review --min-severity <level>` filters findings by minimum severity
 - `telesis review --list` lists past review sessions
 - `telesis review --show <id>` shows findings from a past session
+- `telesis review --github-pr` posts findings as inline PR review comments on GitHub
 - Built-in personas: security, architecture, correctness (zero configuration required)
 - Orchestrator selects personas based on diff content and file types
 - Findings include severity, category, file path, line range, description, suggestion, and persona

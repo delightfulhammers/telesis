@@ -29,6 +29,9 @@ import {
 import { deduplicateFindings } from "../agent/review/dedup.js";
 import { extractThemes } from "../agent/review/themes.js";
 import { load as loadConfig } from "../config/config.js";
+import { extractPRContext } from "../github/environment.js";
+import { findingsToReview } from "../github/adapter.js";
+import { postPullRequestReview } from "../github/client.js";
 
 const addTokenUsage = (
   a: { inputTokens: number; outputTokens: number },
@@ -56,6 +59,7 @@ export const reviewCommand = new Command("review")
   .option("--personas <slugs>", "Comma-separated list of persona slugs to use")
   .option("--no-dedup", "Skip cross-persona deduplication")
   .option("--no-themes", "Skip cross-round theme extraction")
+  .option("--github-pr", "Post findings as GitHub PR review comments")
   .action(
     handleAction(
       async (opts: {
@@ -69,6 +73,7 @@ export const reviewCommand = new Command("review")
         personas?: string;
         dedup?: boolean;
         themes?: boolean;
+        githubPr?: boolean;
       }) => {
         const rootDir = resolve(projectRoot());
 
@@ -177,6 +182,9 @@ export const reviewCommand = new Command("review")
 
           saveSessionSafe(rootDir, session, result.findings);
           displayAndExit(session, result.findings, opts);
+          if (opts.githubPr) {
+            await postToGitHubSafe(session, result.findings);
+          }
           return;
         }
 
@@ -255,6 +263,11 @@ export const reviewCommand = new Command("review")
         displayAndExit(session, dedupResult.findings, opts, {
           mergedCount: dedupResult.mergedCount,
         });
+        if (opts.githubPr) {
+          await postToGitHubSafe(session, dedupResult.findings, {
+            mergedCount: dedupResult.mergedCount,
+          });
+        }
       },
     ),
   );
@@ -305,5 +318,40 @@ const displayAndExit = (
   );
   if (hasCriticalOrHigh) {
     process.exitCode = 1;
+  }
+};
+
+const postToGitHubSafe = async (
+  session: ReviewSession,
+  findings: readonly ReviewFinding[],
+  extra?: { mergedCount?: number },
+): Promise<void> => {
+  try {
+    const ctx = extractPRContext();
+    if (!ctx) {
+      throw new Error(
+        "--github-pr specified but no PR context detected. " +
+          "Ensure GITHUB_EVENT_PATH and GITHUB_TOKEN are set.",
+      );
+    }
+
+    const { event, body, comments } = findingsToReview(
+      session,
+      findings,
+      extra,
+    );
+    const result = await postPullRequestReview(ctx, event, body, comments);
+
+    console.error(
+      `Posted ${result.commentCount} inline comments to PR #${ctx.pullNumber}` +
+        (result.summaryFindingCount > 0
+          ? ` (${result.summaryFindingCount} as summary)`
+          : ""),
+    );
+  } catch (err) {
+    console.error(
+      "Warning: could not post review to GitHub:",
+      err instanceof Error ? err.message : err,
+    );
   }
 };
