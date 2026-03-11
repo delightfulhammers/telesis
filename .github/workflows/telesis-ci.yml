@@ -52,6 +52,8 @@ jobs:
       - name: Setup pnpm
         if: steps.skip-check.outputs.skip != 'true'
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Setup Bun
         if: steps.skip-check.outputs.skip != 'true'
@@ -110,6 +112,8 @@ jobs:
       - name: Setup pnpm
         if: steps.skip-check.outputs.skip != 'true'
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Setup Bun
         if: steps.skip-check.outputs.skip != 'true'
