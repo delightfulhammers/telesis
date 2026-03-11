@@ -17,7 +17,7 @@ export interface ThemeResult {
 /**
  * Loads findings from the N most recent review sessions.
  */
-const loadRecentFindings = (
+export const loadRecentFindings = (
   rootDir: string,
   maxSessions: number,
 ): readonly ReviewFinding[] => {

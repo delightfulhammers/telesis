@@ -9,7 +9,6 @@ import type {
 import {
   formatFindingComment,
   formatReviewSummaryBody,
-  formatFindingAsSummary,
   formatDriftComment,
   DRIFT_COMMENT_MARKER,
 } from "./format.js";

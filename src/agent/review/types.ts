@@ -120,3 +120,19 @@ export interface ThemeConclusion {
   readonly conclusion: string; // "All fetch calls use redirect: 'error' intentionally"
   readonly antiPattern: string; // "Do not suggest removing redirect: 'error'"
 }
+
+// --- Verification ---
+
+export interface VerificationEntry {
+  readonly index: number;
+  readonly verified: boolean;
+  readonly confidence: number; // 0-100, independently assessed by verifier
+  readonly evidence: string;
+}
+
+export interface VerificationResult {
+  readonly findings: readonly ReviewFinding[];
+  readonly filteredCount: number;
+  readonly tokenUsage?: TokenUsage;
+  readonly durationMs?: number;
+}

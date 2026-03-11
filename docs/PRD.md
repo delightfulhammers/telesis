@@ -129,7 +129,9 @@ Reviews code changes against project conventions, architecture rules, and design
 - Findings include severity, category, file path, line range, description, suggestion, and persona
 - Duplicate findings across personas are merged, keeping highest severity
 - Cross-round themes from prior sessions suppress repeat findings with structured conclusions
+- Prior findings from recent sessions injected into prompts for concrete suppression
 - Findings include model-assessed confidence (0-100); low-confidence findings are filtered by severity-specific thresholds
+- Full-file verification pass reads source files to filter false positives (`--no-verify` to skip)
 - Deterministic noise filter removes hedging, self-dismissing, and speculative findings
 - Review sessions stored in `.telesis/reviews/`
 - Personas configurable via `.telesis/config.yml` `review.personas` section

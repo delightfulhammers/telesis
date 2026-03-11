@@ -31,18 +31,16 @@ instead of improving.
 
 ### What this TDD addresses
 
-Three complementary noise reduction layers, applied in sequence:
+Five complementary noise reduction layers, applied in sequence:
 
 1. Confidence scoring with severity-specific thresholds
 2. Enriched theme suppression with structured conclusions
-3. Deterministic post-filtering for noise patterns
+3. Prior findings injection for concrete suppression context
+4. Full-file verification pass to filter false positives
+5. Deterministic post-filtering for noise patterns
 
 ### What this TDD does not address (scope boundary)
 
-- **Verification pass.** Bop re-evaluates each finding against the diff in a separate
-  model call, filtering hallucinations. This is effective but doubles model cost per
-  review. Remains available as a future enhancement if the three-layer strategy proves
-  insufficient.
 - **Weighted scoring / consensus merge.** Bop aggregates confidence across personas.
   Not needed at three personas; may become relevant if the persona count grows.
 - **Configurable thresholds.** The confidence thresholds are hardcoded defaults. Config
@@ -52,8 +50,8 @@ Three complementary noise reduction layers, applied in sequence:
 
 Bop's convergence solution includes structured theme extraction (conclusions + anti-patterns
 + dispute principles), confidence scoring with per-severity thresholds, verification passes,
-and explicit false-positive guidance in prompts. This TDD adapts the key patterns without
-the verification step — we're exploring whether the minimum intervention is sufficient.
+prior findings injection, and explicit false-positive guidance in prompts. This TDD adapts
+all key patterns from Bop's approach.
 
 ---
 
@@ -153,7 +151,68 @@ Structured conclusions render as explicit suppression rules:
 
 Bare themes that don't have a corresponding conclusion render as bullet points below.
 
-### Layer 3 — Deterministic Noise Filter
+### Layer 3 — Prior Findings Injection
+
+Loads findings from recent review sessions and injects them as concrete suppression context
+in reviewer prompts. Unlike themes (abstract patterns), prior findings are specific instances
+with locations, severities, and descriptions.
+
+```typescript
+export const formatPriorFindings = (
+  findings: readonly ReviewFinding[],
+): string
+```
+
+Each finding renders as:
+```
+- `src/foo.ts:42-45` [high/bug] (security): Null reference possible
+  > Suggestion: Add a null check
+```
+
+Capped at 30 findings to keep prompt size reasonable. Injected into both single-pass and
+persona system prompts alongside themes.
+
+**Distinction from themes:** Themes prevent *semantic variations* of the same concern ("redirect
+prevention" as an abstract pattern). Prior findings prevent *exact re-reports* of specific
+instances ("src/client.ts:42 — Missing redirect: 'error'"). Both are needed because LLMs can
+re-report using different words (themes catch this) or re-report verbatim (prior findings
+catch this).
+
+### Layer 4 — Full-File Verification Pass
+
+Adapted from Bop's batch verification strategy. After dedup produces candidate findings, a
+verification LLM call reads full file contents and independently assesses each finding.
+
+```typescript
+export const verifyFindings = async (
+  client: ModelClient,
+  model: string,
+  rootDir: string,
+  findings: readonly ReviewFinding[],
+): Promise<VerificationResult>
+```
+
+The verifier receives:
+1. **Full source files** with line numbers (not just the diff)
+2. **All candidate findings** with their descriptions and locations
+
+For each finding, the verifier returns:
+- `verified`: boolean — is this a real issue?
+- `confidence`: 0-100 — independent assessment
+- `evidence`: brief explanation citing specific lines
+
+Unverified findings are filtered. Verified findings have their confidence updated to the
+verifier's independent assessment (replacing the reviewer's self-assessed confidence).
+
+**Graceful degradation:** If file contents can't be read or the LLM call fails, all findings
+pass through unmodified. Verification is additive, never destructive.
+
+**Why full files, not just diffs:** The reviewer sees only a diff, so it may report issues
+that don't exist in the full file context (e.g., "missing import" when the import is on a
+line not included in the diff). Sending the full file lets the verifier catch these
+hallucinations.
+
+### Layer 5 — Deterministic Noise Filter
 
 A new `src/agent/review/noise-filter.ts` module applies cheap regex-based patterns after
 all model-based processing:
@@ -173,16 +232,18 @@ logging.
 ## Pipeline Order
 
 ```
-Persona review calls (parallel)
+Theme extraction + prior findings loading
+  → Persona review calls (parallel, with theme + prior findings injection)
   → Within-session deduplication
+  → Full-file verification pass       ← new
   → Confidence threshold filtering    ← new
   → Deterministic noise filtering     ← new
   → Display / GitHub posting
 ```
 
-Confidence filtering runs before noise filtering because confidence filtering is
-model-assessed (may catch things regexes can't) while noise filtering is a safety net for
-patterns the model emits despite instructions.
+Verification runs before confidence filtering because it independently re-scores confidence.
+Confidence filtering then applies the severity-specific thresholds to the verifier's scores.
+Noise filtering is the final safety net for patterns that survive model-based checks.
 
 ---
 
@@ -190,47 +251,57 @@ patterns the model emits despite instructions.
 
 | File | Role |
 |------|------|
-| `src/agent/review/types.ts` | `confidence` on ReviewFinding, `ConfidenceThresholds`, `ThemeConclusion` |
-| `src/agent/review/prompts.ts` | Confidence guidelines, anti-patterns, enriched theme rendering |
-| `src/agent/review/agent.ts` | `filterByConfidence()`, confidence parsing in `normalizeFinding` |
-| `src/agent/review/themes.ts` | Structured theme extraction, `ThemeResult` with conclusions |
+| `src/agent/review/types.ts` | `confidence` on ReviewFinding, `ConfidenceThresholds`, `ThemeConclusion`, `VerificationEntry`, `VerificationResult` |
+| `src/agent/review/prompts.ts` | Confidence guidelines, anti-patterns, enriched theme rendering, prior findings formatting, verification prompt |
+| `src/agent/review/agent.ts` | `filterByConfidence()`, confidence parsing in `normalizeFinding`, `priorFindings` param on `reviewWithPersonas` |
+| `src/agent/review/themes.ts` | Structured theme extraction, `ThemeResult` with conclusions, exports `loadRecentFindings` |
+| `src/agent/review/verify.ts` | Full-file verification pass |
 | `src/agent/review/noise-filter.ts` | Deterministic post-filter |
-| `src/cli/review.ts` | Pipeline wiring: confidence → noise → display |
+| `src/cli/review.ts` | Pipeline wiring: prior findings → review → dedup → verify → confidence → noise → display |
 
 ---
 
 ## Decisions
 
-1. **Three layers, not one.** No single mechanism eliminates all noise. Prompt guidance
-   reduces generation; confidence filtering catches uncertain findings; regex catches
+1. **Five layers, not one.** No single mechanism eliminates all noise. Prior findings
+   prevent re-reports; prompt guidance reduces generation; verification catches
+   hallucinations; confidence filtering catches uncertain findings; regex catches
    patterns the model emits despite instructions. Each layer is cheap and complementary.
 
 2. **Inverse severity/confidence thresholds.** Adopted from Bop. The insight is that the
    cost function differs by severity: missing a critical bug is expensive, while
    investigating a speculative nit is wasteful. The threshold encodes this asymmetry.
 
-3. **No verification pass (yet).** Bop's verification step re-evaluates each finding
-   against the diff. It works, but it doubles model cost. We're testing whether prompt
-   hardening + confidence + deterministic filtering achieves similar convergence at lower
-   cost. The door is explicitly left open.
+3. **Batch verification, not agent verification.** Bop offers both batch (one LLM call
+   with all files) and agent (tool-using LLM) verification modes. We chose batch for
+   simplicity and cost: one additional LLM call per review, not one per finding.
 
 4. **Structured conclusions over bare themes.** Bare theme strings are ambiguous — the
    model can interpret "redirect prevention" broadly enough to skip legitimate findings.
    Structured conclusions state exactly what was decided and what not to suggest, making
    suppression precise.
 
-5. **Low + style = always filter.** In practice, low-severity style findings are always
+5. **Prior findings distinct from themes.** Both serve convergence but address different
+   failure modes. Themes are abstract patterns that prevent semantic variations. Prior
+   findings are concrete instances that prevent exact re-reports. The duplication is
+   intentional — they catch different classes of repetition.
+
+6. **Low + style = always filter.** In practice, low-severity style findings are always
    noise — naming opinions, formatting preferences, comment suggestions. If a style
    issue matters, it should be documented as a convention and reported at medium severity
    with a rule reference.
+
+7. **Conservative verification fallback.** If the verifier doesn't return a result for
+   a finding (index missing from response), the finding is kept. This prevents silent
+   data loss from LLM response format variations.
 
 ---
 
 ## Open Questions
 
-1. **Are three layers sufficient without verification?** The v0.8.1 implementation is the
-   experiment. If findings still don't converge on the next multi-round PR, verification
-   should be the next addition.
+1. **Does the five-layer approach achieve convergence?** The next multi-round PR will be
+   the test. If findings still don't converge, the remaining lever is agent-based
+   verification (tool-using LLM) which allows deeper investigation than batch.
 
 2. **Should confidence thresholds be configurable?** Currently hardcoded. If different
    projects need different noise tolerances, a `review.confidence` config section would
@@ -238,3 +309,7 @@ patterns the model emits despite instructions.
 
 3. **Should the noise filter patterns be extensible?** Currently hardcoded regex patterns.
    If projects develop their own noise patterns, a config-driven pattern list could help.
+
+4. **Should verification be optional per-severity?** Currently all findings go through
+   verification. If cost is a concern, verifying only high/critical findings would reduce
+   the cost while still catching the most impactful false positives.

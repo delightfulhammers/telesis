@@ -31,7 +31,8 @@ import {
   applyPersonaOverrides,
 } from "../agent/review/personas.js";
 import { deduplicateFindings } from "../agent/review/dedup.js";
-import { extractThemes } from "../agent/review/themes.js";
+import { extractThemes, loadRecentFindings } from "../agent/review/themes.js";
+import { verifyFindings } from "../agent/review/verify.js";
 import { filterByConfidence } from "../agent/review/agent.js";
 import { filterNoise } from "../agent/review/noise-filter.js";
 import { load as loadConfig } from "../config/config.js";
@@ -91,6 +92,7 @@ export const reviewCommand = new Command("review")
   .option("--personas <slugs>", "Comma-separated list of persona slugs to use")
   .option("--no-dedup", "Skip cross-persona deduplication")
   .option("--no-themes", "Skip cross-round theme extraction")
+  .option("--no-verify", "Skip full-file verification pass")
   .option("--github-pr", "Post findings as GitHub PR review comments")
   .action(
     handleAction(
@@ -105,6 +107,7 @@ export const reviewCommand = new Command("review")
         personas?: string;
         dedup?: boolean;
         themes?: boolean;
+        verify?: boolean;
         githubPr?: boolean;
       }) => {
         const rootDir = resolve(projectRoot());
@@ -234,6 +237,10 @@ export const reviewCommand = new Command("review")
                 conclusions: [] as readonly ThemeConclusion[],
               };
 
+        // Load prior findings for suppression context
+        const priorFindings =
+          opts.themes !== false ? loadRecentFindings(rootDir, 3) : [];
+
         // Resolve personas (config overrides applied to built-in definitions)
         const configOverrides = reviewConfig?.personas ?? [];
         const basePersonas = opts.personas
@@ -247,6 +254,12 @@ export const reviewCommand = new Command("review")
         const personaSlugs = personaDefs.map((p) => p.slug);
 
         // Parallel persona calls
+        if (priorFindings.length > 0) {
+          console.error(
+            `Injecting ${priorFindings.length} prior findings for suppression`,
+          );
+        }
+
         const personaResults = await reviewWithPersonas(
           client,
           resolved.diff,
@@ -257,6 +270,7 @@ export const reviewCommand = new Command("review")
           personaDefs,
           themeResult.themes,
           themeResult.conclusions,
+          priorFindings,
         );
 
         // Deduplication (unless disabled)
@@ -268,9 +282,21 @@ export const reviewCommand = new Command("review")
                 mergedCount: 0,
               };
 
-        const finalFindings = applyFilters(dedupResult.findings);
+        // Verification pass (unless disabled)
+        const verifyResult =
+          opts.verify !== false
+            ? await verifyFindings(client, model, rootDir, dedupResult.findings)
+            : { findings: dedupResult.findings, filteredCount: 0 };
 
-        // Aggregate token usage across persona calls + dedup + themes
+        if (verifyResult.filteredCount > 0) {
+          console.error(
+            `Verification filtered ${verifyResult.filteredCount} false positive findings`,
+          );
+        }
+
+        const finalFindings = applyFilters(verifyResult.findings);
+
+        // Aggregate token usage across persona calls + dedup + themes + verify
         let totalTokens = personaResults.reduce(
           (acc, r) => addTokenUsage(acc, r.tokenUsage),
           { inputTokens: 0, outputTokens: 0 },
@@ -280,6 +306,9 @@ export const reviewCommand = new Command("review")
         }
         if (themeResult.tokenUsage) {
           totalTokens = addTokenUsage(totalTokens, themeResult.tokenUsage);
+        }
+        if (verifyResult.tokenUsage) {
+          totalTokens = addTokenUsage(totalTokens, verifyResult.tokenUsage);
         }
 
         const durationMs = Date.now() - startTime;

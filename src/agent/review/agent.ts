@@ -185,10 +185,18 @@ export const reviewDiff = async (
   context: ReviewContext,
   sessionId: string,
   model: string,
+  themes: readonly string[] = [],
+  conclusions: readonly ThemeConclusion[] = [],
+  priorFindings: readonly ReviewFinding[] = [],
 ): Promise<ReviewDiffResult> => {
   validateDiffSize(diff);
 
-  const systemPrompt = buildSinglePassPrompt(context);
+  const systemPrompt = buildSinglePassPrompt(
+    context,
+    themes,
+    conclusions,
+    priorFindings,
+  );
   const userMessage = buildUserMessage(diff, formatFileList(files));
 
   const response = await client.complete({
@@ -230,6 +238,7 @@ export const reviewWithPersonas = async (
   personas: readonly PersonaDefinition[],
   themes: readonly string[] = [],
   conclusions: readonly ThemeConclusion[] = [],
+  priorFindings: readonly ReviewFinding[] = [],
 ): Promise<readonly PersonaResult[]> => {
   validateDiffSize(diff);
 
@@ -243,6 +252,7 @@ export const reviewWithPersonas = async (
         context,
         themes,
         conclusions,
+        priorFindings,
       );
 
       const response = await client.complete({

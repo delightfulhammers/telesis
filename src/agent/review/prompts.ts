@@ -1,6 +1,7 @@
 import type {
   PersonaDefinition,
   ReviewContext,
+  ReviewFinding,
   ThemeConclusion,
 } from "./types.js";
 
@@ -94,6 +95,43 @@ The following issues have been reviewed and resolved. Do NOT re-report them or s
   return parts.join("\n");
 };
 
+const formatFindingLocation = (f: ReviewFinding): string => {
+  if (f.startLine !== undefined) {
+    return f.endLine !== undefined && f.endLine !== f.startLine
+      ? `${f.path}:${f.startLine}-${f.endLine}`
+      : `${f.path}:${f.startLine}`;
+  }
+  return f.path;
+};
+
+/**
+ * Formats prior findings as concrete suppression context.
+ * Unlike themes (abstract patterns), prior findings are specific instances
+ * that reviewers must not re-report.
+ */
+export const formatPriorFindings = (
+  findings: readonly ReviewFinding[],
+): string => {
+  if (findings.length === 0) return "";
+
+  // Cap at 30 findings to keep prompt size reasonable
+  const capped = findings.slice(0, 30);
+
+  const items = capped.map((f) => {
+    const location = formatFindingLocation(f);
+    const persona = f.persona ? ` (${f.persona})` : "";
+    return `- \`${location}\` [${f.severity}/${f.category}]${persona}: ${f.description}\n  > Suggestion: ${f.suggestion}`;
+  });
+
+  return `\n\n## Previously Reported Findings (IMPORTANT)
+
+The following findings were reported in previous review rounds. They have already been
+reviewed and addressed. Do NOT re-report them, variations of them, or similar findings
+on the same code locations:
+
+${items.join("\n\n")}`;
+};
+
 const formatFocusSection = (persona: PersonaDefinition): string => {
   const parts: string[] = [];
 
@@ -111,6 +149,7 @@ export const buildSinglePassPrompt = (
   context: ReviewContext,
   themes: readonly string[] = [],
   conclusions: readonly ThemeConclusion[] = [],
+  priorFindings: readonly ReviewFinding[] = [],
 ): string =>
   `You are a code reviewer for the ${context.projectName} project (${context.primaryLanguage}).
 
@@ -126,13 +165,14 @@ ${SEVERITY_GUIDELINES}
 
 ${CONFIDENCE_GUIDELINES}
 
-${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}`;
+${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}`;
 
 export const buildPersonaSystemPrompt = (
   persona: PersonaDefinition,
   context: ReviewContext,
   themes: readonly string[] = [],
   conclusions: readonly ThemeConclusion[] = [],
+  priorFindings: readonly ReviewFinding[] = [],
 ): string =>
   `You are the ${persona.name} for the ${context.projectName} project (${context.primaryLanguage}).
 
@@ -148,7 +188,7 @@ ${SEVERITY_GUIDELINES}
 
 ${CONFIDENCE_GUIDELINES}
 
-${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}`;
+${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}`;
 
 export const buildUserMessage = (
   diff: string,
@@ -229,3 +269,73 @@ Return a JSON object with:
 Extract at most 10 themes. Focus on the most significant findings.
 
 Return ONLY the JSON object. No markdown fences, no explanation text, no preamble.`;
+
+/**
+ * Builds the verification prompt for the batch verification pass.
+ * Includes full file contents and findings to verify.
+ */
+export const buildVerificationPrompt = (
+  fileContents: ReadonlyMap<string, string>,
+  findings: readonly {
+    readonly index: number;
+    readonly severity: string;
+    readonly category: string;
+    readonly path: string;
+    readonly startLine?: number;
+    readonly endLine?: number;
+    readonly description: string;
+    readonly suggestion: string;
+  }[],
+): string => {
+  const fileSections = [...fileContents.entries()]
+    .map(([path, content]) => {
+      const numbered = content
+        .split("\n")
+        .map((line, i) => `${String(i + 1).padStart(4)} | ${line}`)
+        .join("\n");
+      return `### File: ${path}\n\`\`\`\n${numbered}\n\`\`\``;
+    })
+    .join("\n\n");
+
+  const findingSections = findings
+    .map((f) => {
+      const location =
+        f.startLine !== undefined
+          ? f.endLine !== undefined
+            ? `${f.path}:${f.startLine}-${f.endLine}`
+            : `${f.path}:${f.startLine}`
+          : f.path;
+      return `- **[${f.index}]** \`${location}\` [${f.severity}/${f.category}]: ${f.description}\n  > Suggestion: ${f.suggestion}`;
+    })
+    .join("\n\n");
+
+  return `## Source Files
+
+${fileSections}
+
+## Findings to Verify
+
+${findingSections}
+
+## Instructions
+
+For EACH finding above, read the FULL file content provided and determine whether the
+finding is a real, actionable issue. Do NOT assume the finding is correct — verify it
+by checking the actual code.
+
+Specifically:
+- If a finding claims something is missing (import, check, guard), search the file to verify
+- If a finding claims a bug, trace the logic to confirm
+- If a finding references a line number, check what is actually on that line
+- Style issues should almost always be verified=false unless they violate a documented convention
+
+For each finding, return:
+- "index": the finding index number
+- "verified": true if the finding is a real issue, false if it's a false positive
+- "confidence": your confidence (0-100) that your verification is correct
+- "evidence": a brief explanation citing specific lines (1-2 sentences)
+
+Return a JSON array of verification results. One entry per finding.
+
+Return ONLY the JSON array. No markdown fences, no explanation text, no preamble.`;
+};

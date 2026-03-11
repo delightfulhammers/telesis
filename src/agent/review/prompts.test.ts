@@ -5,8 +5,14 @@ import {
   buildUserMessage,
   buildDedupPrompt,
   buildThemeExtractionPrompt,
+  formatPriorFindings,
+  buildVerificationPrompt,
 } from "./prompts.js";
-import type { ReviewContext, PersonaDefinition } from "./types.js";
+import type {
+  ReviewContext,
+  ReviewFinding,
+  PersonaDefinition,
+} from "./types.js";
 
 const context: ReviewContext = {
   conventions: "No process.exit in business logic.",
@@ -246,5 +252,173 @@ describe("buildThemeExtractionPrompt", () => {
     expect(prompt).toContain("conclusion");
     expect(prompt).toContain("antiPattern");
     expect(prompt).toContain("JSON object");
+  });
+});
+
+const makeFinding = (
+  overrides: Partial<ReviewFinding> = {},
+): ReviewFinding => ({
+  id: "test-id",
+  sessionId: "test-session",
+  severity: "high",
+  category: "bug",
+  path: "src/foo.ts",
+  startLine: 42,
+  endLine: 45,
+  description: "Null reference possible",
+  suggestion: "Add a null check",
+  confidence: 80,
+  ...overrides,
+});
+
+describe("formatPriorFindings", () => {
+  it("returns empty string for no findings", () => {
+    expect(formatPriorFindings([])).toBe("");
+  });
+
+  it("formats findings with location and metadata", () => {
+    const result = formatPriorFindings([makeFinding()]);
+    expect(result).toContain("Previously Reported Findings");
+    expect(result).toContain("`src/foo.ts:42-45`");
+    expect(result).toContain("[high/bug]");
+    expect(result).toContain("Null reference possible");
+    expect(result).toContain("Add a null check");
+  });
+
+  it("formats single-line findings without range", () => {
+    const result = formatPriorFindings([
+      makeFinding({ startLine: 10, endLine: undefined }),
+    ]);
+    expect(result).toContain("`src/foo.ts:10`");
+  });
+
+  it("formats findings without line info as path only", () => {
+    const result = formatPriorFindings([
+      makeFinding({ startLine: undefined, endLine: undefined }),
+    ]);
+    expect(result).toContain("`src/foo.ts`");
+    // Should not have line numbers in the path backtick section
+    expect(result).not.toContain("`src/foo.ts:");
+  });
+
+  it("includes persona when present", () => {
+    const result = formatPriorFindings([makeFinding({ persona: "security" })]);
+    expect(result).toContain("(security)");
+  });
+
+  it("caps at 30 findings", () => {
+    const findings = Array.from({ length: 40 }, (_, i) =>
+      makeFinding({ id: `f-${i}`, description: `Finding ${i}` }),
+    );
+    const result = formatPriorFindings(findings);
+    expect(result).toContain("Finding 0");
+    expect(result).toContain("Finding 29");
+    expect(result).not.toContain("Finding 30");
+  });
+
+  it("instructs not to re-report", () => {
+    const result = formatPriorFindings([makeFinding()]);
+    expect(result).toContain("Do NOT re-report");
+  });
+});
+
+describe("buildSinglePassPrompt with prior findings", () => {
+  it("includes prior findings section when provided", () => {
+    const prompt = buildSinglePassPrompt(context, [], [], [makeFinding()]);
+    expect(prompt).toContain("Previously Reported Findings");
+    expect(prompt).toContain("Null reference possible");
+  });
+
+  it("omits prior findings section when empty", () => {
+    const prompt = buildSinglePassPrompt(context, [], [], []);
+    expect(prompt).not.toContain("Previously Reported Findings");
+  });
+});
+
+describe("buildPersonaSystemPrompt with prior findings", () => {
+  const persona: PersonaDefinition = {
+    slug: "security",
+    name: "Security Reviewer",
+    preamble: "Focus on security.",
+    focusCategories: ["security"],
+    ignoreCategories: [],
+  };
+
+  it("includes prior findings section when provided", () => {
+    const prompt = buildPersonaSystemPrompt(
+      persona,
+      context,
+      [],
+      [],
+      [makeFinding({ description: "SQL injection risk" })],
+    );
+    expect(prompt).toContain("Previously Reported Findings");
+    expect(prompt).toContain("SQL injection risk");
+  });
+});
+
+describe("buildVerificationPrompt", () => {
+  it("includes file contents with line numbers", () => {
+    const files = new Map([["src/foo.ts", "const x = 1;\nconst y = 2;"]]);
+    const findings = [
+      {
+        index: 0,
+        severity: "high",
+        category: "bug",
+        path: "src/foo.ts",
+        startLine: 1,
+        description: "Issue here",
+        suggestion: "Fix it",
+      },
+    ];
+
+    const prompt = buildVerificationPrompt(files, findings);
+    expect(prompt).toContain("### File: src/foo.ts");
+    expect(prompt).toContain("   1 | const x = 1;");
+    expect(prompt).toContain("   2 | const y = 2;");
+  });
+
+  it("includes finding details with index", () => {
+    const files = new Map([["src/foo.ts", "content"]]);
+    const findings = [
+      {
+        index: 0,
+        severity: "high",
+        category: "security",
+        path: "src/foo.ts",
+        startLine: 5,
+        endLine: 10,
+        description: "SQL injection",
+        suggestion: "Use parameterized queries",
+      },
+    ];
+
+    const prompt = buildVerificationPrompt(files, findings);
+    expect(prompt).toContain("[0]");
+    expect(prompt).toContain("`src/foo.ts:5-10`");
+    expect(prompt).toContain("[high/security]");
+    expect(prompt).toContain("SQL injection");
+    expect(prompt).toContain("Use parameterized queries");
+  });
+
+  it("includes verification instructions", () => {
+    const files = new Map([["src/foo.ts", "content"]]);
+    const findings = [
+      {
+        index: 0,
+        severity: "medium",
+        category: "bug",
+        path: "src/foo.ts",
+        description: "Test",
+        suggestion: "Fix",
+      },
+    ];
+
+    const prompt = buildVerificationPrompt(files, findings);
+    expect(prompt).toContain("read the FULL file content");
+    expect(prompt).toContain("Do NOT assume the finding is correct");
+    expect(prompt).toContain("verified");
+    expect(prompt).toContain("confidence");
+    expect(prompt).toContain("evidence");
   });
 });

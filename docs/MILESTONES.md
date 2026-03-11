@@ -482,7 +482,7 @@ same diff. Address the noise problem exposed during v0.8.0 self-review (#40).
 
 ### What Changes
 
-Three complementary noise reduction layers are added to the review pipeline:
+Five complementary noise reduction layers are added to the review pipeline:
 
 1. **Confidence scoring + prompt hardening.** Each finding carries a model-assessed
    confidence score (0-100). Severity-specific thresholds filter low-confidence findings
@@ -496,7 +496,16 @@ Three complementary noise reduction layers are added to the review pipeline:
    "redirect prevention in fetch calls", the prompt now says exactly what was concluded and
    what not to suggest — making theme matching precise across review rounds.
 
-3. **Deterministic noise filter.** A regex-based post-filter catches patterns the model
+3. **Prior findings injection.** Concrete findings from previous review rounds are loaded
+   and injected into reviewer prompts as specific "do not re-report" context. Unlike themes
+   (abstract patterns), prior findings include exact locations, severities, and descriptions.
+
+4. **Full-file verification pass.** After dedup, a second LLM call reads the full source
+   files (not just the diff) and independently verifies each finding. False positives are
+   filtered. Verified findings get updated confidence from the verifier's independent
+   assessment.
+
+5. **Deterministic noise filter.** A regex-based post-filter catches patterns the model
    emits despite prompt guidance: hedging ("This is correct, but..."), self-dismissal
    ("no action needed"), vague speculation, and low/style findings. Near-zero cost.
 
@@ -507,10 +516,12 @@ Three complementary noise reduction layers are added to the review pipeline:
 3. Anti-pattern guidance appears in all review prompts (single-pass and persona)
 4. Theme extraction returns structured conclusions alongside bare theme strings
 5. Structured conclusions render as explicit suppression rules in persona prompts
-6. Deterministic noise filter removes hedging, self-dismissing, and speculative findings
-7. Filtered counts are logged to stderr for visibility
-8. All new and existing tests pass
-9. Running `telesis drift` produces zero errors
+6. Prior findings from recent sessions are injected into reviewer prompts
+7. Verification pass reads full file contents and filters false positives
+8. Deterministic noise filter removes hedging, self-dismissing, and speculative findings
+9. Filtered counts are logged to stderr for visibility
+10. All new and existing tests pass
+11. Running `telesis drift` produces zero errors
 
 ### Design Notes
 
