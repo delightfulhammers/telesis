@@ -9,6 +9,7 @@ import { evalCommand } from "./cli/eval.js";
 import { driftCommand } from "./cli/drift.js";
 import { noteCommand } from "./cli/note.js";
 import { reviewCommand } from "./cli/review.js";
+import { milestoneCommand } from "./cli/milestone.js";
 
 const program = new Command("telesis")
   .description("Development intelligence platform")
@@ -21,6 +22,7 @@ const program = new Command("telesis")
   .addCommand(evalCommand)
   .addCommand(driftCommand)
   .addCommand(noteCommand)
-  .addCommand(reviewCommand);
+  .addCommand(reviewCommand)
+  .addCommand(milestoneCommand);
 
 program.parse();
