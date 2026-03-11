@@ -10,7 +10,8 @@ const LIVING_DOCS = [
 ];
 
 const BACKTICK_PATH_RE = /`((?:src|docs)\/[^`\s]+)`/g;
-const RELATIVE_LINK_RE = /\[([^\]]*)\]\(((?!https?:\/\/|\/|#)[^)]+)\)/g;
+const RELATIVE_LINK_RE =
+  /\[([^\]]*)\]\(((?![a-zA-Z][a-zA-Z0-9.+-]*:|\/|#)[^)]+)\)/g;
 const FENCE_RE = /^```/;
 const TEMPLATE_PATTERN_RE = /[{}<>*]/;
 const QUERY_OR_FRAGMENT_RE = /[?#].*$/;
@@ -25,12 +26,11 @@ const isWithinRoot = (resolvedPath: string, normalizedRoot: string): boolean =>
   resolvedPath.startsWith(normalizedRoot + sep);
 
 const scanDoc = (
-  rootDir: string,
   resolvedRoot: string,
   docRelPath: string,
   existsCache: Map<string, boolean>,
 ): readonly StaleRef[] => {
-  const docPath = join(rootDir, docRelPath);
+  const docPath = resolve(resolvedRoot, docRelPath);
   let content: string;
   try {
     content = readFileSync(docPath, "utf-8");
@@ -64,7 +64,7 @@ const scanDoc = (
       if (TEMPLATE_PATTERN_RE.test(refPath)) continue;
 
       const cleaned = refPath.replace(/\/$/, "");
-      const absPath = resolve(rootDir, cleaned);
+      const absPath = resolve(resolvedRoot, cleaned);
       if (!isWithinRoot(absPath, resolvedRoot)) continue;
       if (!checkExists(absPath)) {
         refs.push({ doc: docRelPath, path: refPath });
@@ -107,13 +107,13 @@ export const staleReferencesCheck: DriftCheck = {
   requiresModel: false,
   run: (rootDir): DriftFinding => {
     const resolvedRoot = resolve(rootDir);
-    const contextDocs = scanContextDir(rootDir);
+    const contextDocs = scanContextDir(resolvedRoot);
     const allDocs = [...LIVING_DOCS, ...contextDocs];
     const allRefs: StaleRef[] = [];
     const existsCache = new Map<string, boolean>();
 
     for (const doc of allDocs) {
-      allRefs.push(...scanDoc(rootDir, resolvedRoot, doc, existsCache));
+      allRefs.push(...scanDoc(resolvedRoot, doc, existsCache));
     }
 
     const details = allRefs.map(
