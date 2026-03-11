@@ -1,5 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
+
+const MAX_FILE_SIZE = 200_000; // ~200KB — skip files that would blow up the verification prompt
 import type { ModelClient } from "../model/client.js";
 import type { TokenUsage } from "../model/types.js";
 import type {
@@ -28,6 +30,9 @@ export const gatherFileContents = (
       const fullPath = resolve(join(rootDir, path));
       // Prevent path traversal outside the project root
       if (!fullPath.startsWith(resolvedRoot + sep)) continue;
+      // Skip files that are too large for the verification prompt
+      const stat = statSync(fullPath);
+      if (stat.size > MAX_FILE_SIZE) continue;
       contents.set(path, readFileSync(fullPath, "utf-8"));
     } catch {
       // Skip files that can't be read (deleted, moved, etc.)
@@ -84,34 +89,38 @@ export const verifyFindings = async (
     return { findings, filteredCount: 0 };
   }
 
-  // Split findings into verifiable (file readable) and unverifiable (file missing).
-  // Only send verifiable findings to the LLM; keep unverifiable ones conservatively.
-  const verifiable: { finding: ReviewFinding; index: number }[] = [];
-  const unverifiable: ReviewFinding[] = [];
+  // Track which findings have readable files. Only verifiable findings are sent
+  // to the LLM; unverifiable findings are kept conservatively in their original
+  // positions to preserve output order.
+  const verifiableIndices: number[] = [];
+  let verifiableCount = 0;
 
   for (let i = 0; i < findings.length; i++) {
     if (fileContents.has(findings[i].path)) {
-      verifiable.push({ finding: findings[i], index: verifiable.length });
+      verifiableIndices.push(verifiableCount++);
     } else {
-      unverifiable.push(findings[i]);
+      verifiableIndices.push(-1); // -1 = unverifiable, keep conservatively
     }
   }
 
   // If no findings have readable files, return all conservatively
-  if (verifiable.length === 0) {
+  if (verifiableCount === 0) {
     return { findings, filteredCount: 0 };
   }
 
-  const indexedFindings = verifiable.map(({ finding, index }) => ({
-    index,
-    severity: finding.severity,
-    category: finding.category,
-    path: finding.path,
-    startLine: finding.startLine,
-    endLine: finding.endLine,
-    description: finding.description,
-    suggestion: finding.suggestion,
-  }));
+  const indexedFindings = findings
+    .map((f, i) => ({ finding: f, vIdx: verifiableIndices[i] }))
+    .filter(({ vIdx }) => vIdx >= 0)
+    .map(({ finding, vIdx }) => ({
+      index: vIdx,
+      severity: finding.severity,
+      category: finding.category,
+      path: finding.path,
+      startLine: finding.startLine,
+      endLine: finding.endLine,
+      description: finding.description,
+      suggestion: finding.suggestion,
+    }));
 
   const prompt = buildVerificationPrompt(fileContents, indexedFindings);
 
@@ -128,23 +137,31 @@ export const verifyFindings = async (
     // Build a map of index → verification entry for efficient lookup
     const entryMap = new Map(entries.map((e) => [e.index, e]));
 
-    const verified: ReviewFinding[] = [...unverifiable]; // Keep unverifiable findings conservatively
+    // Rebuild output in original order — unverifiable findings kept in place,
+    // verified findings updated, unverified findings filtered.
+    const verified: ReviewFinding[] = [];
     let filteredCount = 0;
 
-    for (let i = 0; i < verifiable.length; i++) {
-      const entry = entryMap.get(i);
+    for (let i = 0; i < findings.length; i++) {
+      const vIdx = verifiableIndices[i];
+
+      if (vIdx < 0) {
+        // Unverifiable — keep conservatively in original position
+        verified.push(findings[i]);
+        continue;
+      }
+
+      const entry = entryMap.get(vIdx);
 
       if (!entry) {
-        // If the verifier didn't return a result for this finding,
-        // keep it (conservative — don't silently drop findings)
-        verified.push(verifiable[i].finding);
+        // Verifier didn't return a result — keep conservatively
+        verified.push(findings[i]);
         continue;
       }
 
       if (entry.verified) {
-        // Update confidence with the verifier's independent assessment
         verified.push({
-          ...verifiable[i].finding,
+          ...findings[i],
           confidence: Math.round(Math.max(0, Math.min(100, entry.confidence))),
         });
       } else {

@@ -1,8 +1,9 @@
-import type {
-  PersonaDefinition,
-  ReviewContext,
-  ReviewFinding,
-  ThemeConclusion,
+import {
+  formatFindingLocation,
+  type PersonaDefinition,
+  type ReviewContext,
+  type ReviewFinding,
+  type ThemeConclusion,
 } from "./types.js";
 
 const RESPONSE_FORMAT = `## Response Format
@@ -96,15 +97,6 @@ The following issues have been reviewed and resolved. Do NOT re-report them or s
   }
 
   return parts.join("\n");
-};
-
-const formatFindingLocation = (f: ReviewFinding): string => {
-  if (f.startLine !== undefined) {
-    return f.endLine !== undefined && f.endLine !== f.startLine
-      ? `${f.path}:${f.startLine}-${f.endLine}`
-      : `${f.path}:${f.startLine}`;
-  }
-  return f.path;
 };
 
 /**

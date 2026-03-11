@@ -121,6 +121,26 @@ export interface ThemeConclusion {
   readonly antiPattern: string; // "Do not suggest removing redirect: 'error'"
 }
 
+// --- Finding Utilities ---
+
+/**
+ * Formats a finding's file location as a compact string.
+ * Shared across prompts, verification, and GitHub formatting.
+ */
+export const formatFindingLocation = (finding: {
+  readonly path: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+}): string => {
+  if (finding.startLine !== undefined) {
+    return finding.endLine !== undefined &&
+      finding.endLine !== finding.startLine
+      ? `${finding.path}:${finding.startLine}-${finding.endLine}`
+      : `${finding.path}:${finding.startLine}`;
+  }
+  return finding.path;
+};
+
 // --- Verification ---
 
 export interface VerificationEntry {

@@ -91,6 +91,26 @@ describe("gatherFileContents", () => {
     rmSync(dir, { recursive: true });
   });
 
+  it("skips files exceeding size limit", () => {
+    const dir = makeTmpDir();
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src/small.ts"), "small file");
+    // Create a file larger than 200KB
+    writeFileSync(join(dir, "src/huge.ts"), "x".repeat(300_000));
+
+    const findings = [
+      makeFinding({ path: "src/small.ts" }),
+      makeFinding({ path: "src/huge.ts" }),
+    ];
+    const contents = gatherFileContents(dir, findings);
+
+    expect(contents.size).toBe(1);
+    expect(contents.has("src/small.ts")).toBe(true);
+    expect(contents.has("src/huge.ts")).toBe(false);
+
+    rmSync(dir, { recursive: true });
+  });
+
   it("reads multiple distinct files", () => {
     const dir = makeTmpDir();
     mkdirSync(join(dir, "src"), { recursive: true });

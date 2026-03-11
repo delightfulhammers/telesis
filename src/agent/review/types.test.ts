@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_CONFIDENCE_THRESHOLDS } from "./types.js";
+import {
+  DEFAULT_CONFIDENCE_THRESHOLDS,
+  formatFindingLocation,
+} from "./types.js";
 
 describe("DEFAULT_CONFIDENCE_THRESHOLDS", () => {
   it("has inverse severity relationship", () => {
@@ -20,5 +23,29 @@ describe("DEFAULT_CONFIDENCE_THRESHOLDS", () => {
     expect(DEFAULT_CONFIDENCE_THRESHOLDS.high).toBe(60);
     expect(DEFAULT_CONFIDENCE_THRESHOLDS.medium).toBe(70);
     expect(DEFAULT_CONFIDENCE_THRESHOLDS.low).toBe(80);
+  });
+});
+
+describe("formatFindingLocation", () => {
+  it("formats multi-line range", () => {
+    expect(
+      formatFindingLocation({ path: "src/foo.ts", startLine: 10, endLine: 20 }),
+    ).toBe("src/foo.ts:10-20");
+  });
+
+  it("formats single line when startLine equals endLine", () => {
+    expect(
+      formatFindingLocation({ path: "src/foo.ts", startLine: 10, endLine: 10 }),
+    ).toBe("src/foo.ts:10");
+  });
+
+  it("formats single line when endLine is undefined", () => {
+    expect(formatFindingLocation({ path: "src/foo.ts", startLine: 10 })).toBe(
+      "src/foo.ts:10",
+    );
+  });
+
+  it("formats path only when no line info", () => {
+    expect(formatFindingLocation({ path: "src/foo.ts" })).toBe("src/foo.ts");
   });
 });
