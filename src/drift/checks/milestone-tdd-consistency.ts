@@ -11,7 +11,7 @@ interface MilestoneInfo {
 const MILESTONE_HEADING_RE = /^##\s+(.+)/;
 const STATUS_RE = /^\*\*Status:\*\*\s+(.+)/;
 const REFERENCE_RE = /^\*\*Reference:\*\*/;
-const TDD_NUM_RE = /TDD-(\d+)/g;
+const TDD_NUM_RE = /TDD-(\d+)/g; // used only via matchAll — never exec'd directly
 const TDD_STATUS_RE = /^\*\*Status:\*\*\s+(.+)/m;
 
 const parseMilestones = (content: string): readonly MilestoneInfo[] => {
@@ -53,8 +53,7 @@ const parseMilestones = (content: string): readonly MilestoneInfo[] => {
     }
 
     if (REFERENCE_RE.test(trimmed)) {
-      let match: RegExpExecArray | null;
-      while ((match = TDD_NUM_RE.exec(trimmed)) !== null) {
+      for (const match of trimmed.matchAll(TDD_NUM_RE)) {
         if (match[1]) {
           const n = parseInt(match[1], 10);
           if (!isNaN(n)) current.tddNumbers.add(n);
@@ -128,7 +127,24 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
 
     const milestones = parseMilestones(milestonesContent);
     const tddIndex = buildTddIndex(tddDir);
+    const tddStatusCache = new Map<number, string | Error>();
     const details: string[] = [];
+
+    const getTddStatus = (num: number, file: string): string | Error => {
+      const cached = tddStatusCache.get(num);
+      if (cached !== undefined) return cached;
+      const tddPath = join(tddDir, file);
+      try {
+        const content = readFileSync(tddPath, "utf-8");
+        const status = extractTddStatus(content);
+        tddStatusCache.set(num, status);
+        return status;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        tddStatusCache.set(num, error);
+        return error;
+      }
+    };
 
     for (const ms of milestones) {
       if (ms.status !== "Complete") continue;
@@ -143,21 +159,17 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
           continue;
         }
 
-        const tddPath = join(tddDir, tddFile);
-        let tddContent: string;
-        try {
-          tddContent = readFileSync(tddPath, "utf-8");
-        } catch (err) {
+        const statusOrError = getTddStatus(num, tddFile);
+        if (statusOrError instanceof Error) {
           details.push(
-            `${ms.name}: could not read TDD-${String(num).padStart(3, "0")} (${err instanceof Error ? err.message : String(err)})`,
+            `${ms.name}: could not read TDD-${String(num).padStart(3, "0")} (${statusOrError.message})`,
           );
           continue;
         }
-        const tddStatus = extractTddStatus(tddContent);
 
-        if (tddStatus !== "Accepted") {
+        if (statusOrError !== "Accepted") {
           details.push(
-            `${ms.name}: TDD-${String(num).padStart(3, "0")} status is "${tddStatus || "(empty)"}" (expected "Accepted")`,
+            `${ms.name}: TDD-${String(num).padStart(3, "0")} status is "${statusOrError || "(empty)"}" (expected "Accepted")`,
           );
         }
       }

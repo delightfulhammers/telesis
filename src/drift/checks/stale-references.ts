@@ -10,7 +10,7 @@ const LIVING_DOCS = [
 ];
 
 const BACKTICK_PATH_RE = /`((?:src|docs)\/[^`\s]+)`/g;
-const RELATIVE_LINK_RE = /\[([^\]]*)\]\((\.[^)]+)\)/g;
+const RELATIVE_LINK_RE = /\[([^\]]*)\]\(((?!https?:\/\/|\/|#)[^)]+)\)/g;
 const FENCE_RE = /^```/;
 const TEMPLATE_PATTERN_RE = /[{}<>*]/;
 const FRAGMENT_RE = /#.*$/;

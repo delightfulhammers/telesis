@@ -118,6 +118,25 @@ describe("stale-references", () => {
     expect(result.passed).toBe(true);
   });
 
+  it("checks bare relative markdown links without dot prefix", () => {
+    const dir = setup({
+      "docs/PRD.md": "See [vision](VISION.md) for details.\n",
+    });
+    // VISION.md does not exist relative to docs/PRD.md
+    const result = staleReferencesCheck.run(dir);
+    expect(result.passed).toBe(false);
+    expect(result.details[0]).toContain("VISION.md");
+  });
+
+  it("passes for valid bare relative markdown links", () => {
+    const dir = setup({
+      "docs/PRD.md": "See [vision](VISION.md) for details.\n",
+      "docs/VISION.md": "# Vision\n",
+    });
+    const result = staleReferencesCheck.run(dir);
+    expect(result.passed).toBe(true);
+  });
+
   it("ignores paths that traverse outside the project root", () => {
     const dir = setup({
       "docs/PRD.md": "See [x](../../etc/passwd) for details.\n",
