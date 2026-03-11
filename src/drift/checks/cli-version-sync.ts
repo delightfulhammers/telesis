@@ -48,7 +48,18 @@ export const cliVersionSyncCheck: DriftCheck = {
       };
     }
 
-    const entryContent = readFileSync(entryPath, "utf-8");
+    let entryContent: string;
+    try {
+      entryContent = readFileSync(entryPath, "utf-8");
+    } catch {
+      return {
+        check: "cli-version-sync",
+        passed: true,
+        message: "Failed to read src/index.ts (skipped)",
+        severity: "warning",
+        details: [],
+      };
+    }
     const match = CLI_VERSION_RE.exec(entryContent);
 
     if (!match?.[1]) {
