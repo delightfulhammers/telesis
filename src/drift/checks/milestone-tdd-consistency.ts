@@ -73,12 +73,14 @@ const extractTddStatus = (content: string): string => {
 
 const TDD_FILENAME_RE = /^TDD-0*(\d+)\b/;
 
-const buildTddIndex = (tddDir: string): ReadonlyMap<number, string> => {
+const buildTddIndex = (tddDir: string): ReadonlyMap<number, string> | Error => {
   let entries: string[];
   try {
     entries = readdirSync(tddDir);
-  } catch {
-    return new Map();
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return new Map();
+    return err instanceof Error ? err : new Error(String(err));
   }
 
   const index = new Map<number, string>();
@@ -126,7 +128,19 @@ export const milestoneTddConsistencyCheck: DriftCheck = {
     }
 
     const milestones = parseMilestones(milestonesContent);
-    const tddIndex = buildTddIndex(tddDir);
+    const tddIndexOrError = buildTddIndex(tddDir);
+
+    if (tddIndexOrError instanceof Error) {
+      return {
+        check: "milestone-tdd-consistency",
+        passed: false,
+        message: `Failed to read docs/tdd/: ${tddIndexOrError.message}`,
+        severity: "warning",
+        details: [],
+      };
+    }
+
+    const tddIndex = tddIndexOrError;
     const tddStatusCache = new Map<number, string | Error>();
     const details: string[] = [];
 
