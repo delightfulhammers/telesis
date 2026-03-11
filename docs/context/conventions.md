@@ -92,13 +92,14 @@
 
 These steps are **mandatory** after completing a milestone. Do not skip them.
 
-1. Update `docs/MILESTONES.md` — set milestone status to "Complete"
-2. Update the relevant TDD status to "Accepted" (if applicable)
-3. Update `docs/PRD.md` — add/update command documentation for new CLI features
-4. Update `docs/ARCHITECTURE.md` — add new files/modules to the repo structure
-5. Run `telesis context` to regenerate `CLAUDE.md`
-6. Commit and push the doc updates
-7. Tag the release (e.g., `git tag v0.X.0` + `git push origin v0.X.0`)
+1. Bump `version` in `package.json` to the milestone version
+2. Update `docs/MILESTONES.md` — set milestone status to "Complete"
+3. Update the relevant TDD status to "Accepted" (if applicable)
+4. Update `docs/PRD.md` — add/update command documentation for new CLI features
+5. Update `docs/ARCHITECTURE.md` — add new files/modules to the repo structure
+6. Run `telesis context` to regenerate `CLAUDE.md`
+7. Commit and push the doc updates
+8. Tag the release (e.g., `git tag v0.X.0` + `git push origin v0.X.0`)
 
 ### Post-code-change checklist
 

@@ -57,28 +57,44 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.7.0 — Enforcement Loop
+## v0.8.0 — CI Integration
 
-**Goal:** Make Telesis actively verify its own consistency. Expand drift detection to catch
-stale docs, missing post-milestone steps, and convention violations that currently rely on
-human memory.
+**Goal:** Make `telesis review` and `telesis drift` run automatically on pull requests via
+GitHub Actions, closing the loop between local development and shared review.
 
 **Status:** Complete
 
+**Reference:** PR #39 (5 rounds of self-review)
+
 ### What Changes
 
-Drift detection gains content-aware checks: stale references in living docs, milestone
-status inconsistencies, missing context regeneration. The post-code-change and
-post-milestone checklists become verifiable, not just documented.
+A GitHub Actions workflow runs `telesis drift` and `telesis review` on every PR. Results
+are posted as PR comments or check annotations. The review agent replaces Bop as the
+primary PR reviewer for this repo.
+
+A new `src/github/` package handles all GitHub API interaction: PR context detection,
+finding-to-review mapping, comment formatting, and raw fetch wrappers. The CLI gains
+`--github-pr` flags on both `telesis review` and `telesis drift`.
 
 ### Acceptance Criteria
 
-1. `telesis drift` detects stale external references in living docs (e.g., outdated tool names, broken links)
-2. `telesis drift` warns when CLAUDE.md is out of date relative to source docs
-3. `telesis drift` warns when a milestone is marked "Complete" but its TDD is still "Draft"
-4. `telesis drift` warns when new CLI commands exist in code but not in PRD.md
-5. New drift checks have colocated unit tests
-6. Running `telesis drift` on the Telesis repo produces zero errors after all changes
+1. A GitHub Actions workflow runs `telesis drift` on every PR
+2. A GitHub Actions workflow runs `telesis review --ref origin/main...HEAD` on every PR
+3. Drift failures block PR merge (required check)
+4. Review findings are posted as PR comments or check annotations
+5. The workflow is self-contained (no external tool dependencies beyond Telesis itself)
+6. The Telesis repo uses this workflow as its primary review mechanism
+
+### Implementation Notes
+
+The v0.8.0 PR went through 5 rounds of Telesis self-review (its own review agent reviewing
+its own CI integration code). Legitimate findings decreased across rounds (7→4→3→3→0) while
+total findings did not (19→16→11→19→21), exposing a convergence failure tracked in #40.
+
+Key fixes from self-review: input validation for GitHub event payloads, `redirect: 'error'`
+on all fetch calls to prevent Authorization header leaking, `Array.isArray` runtime guards,
+PR-scoped artifact names to prevent cross-PR theme contamination, orchestration logic moved
+from CLI to adapter layer.
 
 ---
 
@@ -215,13 +231,14 @@ The provenance trail, the decision log, the living spec — these emerge from th
 
 These steps are **mandatory** after completing a milestone. Do not skip them.
 
-1. Update `docs/MILESTONES.md` — set milestone status to "Complete"
-2. Update the relevant TDD status to "Accepted" (if applicable)
-3. Update `docs/PRD.md` — add/update command documentation for new CLI features
-4. Update `docs/ARCHITECTURE.md` — add new files/modules to the repo structure
-5. Run `telesis context` to regenerate `CLAUDE.md`
-6. Commit and push the doc updates
-7. Tag the release (e.g., `git tag v0.X.0` + `git push origin v0.X.0`)
+1. Bump `version` in `package.json` to the milestone version
+2. Update `docs/MILESTONES.md` — set milestone status to "Complete"
+3. Update the relevant TDD status to "Accepted" (if applicable)
+4. Update `docs/PRD.md` — add/update command documentation for new CLI features
+5. Update `docs/ARCHITECTURE.md` — add new files/modules to the repo structure
+6. Run `telesis context` to regenerate `CLAUDE.md`
+7. Commit and push the doc updates
+8. Tag the release (e.g., `git tag v0.X.0` + `git push origin v0.X.0`)
 
 ### Post-code-change checklist
 

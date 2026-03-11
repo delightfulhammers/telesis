@@ -1,6 +1,6 @@
 # Telesis — Milestones
 *By Delightful Hammers*
-*Last updated: 2026-03-10*
+*Last updated: 2026-03-11*
 
 ---
 
@@ -435,13 +435,19 @@ post-milestone checklists become verifiable, not just documented.
 **Goal:** Make `telesis review` and `telesis drift` run automatically on pull requests via
 GitHub Actions, closing the loop between local development and shared review.
 
-**Status:** Not Started
+**Status:** Complete
+
+**Reference:** PR #39 (5 rounds of self-review)
 
 ### What Changes
 
 A GitHub Actions workflow runs `telesis drift` and `telesis review` on every PR. Results
 are posted as PR comments or check annotations. The review agent replaces Bop as the
 primary PR reviewer for this repo.
+
+A new `src/github/` package handles all GitHub API interaction: PR context detection,
+finding-to-review mapping, comment formatting, and raw fetch wrappers. The CLI gains
+`--github-pr` flags on both `telesis review` and `telesis drift`.
 
 ### Acceptance Criteria
 
@@ -451,6 +457,17 @@ primary PR reviewer for this repo.
 4. Review findings are posted as PR comments or check annotations
 5. The workflow is self-contained (no external tool dependencies beyond Telesis itself)
 6. The Telesis repo uses this workflow as its primary review mechanism
+
+### Implementation Notes
+
+The v0.8.0 PR went through 5 rounds of Telesis self-review (its own review agent reviewing
+its own CI integration code). Legitimate findings decreased across rounds (7→4→3→3→0) while
+total findings did not (19→16→11→19→21), exposing a convergence failure tracked in #40.
+
+Key fixes from self-review: input validation for GitHub event payloads, `redirect: 'error'`
+on all fetch calls to prevent Authorization header leaking, `Array.isArray` runtime guards,
+PR-scoped artifact names to prevent cross-PR theme contamination, orchestration logic moved
+from CLI to adapter layer.
 
 ---
 
