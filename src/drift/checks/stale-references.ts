@@ -34,8 +34,14 @@ const scanDoc = (
   let content: string;
   try {
     content = readFileSync(docPath, "utf-8");
-  } catch {
-    return [];
+  } catch (err) {
+    if (!existsSync(docPath)) return [];
+    return [
+      {
+        doc: docRelPath,
+        path: `(unreadable: ${err instanceof Error ? err.message : String(err)})`,
+      },
+    ];
   }
 
   const refs: StaleRef[] = [];
@@ -76,7 +82,9 @@ const scanDoc = (
       const linkTarget = match[2]!;
       if (TEMPLATE_PATTERN_RE.test(linkTarget)) continue;
 
-      const stripped = linkTarget.replace(QUERY_OR_FRAGMENT_RE, "");
+      const stripped = linkTarget
+        .split(/\s+/)[0]!
+        .replace(QUERY_OR_FRAGMENT_RE, "");
       if (!stripped) continue;
 
       const absPath = resolve(docDir, stripped);

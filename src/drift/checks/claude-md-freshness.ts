@@ -38,7 +38,18 @@ export const claudeMdFreshnessCheck: DriftCheck = {
       };
     }
 
-    const actual = readFileSync(claudePath, "utf-8");
+    let actual: string;
+    try {
+      actual = readFileSync(claudePath, "utf-8");
+    } catch (err) {
+      return {
+        check: "claude-md-freshness",
+        passed: false,
+        message: `Failed to read CLAUDE.md: ${err instanceof Error ? err.message : String(err)}`,
+        severity: "warning",
+        details: [],
+      };
+    }
 
     if (normalize(actual) === normalize(expected)) {
       return {
