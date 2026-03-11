@@ -45,7 +45,9 @@ export const extractPRContext = (): GitHubPRContext | null => {
   if (typeof sha !== "string" || !SHA_RE.test(sha)) return null;
   if (!fullName) return null;
 
-  const [owner, repoName] = fullName.split("/");
+  const parts = fullName.split("/");
+  if (parts.length !== 2) return null;
+  const [owner, repoName] = parts;
   if (!owner || !repoName) return null;
   if (!SAFE_NAME_RE.test(owner) || !SAFE_NAME_RE.test(repoName)) return null;
 

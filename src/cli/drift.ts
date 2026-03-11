@@ -5,6 +5,7 @@ import { runChecks } from "../drift/runner.js";
 import { formatDriftReport } from "../drift/format.js";
 import { handleAction } from "./handle-action.js";
 import { projectRoot } from "./project-root.js";
+import type { DriftReport } from "../drift/types.js";
 import { extractPRContext } from "../github/environment.js";
 import { upsertDriftComment } from "../github/adapter.js";
 
@@ -52,9 +53,7 @@ export const driftCommand = new Command("drift")
     ),
   );
 
-const postDriftToGitHubSafe = async (
-  report: Parameters<typeof upsertDriftComment>[1],
-): Promise<void> => {
+const postDriftToGitHubSafe = async (report: DriftReport): Promise<void> => {
   try {
     const ctx = extractPRContext();
     if (!ctx) {

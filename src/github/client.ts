@@ -136,8 +136,9 @@ export const postPullRequestReview = async (
         comments: [],
       };
 
-      // Plain fetch for fallback — no retry needed since we already
-      // stripped inline comments, which were the likely cause of the 422.
+      // Intentionally using plain fetch (not fetchWithRetry) for the fallback.
+      // Inline comments were the likely 422 cause; retrying wouldn't help.
+      // If this also fails, handleResponse will throw with the real error.
       const fallbackResponse = await fetch(url, {
         method: "POST",
         headers: headers(ctx.token),
