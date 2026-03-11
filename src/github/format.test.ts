@@ -3,6 +3,7 @@ import type { ReviewFinding, ReviewSession } from "../agent/review/types.js";
 import type { DriftReport } from "../drift/types.js";
 import {
   formatFindingComment,
+  formatFindingAsSummary,
   formatReviewSummaryBody,
   formatDriftComment,
   DRIFT_COMMENT_MARKER,
@@ -70,6 +71,42 @@ describe("formatFindingComment", () => {
     const result = formatFindingComment(finding);
 
     expect(result).not.toContain("Suggestion");
+  });
+});
+
+describe("formatFindingAsSummary", () => {
+  it("formats finding with line range", () => {
+    const result = formatFindingAsSummary(
+      makeFinding({ path: "src/foo.ts", startLine: 10, endLine: 20 }),
+    );
+    expect(result).toContain("`src/foo.ts:10-20`");
+    expect(result).toContain("Null reference possible");
+  });
+
+  it("formats finding with single line", () => {
+    const result = formatFindingAsSummary(
+      makeFinding({ startLine: 10, endLine: undefined }),
+    );
+    expect(result).toContain("`src/index.ts:10`");
+  });
+
+  it("formats finding with same start and end line", () => {
+    const result = formatFindingAsSummary(
+      makeFinding({ startLine: 10, endLine: 10 }),
+    );
+    expect(result).toContain("`src/index.ts:10`");
+  });
+
+  it("formats finding without line info", () => {
+    const result = formatFindingAsSummary(
+      makeFinding({ startLine: undefined, endLine: undefined }),
+    );
+    expect(result).toContain("`src/index.ts`");
+  });
+
+  it("includes persona when set", () => {
+    const result = formatFindingAsSummary(makeFinding({ persona: "security" }));
+    expect(result).toContain("_(security)_");
   });
 });
 

@@ -9,7 +9,7 @@ import type {
 const API_BASE = "https://api.github.com";
 const RETRY_DELAY_MS = 2000;
 
-class GitHubApiError extends Error {
+export class GitHubApiError extends Error {
   constructor(
     readonly status: number,
     readonly body: string,
@@ -82,7 +82,8 @@ const fetchWithRetry = async (
 
 /**
  * Posts a pull request review with optional inline comments.
- * Falls back to summary-only on 422 (invalid line references).
+ * Throws GitHubApiError on failure (including 422 for out-of-diff lines).
+ * The adapter layer handles 422 fallback by re-rendering findings as summary.
  */
 export const postPullRequestReview = async (
   ctx: GitHubPRContext,
@@ -105,61 +106,21 @@ export const postPullRequestReview = async (
     })),
   };
 
-  try {
-    const data = (await fetchWithRetry(
-      url,
-      {
-        method: "POST",
-        headers: headers(ctx.token),
-        body: JSON.stringify(requestBody),
-      },
-      "post review",
-    )) as { id: number };
+  const data = (await fetchWithRetry(
+    url,
+    {
+      method: "POST",
+      headers: headers(ctx.token),
+      body: JSON.stringify(requestBody),
+    },
+    "post review",
+  )) as { id: number };
 
-    return {
-      reviewId: data.id,
-      commentCount: comments.length,
-      summaryFindingCount: 0,
-    };
-  } catch (err) {
-    // 422 usually means inline comments reference lines outside the diff.
-    // Fall back to summary-only review.
-    if (
-      err instanceof GitHubApiError &&
-      err.status === 422 &&
-      comments.length > 0
-    ) {
-      const fallbackBody = {
-        commit_id: ctx.commitSha,
-        event,
-        body:
-          body +
-          "\n\n_Note: inline comments could not be posted (lines outside diff). All findings shown above._",
-        comments: [],
-      };
-
-      // Intentionally using plain fetch (not fetchWithRetry) for the fallback.
-      // Inline comments were the likely 422 cause; retrying wouldn't help.
-      // If this also fails, handleResponse will throw with the real error.
-      const fallbackResponse = await fetch(url, {
-        method: "POST",
-        headers: headers(ctx.token),
-        body: JSON.stringify(fallbackBody),
-        redirect: "error",
-      });
-      const data = (await handleResponse(
-        fallbackResponse,
-        "post review (fallback)",
-      )) as { id: number };
-
-      return {
-        reviewId: data.id,
-        commentCount: 0,
-        summaryFindingCount: comments.length,
-      };
-    }
-    throw err;
-  }
+  return {
+    reviewId: data.id,
+    commentCount: comments.length,
+    summaryFindingCount: 0,
+  };
 };
 
 /**

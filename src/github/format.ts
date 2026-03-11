@@ -28,6 +28,21 @@ export const formatFindingComment = (finding: ReviewFinding): string => {
 };
 
 /**
+ * Formats a finding as a markdown block for the summary body.
+ * Used when findings can't be posted as inline comments.
+ */
+export const formatFindingAsSummary = (finding: ReviewFinding): string => {
+  const location =
+    finding.startLine !== undefined
+      ? finding.endLine !== undefined && finding.endLine !== finding.startLine
+        ? `${finding.path}:${finding.startLine}-${finding.endLine}`
+        : `${finding.path}:${finding.startLine}`
+      : finding.path;
+  const persona = finding.persona ? ` _(${finding.persona})_` : "";
+  return `- \`${location}\`: ${finding.description}${persona}`;
+};
+
+/**
  * Formats the review summary body for a PR review.
  * Contains header info, summary-only findings, and stats.
  */
