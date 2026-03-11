@@ -50,6 +50,15 @@ telesis/
     eval/                 ← document quality evaluation suite
     drift/                ← drift detection checks and runner (v0.3.0+)
       checks/             ← individual drift check implementations
+        sdk-import.ts           ← Anthropic SDK import containment
+        commander-import.ts     ← Commander.js import containment
+        no-process-exit.ts      ← no process.exit() outside CLI
+        expected-directories.ts ← required project directories exist
+        test-colocation.ts      ← test files colocated with source
+        command-registration.ts ← CLI commands registered in PRD.md
+        claude-md-freshness.ts  ← CLAUDE.md matches generated output (v0.7.0)
+        stale-references.ts     ← living docs reference existing paths (v0.7.0)
+        milestone-tdd-consistency.ts ← complete milestones have accepted TDDs (v0.7.0)
     templates/            ← embedded document templates (.md.tmpl)
     agent/                ← AI agent layer (v0.2.0+)
       interview/
