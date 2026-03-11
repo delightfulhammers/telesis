@@ -319,11 +319,14 @@ Visual structure:
 
 ```
 src/agent/                     ← agent layer within the unified codebase
-  interview/
+  init/                        ← orchestrator wiring interview → generation
+    orchestrator.ts
+    config-extract.ts
+  interview/                   ← conversational interview engine
     engine.ts                  ← conversation loop
     state.ts                   ← InterviewState types + serialization
     prompts.ts                 ← interview system prompt
-  generate/
+  generate/                    ← multi-document generation from interview
     generator.ts               ← DocumentGenerator implementation
     prompts/
       vision.txt
@@ -377,3 +380,13 @@ src/agent/                     ← agent layer within the unified codebase
    interview is where project intent is extracted — thin or misunderstood interviews
    produce bad documents regardless of generation model quality. Configurable in
    `.telesis/config.yml` for developers who want to tune cost.
+
+---
+
+## Covered Packages
+
+This TDD covers the following `src/` packages:
+
+- `src/agent/init` — orchestrator wiring interview → generation
+- `src/agent/interview` — conversational interview engine
+- `src/agent/generate` — multi-document generation from interview output

@@ -8,6 +8,8 @@ import { commandRegistrationCheck } from "./command-registration.js";
 import { milestoneTddConsistencyCheck } from "./milestone-tdd-consistency.js";
 import { staleReferencesCheck } from "./stale-references.js";
 import { claudeMdFreshnessCheck } from "./claude-md-freshness.js";
+import { versionConsistencyCheck } from "./version-consistency.js";
+import { tddCoverageCheck } from "./tdd-coverage.js";
 
 /** All registered drift checks, in display order. */
 export const allChecks: readonly DriftCheck[] = [
@@ -20,4 +22,6 @@ export const allChecks: readonly DriftCheck[] = [
   milestoneTddConsistencyCheck,
   staleReferencesCheck,
   claudeMdFreshnessCheck,
+  versionConsistencyCheck,
+  tddCoverageCheck,
 ];

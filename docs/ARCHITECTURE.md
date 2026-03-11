@@ -59,6 +59,8 @@ telesis/
         claude-md-freshness.ts  ← CLAUDE.md matches generated output (v0.7.0)
         stale-references.ts     ← living docs reference existing paths (v0.7.0)
         milestone-tdd-consistency.ts ← complete milestones have accepted TDDs (v0.7.0)
+        version-consistency.ts      ← package.json version matches latest complete milestone
+        tdd-coverage.ts             ← non-exempt packages have TDD coverage
     github/               ← GitHub CI integration (v0.8.0)
       types.ts            ← GitHubPRContext, PRReviewComment, PostReviewResult
       environment.ts      ← CI detection, PR context extraction from GITHUB_EVENT_PATH
