@@ -62,7 +62,9 @@ import {
 import {
   createGitHubDismissalSource,
   findFindingInPR,
+  formatDismissalReply,
 } from "../github/dismissals.js";
+import { replyToReviewComment } from "../github/client.js";
 
 const addTokenUsage = (
   a: { inputTokens: number; outputTokens: number },
@@ -603,15 +605,15 @@ const dismissCommand = new Command("dismiss")
           );
         }
 
-        const prFinding = await findFindingInPR(
-          { ...ctx, pullNumber },
-          findingId,
-        );
-        if (!prFinding) {
+        const prCtx = { ...ctx, pullNumber };
+        const lookup = await findFindingInPR(prCtx, findingId);
+        if (!lookup) {
           throw new Error(
             `Finding not found in local sessions or PR #${pullNumber}: ${findingId}.`,
           );
         }
+
+        const { finding: prFinding, commentId } = lookup;
 
         const dismissal: Dismissal = {
           id: randomUUID(),
@@ -630,8 +632,12 @@ const dismissCommand = new Command("dismiss")
         };
 
         appendDismissal(rootDir, dismissal);
+
+        // Post reply to GitHub thread so sync-dismissals can pick it up
+        const replyBody = formatDismissalReply(opts.reason, opts.note);
+        await replyToReviewComment(prCtx, commentId, replyBody);
         console.log(
-          `Dismissed (from PR #${pullNumber}): ${prFinding.path} [${prFinding.severity}/${prFinding.category}] — ${opts.reason}`,
+          `Dismissed (from PR #${pullNumber}): ${prFinding.path} [${prFinding.severity}/${prFinding.category}] — ${opts.reason} (replied on GitHub)`,
         );
       },
     ),

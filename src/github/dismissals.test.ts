@@ -3,6 +3,7 @@ import {
   inferReasonFromText,
   extractDismissalSignals,
   parseCommentFinding,
+  formatDismissalReply,
 } from "./dismissals.js";
 import type { GitHubReviewComment } from "./client.js";
 
@@ -282,5 +283,48 @@ describe("parseCommentFinding", () => {
       "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\n**[high]** unknown\n\nDesc";
     const result = parseCommentFinding(body, "src/foo.ts");
     expect(result!.category).toBe("bug");
+  });
+});
+
+describe("formatDismissalReply", () => {
+  it("formats false-positive with shorthand tag", () => {
+    expect(formatDismissalReply("false-positive")).toBe("[fp]");
+  });
+
+  it("formats not-actionable with shorthand tag", () => {
+    expect(formatDismissalReply("not-actionable")).toBe("[na]");
+  });
+
+  it("formats style-preference with shorthand tag", () => {
+    expect(formatDismissalReply("style-preference")).toBe("[style]");
+  });
+
+  it("formats already-addressed with full tag", () => {
+    expect(formatDismissalReply("already-addressed")).toBe(
+      "[already-addressed]",
+    );
+  });
+
+  it("appends note when provided", () => {
+    expect(formatDismissalReply("false-positive", "Not a real issue")).toBe(
+      "[fp] Not a real issue",
+    );
+  });
+
+  it("omits note when undefined", () => {
+    expect(formatDismissalReply("not-actionable", undefined)).toBe("[na]");
+  });
+
+  it("round-trips through inferReasonFromText", () => {
+    const reasons = [
+      "false-positive",
+      "not-actionable",
+      "style-preference",
+      "already-addressed",
+    ] as const;
+    for (const reason of reasons) {
+      const reply = formatDismissalReply(reason, "some note");
+      expect(inferReasonFromText(reply)).toBe(reason);
+    }
   });
 });

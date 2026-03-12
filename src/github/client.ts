@@ -223,6 +223,30 @@ export const listPullRequestReviewComments = async (
 };
 
 /**
+ * Posts a reply to an existing pull request review comment thread.
+ * Uses the pull request review comments API (not the issues API).
+ */
+export const replyToReviewComment = async (
+  ctx: GitHubPRContext,
+  commentId: number,
+  body: string,
+): Promise<{ id: number }> => {
+  const url = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/comments`;
+
+  const data = (await fetchWithRetry(
+    url,
+    {
+      method: "POST",
+      headers: headers(ctx.token),
+      body: JSON.stringify({ body, in_reply_to: commentId }),
+    },
+    "reply to review comment",
+  )) as { id: number };
+
+  return { id: data.id };
+};
+
+/**
  * Updates an existing PR comment by ID.
  */
 export const updatePRComment = async (

@@ -185,23 +185,56 @@ export const parseCommentFinding = (
 };
 
 /**
+ * Result of looking up a finding in PR comments.
+ * Includes both parsed metadata and the GitHub comment ID for replies.
+ */
+export interface PRFindingLookup {
+  readonly finding: ParsedCommentFinding;
+  readonly commentId: number;
+}
+
+/**
  * Fetches PR review comments and finds a specific finding by ID.
- * Returns parsed metadata or null if not found.
+ * Returns parsed metadata and the comment ID, or null if not found.
+ * Single API call — use this instead of separate findFindingInPR + findCommentIdByFindingId.
  */
 export const findFindingInPR = async (
   ctx: GitHubPRContext,
   findingId: string,
-): Promise<ParsedCommentFinding | null> => {
+): Promise<PRFindingLookup | null> => {
   const comments = await listPullRequestReviewComments(ctx);
 
   for (const comment of comments) {
+    if (comment.in_reply_to_id != null) continue;
     if (!FINDING_MARKER_RE.test(comment.body)) continue;
 
     const parsed = parseCommentFinding(comment.body, comment.path);
-    if (parsed && parsed.findingId === findingId) return parsed;
+    if (parsed && parsed.findingId === findingId) {
+      return { finding: parsed, commentId: comment.id };
+    }
   }
 
   return null;
+};
+
+/** Maps DismissalReason to its bracket-tag for GitHub replies. */
+const REASON_TAGS: Record<DismissalReason, string> = {
+  "false-positive": "[fp]",
+  "not-actionable": "[na]",
+  "style-preference": "[style]",
+  "already-addressed": "[already-addressed]",
+};
+
+/**
+ * Formats a dismissal reply for posting to a GitHub review comment thread.
+ * Uses the bracket-tag convention so `sync-dismissals` can round-trip it.
+ */
+export const formatDismissalReply = (
+  reason: DismissalReason,
+  note?: string,
+): string => {
+  const tag = REASON_TAGS[reason];
+  return note ? `${tag} ${note}` : tag;
 };
 
 /**
