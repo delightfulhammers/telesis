@@ -102,6 +102,8 @@ const applyFilters = (
 };
 
 export const reviewCommand = new Command("review")
+  .enablePositionalOptions()
+  .passThroughOptions()
   .description("Review code changes against project conventions")
   .option("--all", "Review working + staged changes (default: staged only)")
   .option(
