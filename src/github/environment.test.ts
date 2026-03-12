@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { useTempDir } from "../test-utils.js";
-import { isGitHubActions, extractPRContext } from "./environment.js";
+import {
+  isGitHubActions,
+  extractPRContext,
+  extractRepoContext,
+  buildLocalPRContext,
+} from "./environment.js";
 
 const makeTempDir = useTempDir("github-env");
 
@@ -127,5 +132,67 @@ describe("extractPRContext", () => {
     process.env.GITHUB_TOKEN = "ghp_test123";
 
     expect(extractPRContext()).toBeNull();
+  });
+});
+
+describe("extractRepoContext", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.GITHUB_REPOSITORY;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it("uses GITHUB_REPOSITORY when set", () => {
+    process.env.GITHUB_REPOSITORY = "delightfulhammers/telesis";
+    const ctx = extractRepoContext();
+    expect(ctx).toEqual({ owner: "delightfulhammers", repo: "telesis" });
+  });
+
+  it("falls back to git remote when GITHUB_REPOSITORY is not set", () => {
+    // This test runs in the telesis repo, so origin should resolve
+    const ctx = extractRepoContext();
+    expect(ctx).not.toBeNull();
+    expect(ctx!.owner).toBe("delightfulhammers");
+    expect(ctx!.repo).toBe("telesis");
+  });
+
+  it("parses HTTPS remote URLs via GITHUB_REPOSITORY", () => {
+    process.env.GITHUB_REPOSITORY = "owner/repo";
+    const ctx = extractRepoContext();
+    expect(ctx).toEqual({ owner: "owner", repo: "repo" });
+  });
+});
+
+describe("buildLocalPRContext", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns null when GITHUB_TOKEN is not set", () => {
+    delete process.env.GITHUB_TOKEN;
+    expect(buildLocalPRContext(42)).toBeNull();
+  });
+
+  it("builds context when GITHUB_TOKEN and GITHUB_REPOSITORY are set", () => {
+    process.env.GITHUB_TOKEN = "ghp_test123";
+    process.env.GITHUB_REPOSITORY = "delightfulhammers/telesis";
+    const ctx = buildLocalPRContext(42);
+    expect(ctx).not.toBeNull();
+    expect(ctx!.owner).toBe("delightfulhammers");
+    expect(ctx!.repo).toBe("telesis");
+    expect(ctx!.pullNumber).toBe(42);
+    expect(ctx!.token).toBe("ghp_test123");
   });
 });

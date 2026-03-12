@@ -6,6 +6,7 @@ import {
   buildDedupPrompt,
   buildThemeExtractionPrompt,
   formatPriorFindings,
+  formatDismissedFindings,
   buildVerificationPrompt,
 } from "./prompts.js";
 import type {
@@ -13,6 +14,7 @@ import type {
   ReviewFinding,
   PersonaDefinition,
 } from "./types.js";
+import type { Dismissal } from "./dismissal/types.js";
 
 const context: ReviewContext = {
   conventions: "No process.exit in business logic.",
@@ -370,6 +372,111 @@ describe("buildPersonaSystemPrompt with prior findings", () => {
       [makeFinding({ description: "SQL injection risk" })],
     );
     expect(prompt).toContain("Previously Reported Findings");
+    expect(prompt).toContain("SQL injection risk");
+  });
+});
+
+const makeDismissal = (overrides: Partial<Dismissal> = {}): Dismissal => ({
+  id: "dismissal-1",
+  findingId: "finding-1",
+  sessionId: "session-1",
+  reason: "false-positive",
+  timestamp: "2026-03-10T12:00:00Z",
+  source: "cli",
+  path: "src/foo.ts",
+  severity: "high",
+  category: "bug",
+  description: "Null reference possible",
+  suggestion: "Add a null check",
+  ...overrides,
+});
+
+describe("formatDismissedFindings", () => {
+  it("returns empty string for no dismissals", () => {
+    expect(formatDismissedFindings([])).toBe("");
+  });
+
+  it("formats dismissals with path, severity, category, reason, description", () => {
+    const result = formatDismissedFindings([makeDismissal()]);
+    expect(result).toContain("Previously Dismissed Findings");
+    expect(result).toContain("DO NOT RE-REPORT");
+    expect(result).toContain("`src/foo.ts`");
+    expect(result).toContain("[high/bug]");
+    expect(result).toContain("dismissed: false-positive");
+    expect(result).toContain("Null reference possible");
+    expect(result).toContain("Original suggestion: Add a null check");
+  });
+
+  it("includes persona when present", () => {
+    const result = formatDismissedFindings([
+      makeDismissal({ persona: "security" }),
+    ]);
+    expect(result).toContain("(security)");
+  });
+
+  it("caps at 50 dismissals", () => {
+    const dismissals = Array.from({ length: 60 }, (_, i) =>
+      makeDismissal({ id: `d-${i}`, description: `Dismissal ${i}` }),
+    );
+    const result = formatDismissedFindings(dismissals);
+    expect(result).toContain("Dismissal 0");
+    expect(result).toContain("Dismissal 49");
+    expect(result).not.toContain("Dismissal 50");
+  });
+});
+
+describe("buildSinglePassPrompt with dismissed findings", () => {
+  it("includes dismissed findings section when provided", () => {
+    const prompt = buildSinglePassPrompt(
+      context,
+      [],
+      [],
+      [],
+      [makeDismissal()],
+    );
+    expect(prompt).toContain("Previously Dismissed Findings");
+    expect(prompt).toContain("Null reference possible");
+  });
+
+  it("omits dismissed findings section when empty", () => {
+    const prompt = buildSinglePassPrompt(context, [], [], [], []);
+    expect(prompt).not.toContain("Previously Dismissed Findings");
+  });
+
+  it("dismissed section appears after prior findings section", () => {
+    const prompt = buildSinglePassPrompt(
+      context,
+      [],
+      [],
+      [makeFinding()],
+      [makeDismissal()],
+    );
+    const priorIdx = prompt.indexOf("Previously Reported Findings");
+    const dismissedIdx = prompt.indexOf("Previously Dismissed Findings");
+    expect(priorIdx).toBeGreaterThan(-1);
+    expect(dismissedIdx).toBeGreaterThan(priorIdx);
+  });
+});
+
+describe("buildPersonaSystemPrompt with dismissed findings", () => {
+  const testPersona: PersonaDefinition = {
+    slug: "security",
+    name: "Security Reviewer",
+    preamble: "Focus on security.",
+    focusCategories: ["security"],
+    ignoreCategories: [],
+  };
+
+  it("includes dismissed findings section when provided", () => {
+    const prompt = buildPersonaSystemPrompt(
+      testPersona,
+      context,
+      [],
+      [],
+      [],
+      [makeDismissal({ description: "SQL injection risk" })],
+    );
+    expect(prompt).toContain("Previously Dismissed Findings");
     expect(prompt).toContain("SQL injection risk");
   });
 });

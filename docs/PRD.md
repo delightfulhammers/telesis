@@ -136,6 +136,16 @@ Reviews code changes against project conventions, architecture rules, and design
 - Review sessions stored in `.telesis/reviews/`
 - Personas configurable via `.telesis/config.yml` `review.personas` section
 - Exits with code 1 when critical or high severity findings are present
+- `telesis review dismiss <id> --reason <category>` dismisses a finding (false-positive, not-actionable, already-addressed, style-preference)
+- `telesis review dismiss <id> --reason <category> --note <text>` dismisses with optional note
+- `telesis review dismissals` lists all dismissals
+- `telesis review dismissals --json` outputs dismissals as JSON
+- `telesis review sync-dismissals --pr <N>` imports dismissal signals from GitHub PR review threads
+- `telesis review dismissal-stats` shows aggregated dismissal statistics and candidate noise patterns
+- `telesis review dismissal-stats --json` outputs stats as JSON
+- Dismissed findings persisted in `.telesis/dismissals.jsonl` (cross-session, append-only)
+- Dismissed findings injected into review prompts as strongest suppression signal (capped at 50)
+- Finding ID markers embedded in GitHub review comments for correlation during sync
 
 ### `telesis milestone`
 

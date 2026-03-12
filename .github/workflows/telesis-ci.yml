@@ -135,6 +135,13 @@ jobs:
           path: .telesis/reviews/
         continue-on-error: true
 
+      - name: Sync dismissals from PR threads
+        if: steps.skip-check.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./telesis review sync-dismissals --pr ${{ github.event.pull_request.number }}
+        continue-on-error: true
+
       - name: Run review
         if: steps.skip-check.outputs.skip != 'true'
         env:

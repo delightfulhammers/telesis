@@ -5,6 +5,7 @@ import {
   postPRComment,
   findCommentByMarker,
   updatePRComment,
+  replyToReviewComment,
 } from "./client.js";
 
 const mockCtx: GitHubPRContext = {
@@ -197,6 +198,28 @@ describe("findCommentByMarker", () => {
     const id = await findCommentByMarker(mockCtx, "<!-- telesis:drift -->");
     expect(id).toBeNull();
     expect(mockFetch).toHaveBeenCalledTimes(10);
+  });
+});
+
+describe("replyToReviewComment", () => {
+  it("posts reply to the correct pull request comments endpoint", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 401 }));
+
+    const result = await replyToReviewComment(
+      mockCtx,
+      300,
+      "[fp] Not a real issue",
+    );
+
+    expect(result.id).toBe(401);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe(
+      "https://api.github.com/repos/delightfulhammers/telesis/pulls/42/comments",
+    );
+    expect(init!.method).toBe("POST");
+    const body = JSON.parse(init!.body as string);
+    expect(body.in_reply_to).toBe(300);
+    expect(body.body).toBe("[fp] Not a real issue");
   });
 });
 

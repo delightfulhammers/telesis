@@ -39,6 +39,7 @@ review-output/
 # Runtime data
 .telesis/telemetry.jsonl
 .telesis/reviews/
+.telesis/dismissals.jsonl
 
 # Temp
 tmp/

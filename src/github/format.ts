@@ -8,12 +8,22 @@ import type { DriftReport } from "../drift/types.js";
 /** The hidden HTML marker used for idempotent drift comment updates. */
 export const DRIFT_COMMENT_MARKER = "<!-- telesis:drift -->";
 
+/** Generates the hidden HTML marker for a finding ID. */
+export const findingMarker = (findingId: string): string =>
+  `<!-- telesis:finding:${findingId} -->`;
+
+/** Regex to extract a finding ID from a marker in comment text. */
+export const FINDING_MARKER_RE = /<!-- telesis:finding:([\w-]+) -->/;
+
 /**
  * Formats a single review finding as a GitHub-flavored markdown comment body.
+ * Embeds a hidden HTML marker with the finding ID for correlation during
+ * dismissal sync.
  */
 export const formatFindingComment = (finding: ReviewFinding): string => {
   const lines: string[] = [];
 
+  lines.push(findingMarker(finding.id));
   lines.push(`**[${finding.severity}]** ${finding.category}`);
   lines.push("");
   lines.push(finding.description);

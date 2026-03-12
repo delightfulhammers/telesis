@@ -18,6 +18,7 @@ import {
   buildPersonaSystemPrompt,
   buildUserMessage,
 } from "./prompts.js";
+import type { Dismissal } from "./dismissal/types.js";
 
 const VALID_CATEGORIES: readonly string[] = [
   "bug",
@@ -188,6 +189,7 @@ export const reviewDiff = async (
   themes: readonly string[] = [],
   conclusions: readonly ThemeConclusion[] = [],
   priorFindings: readonly ReviewFinding[] = [],
+  dismissedFindings: readonly Dismissal[] = [],
 ): Promise<ReviewDiffResult> => {
   validateDiffSize(diff);
 
@@ -196,6 +198,7 @@ export const reviewDiff = async (
     themes,
     conclusions,
     priorFindings,
+    dismissedFindings,
   );
   const userMessage = buildUserMessage(diff, formatFileList(files));
 
@@ -239,6 +242,7 @@ export const reviewWithPersonas = async (
   themes: readonly string[] = [],
   conclusions: readonly ThemeConclusion[] = [],
   priorFindings: readonly ReviewFinding[] = [],
+  dismissedFindings: readonly Dismissal[] = [],
 ): Promise<readonly PersonaResult[]> => {
   validateDiffSize(diff);
 
@@ -253,6 +257,7 @@ export const reviewWithPersonas = async (
         themes,
         conclusions,
         priorFindings,
+        dismissedFindings,
       );
 
       const response = await client.complete({

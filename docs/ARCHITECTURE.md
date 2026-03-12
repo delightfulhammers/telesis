@@ -72,6 +72,7 @@ telesis/
       format.ts           ← Finding → markdown comment body, drift → markdown comment body
       adapter.ts          ← ReviewFinding[] → { event, body, comments[] } mapping
       client.ts           ← Raw fetch wrappers for GitHub REST API (only file that calls fetch)
+      dismissals.ts       ← GitHub DismissalSource adapter (v0.10.0)
     templates/            ← embedded document templates (.md.tmpl)
     agent/                ← AI agent layer (v0.2.0+)
       interview/
@@ -96,6 +97,12 @@ telesis/
         json-parse.ts     ← shared JSON response parser (fence extraction)
         store.ts          ← per-session JSONL storage in .telesis/reviews/
         format.ts         ← terminal report formatting (flat + persona-grouped)
+        dismissal/        ← review triage feedback loop (v0.10.0)
+          types.ts        ← Dismissal, DismissalReason, DismissalSource types
+          store.ts        ← append-only JSONL storage in .telesis/dismissals.jsonl
+          source.ts       ← DismissalSignal, DismissalSource platform adapter interface
+          stats.ts        ← aggregation by reason/category/severity/persona, noise pattern detection
+          format.ts       ← terminal formatting for dismissal list and stats
       model/
         client.ts         ← ModelClient abstraction (only Anthropic SDK import)
         types.ts          ← CompletionRequest/Response types
