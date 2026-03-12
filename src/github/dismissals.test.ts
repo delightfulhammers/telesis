@@ -265,18 +265,21 @@ describe("parseCommentFinding", () => {
   });
 
   it("returns null for marker without severity/category line", () => {
-    const body = "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\nJust text, no severity line";
+    const body =
+      "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\nJust text, no severity line";
     expect(parseCommentFinding(body, "src/foo.ts")).toBeNull();
   });
 
   it("defaults unknown severity to medium", () => {
-    const body = "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\n**[extreme]** bug\n\nDesc";
+    const body =
+      "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\n**[extreme]** bug\n\nDesc";
     const result = parseCommentFinding(body, "src/foo.ts");
     expect(result!.severity).toBe("medium");
   });
 
   it("defaults unknown category to bug", () => {
-    const body = "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\n**[high]** unknown\n\nDesc";
+    const body =
+      "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\n**[high]** unknown\n\nDesc";
     const result = parseCommentFinding(body, "src/foo.ts");
     expect(result!.category).toBe("bug");
   });

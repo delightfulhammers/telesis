@@ -4,8 +4,7 @@ import type { GitHubPRContext } from "./types.js";
 
 const SAFE_NAME_RE = /^[\w.-]+$/;
 const SHA_RE = /^[0-9a-f]{40}$/i;
-const GITHUB_REMOTE_RE =
-  /github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/;
+const GITHUB_REMOTE_RE = /github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/;
 
 /** Returns true when running inside GitHub Actions. */
 export const isGitHubActions = (): boolean =>
@@ -118,10 +117,13 @@ export const buildLocalPRContext = (
 
   let commitSha = "0000000000000000000000000000000000000000";
   try {
-    commitSha = execSync("git rev-parse HEAD", {
+    const raw = execSync("git rev-parse HEAD", {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
+    if (SHA_RE.test(raw)) {
+      commitSha = raw;
+    }
   } catch {
     // use placeholder
   }

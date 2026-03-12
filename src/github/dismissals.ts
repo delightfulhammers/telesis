@@ -5,7 +5,8 @@ import {
 } from "./client.js";
 import { FINDING_MARKER_RE } from "./format.js";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import type { Severity, Category } from "../agent/review/types.js";
 import { SEVERITIES, CATEGORIES } from "../agent/review/types.js";
 import type { DismissalReason } from "../agent/review/dismissal/types.js";
@@ -54,9 +55,7 @@ const groupIntoThreads = (
  * returning only the human-readable content.
  */
 const stripMarker = (body: string): string =>
-  body
-    .replace(/<!-- telesis:finding:[\w-]+ -->\n?/g, "")
-    .trim();
+  body.replace(/<!-- telesis:finding:[\w-]+ -->\n?/g, "").trim();
 
 /**
  * Extracts dismissal signals from GitHub PR review comments.

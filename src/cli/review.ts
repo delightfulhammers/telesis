@@ -533,7 +533,10 @@ const dismissCommand = new Command("dismiss")
     `Dismissal reason (${DISMISSAL_REASONS.join(", ")})`,
   )
   .option("--note <text>", "Optional free-text note")
-  .option("--pr <number>", "PR number to search for finding (when not in local sessions)")
+  .option(
+    "--pr <number>",
+    "PR number to search for finding (when not in local sessions)",
+  )
   .action(
     handleAction(
       async (
@@ -755,7 +758,9 @@ const syncDismissalsCommand = new Command("sync-dismissals")
         }
       }
 
-      const parts = [`Imported ${imported} dismissal${imported === 1 ? "" : "s"} from PR #${pullNumber}.`];
+      const parts = [
+        `Imported ${imported} dismissal${imported === 1 ? "" : "s"} from PR #${pullNumber}.`,
+      ];
       if (failed > 0) {
         parts.push(`${failed} failed to write.`);
       }

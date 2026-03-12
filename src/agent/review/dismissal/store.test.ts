@@ -155,7 +155,13 @@ describe("loadDismissals", () => {
 
     writeFileSync(
       join(dir, ".telesis", "dismissals.jsonl"),
-      [invalidReason, invalidSeverity, invalidCategory, invalidSource, valid].join("\n") + "\n",
+      [
+        invalidReason,
+        invalidSeverity,
+        invalidCategory,
+        invalidSource,
+        valid,
+      ].join("\n") + "\n",
     );
 
     const loaded = loadDismissals(dir);
