@@ -18,6 +18,7 @@ import {
   formatPersonaReport,
   formatSessionList,
   filterBySeverity,
+  deriveCostFromSession,
 } from "../agent/review/format.js";
 import { SEVERITIES, type Severity } from "../agent/review/types.js";
 import type {
@@ -34,7 +35,15 @@ import { deduplicateFindings } from "../agent/review/dedup.js";
 import { extractThemes } from "../agent/review/themes.js";
 import { verifyFindings } from "../agent/review/verify.js";
 import { filterByConfidence } from "../agent/review/agent.js";
-import { filterNoise } from "../agent/review/noise-filter.js";
+import {
+  filterNoise,
+  buildDismissalNoisePatterns,
+  filterWithPatterns,
+  type NoisePattern,
+} from "../agent/review/noise-filter.js";
+import { filterDismissedReRaises } from "../agent/review/dismissal/matcher.js";
+import { filterWithJudge } from "../agent/review/dismissal/judge.js";
+import type { ModelClient } from "../agent/model/client.js";
 import { load as loadConfig } from "../config/config.js";
 import {
   extractPRContext,
@@ -63,8 +72,16 @@ import {
   createGitHubDismissalSource,
   findFindingInPR,
   formatDismissalReply,
+  BRACKET_TAG_RE,
 } from "../github/dismissals.js";
-import { replyToReviewComment } from "../github/client.js";
+import { FINDING_MARKER_RE, type FilterStats } from "../github/format.js";
+import {
+  replyToReviewComment,
+  listPullRequestReviewComments,
+} from "../github/client.js";
+
+/** Model used for the LLM judge that detects semantic re-raises. */
+const JUDGE_MODEL = "claude-haiku-4-5-20251001";
 
 const addTokenUsage = (
   a: { inputTokens: number; outputTokens: number },
@@ -75,12 +92,14 @@ const addTokenUsage = (
 });
 
 /**
- * Shared filtering pipeline: confidence thresholds → deterministic noise filter.
+ * Shared filtering pipeline: confidence → noise (built-in + dynamic) → dismissal matcher.
  * Applied to both single-pass and persona review paths.
  */
 const applyFilters = (
   findings: readonly ReviewFinding[],
-): readonly ReviewFinding[] => {
+  dismissals: readonly Dismissal[],
+  dynamicNoisePatterns: readonly NoisePattern[] = [],
+): { findings: readonly ReviewFinding[]; stats: FilterStats } => {
   const confidenceResult = filterByConfidence(findings);
   if (confidenceResult.filteredCount > 0) {
     console.error(
@@ -88,7 +107,10 @@ const applyFilters = (
     );
   }
 
-  const noiseResult = filterNoise(confidenceResult.findings);
+  const noiseResult =
+    dynamicNoisePatterns.length > 0
+      ? filterWithPatterns(confidenceResult.findings, dynamicNoisePatterns)
+      : filterNoise(confidenceResult.findings);
   if (noiseResult.filteredCount > 0) {
     const reasons = Object.entries(noiseResult.filteredReasons)
       .map(([reason, count]) => `${count} ${reason}`)
@@ -98,7 +120,64 @@ const applyFilters = (
     );
   }
 
-  return noiseResult.findings;
+  const dismissalResult = filterDismissedReRaises(
+    noiseResult.findings,
+    dismissals,
+  );
+  if (dismissalResult.filteredCount > 0) {
+    console.error(
+      `Filtered ${dismissalResult.filteredCount} dismissed re-raises`,
+    );
+  }
+
+  return {
+    findings: dismissalResult.findings,
+    stats: {
+      dismissalFilteredCount: dismissalResult.filteredCount,
+      noiseFilteredCount: noiseResult.filteredCount,
+      totalFilteredCount:
+        confidenceResult.filteredCount +
+        noiseResult.filteredCount +
+        dismissalResult.filteredCount,
+    },
+  };
+};
+
+/**
+ * Runs the LLM judge on post-filter findings and combines stats.
+ * Shared between single-pass and persona review paths.
+ */
+const applyJudgeFilter = async (
+  client: ModelClient,
+  filterResult: { findings: readonly ReviewFinding[]; stats: FilterStats },
+  dismissals: readonly Dismissal[],
+): Promise<{
+  findings: readonly ReviewFinding[];
+  stats: FilterStats;
+  tokenUsage?: { inputTokens: number; outputTokens: number };
+}> => {
+  const judgeResult = await filterWithJudge(
+    client,
+    JUDGE_MODEL,
+    filterResult.findings,
+    dismissals,
+  );
+  if (judgeResult.filteredCount > 0) {
+    console.error(
+      `LLM judge filtered ${judgeResult.filteredCount} semantic re-raises`,
+    );
+  }
+  return {
+    findings: judgeResult.findings,
+    stats: {
+      dismissalFilteredCount:
+        filterResult.stats.dismissalFilteredCount + judgeResult.filteredCount,
+      noiseFilteredCount: filterResult.stats.noiseFilteredCount,
+      totalFilteredCount:
+        filterResult.stats.totalFilteredCount + judgeResult.filteredCount,
+    },
+    tokenUsage: judgeResult.tokenUsage,
+  };
 };
 
 export const reviewCommand = new Command("review")
@@ -171,15 +250,31 @@ export const reviewCommand = new Command("review")
           const filtered = opts.minSeverity
             ? filterBySeverity(findings, opts.minSeverity as Severity)
             : findings;
+
+          // Build dismissal map for annotations
+          const allDismissals = loadDismissals(rootDir);
+          const dismissalMap = new Map<string, Dismissal>();
+          for (const d of allDismissals) {
+            dismissalMap.set(d.findingId, d);
+          }
+
           if (opts.json) {
             console.log(
               JSON.stringify({ session, findings: filtered }, null, 2),
             );
           } else {
             if (session.mode === "personas") {
-              console.log(formatPersonaReport(session, filtered));
+              console.log(
+                formatPersonaReport(session, filtered, {
+                  dismissals: dismissalMap,
+                }),
+              );
             } else {
-              console.log(formatReviewReport(session, filtered));
+              console.log(
+                formatReviewReport(session, filtered, {
+                  dismissals: dismissalMap,
+                }),
+              );
             }
           }
           return;
@@ -232,6 +327,16 @@ export const reviewCommand = new Command("review")
           );
         }
 
+        // Build dynamic noise patterns from dismissal history
+        const candidatePatterns = findCandidateNoisePatterns(dismissedFindings);
+        const dynamicNoisePatterns =
+          buildDismissalNoisePatterns(candidatePatterns);
+        if (dynamicNoisePatterns.length > 0) {
+          console.error(
+            `${dynamicNoisePatterns.length} dynamic noise pattern(s) from dismissal history`,
+          );
+        }
+
         // Single-pass mode
         if (opts.single) {
           // Theme + prior findings extraction (same as persona path)
@@ -270,7 +375,20 @@ export const reviewCommand = new Command("review")
             );
           }
 
-          const finalFindings = applyFilters(singleVerifyResult.findings);
+          const rawFindingCount = singleVerifyResult.findings.length;
+          const filterResult = applyFilters(
+            singleVerifyResult.findings,
+            dismissedFindings,
+            dynamicNoisePatterns,
+          );
+
+          const judged = await applyJudgeFilter(
+            client,
+            filterResult,
+            dismissedFindings,
+          );
+          const finalFindings = judged.findings;
+          const combinedFilterStats = judged.stats;
 
           // Aggregate token usage
           let singleTokens = result.tokenUsage;
@@ -286,6 +404,9 @@ export const reviewCommand = new Command("review")
               singleVerifyResult.tokenUsage,
             );
           }
+          if (judged.tokenUsage) {
+            singleTokens = addTokenUsage(singleTokens, judged.tokenUsage);
+          }
 
           const session: ReviewSession = {
             id: sessionId,
@@ -300,9 +421,17 @@ export const reviewCommand = new Command("review")
           };
 
           saveSessionSafe(rootDir, session, finalFindings);
-          displayFindings(session, finalFindings, opts);
+          const singleCost = deriveCostFromSession(session, rootDir);
+          displayFindings(session, finalFindings, opts, {
+            rawFindingCount,
+            filterStats: combinedFilterStats,
+            cost: singleCost,
+          });
           if (opts.githubPr) {
-            await postToGitHubSafe(session, finalFindings);
+            await postToGitHubSafe(session, finalFindings, {
+              filterStats: combinedFilterStats,
+              estimatedCost: singleCost,
+            });
           }
           return;
         }
@@ -377,9 +506,22 @@ export const reviewCommand = new Command("review")
           );
         }
 
-        const finalFindings = applyFilters(verifyResult.findings);
+        const rawFindingCount = verifyResult.findings.length;
+        const filterResult = applyFilters(
+          verifyResult.findings,
+          dismissedFindings,
+          dynamicNoisePatterns,
+        );
 
-        // Aggregate token usage across persona calls + dedup + themes + verify
+        const judged = await applyJudgeFilter(
+          client,
+          filterResult,
+          dismissedFindings,
+        );
+        const finalFindings = judged.findings;
+        const combinedFilterStats = judged.stats;
+
+        // Aggregate token usage across persona calls + dedup + themes + verify + judge
         let totalTokens = personaResults.reduce(
           (acc, r) => addTokenUsage(acc, r.tokenUsage),
           { inputTokens: 0, outputTokens: 0 },
@@ -392,6 +534,9 @@ export const reviewCommand = new Command("review")
         }
         if (verifyResult.tokenUsage) {
           totalTokens = addTokenUsage(totalTokens, verifyResult.tokenUsage);
+        }
+        if (judged.tokenUsage) {
+          totalTokens = addTokenUsage(totalTokens, judged.tokenUsage);
         }
 
         const durationMs = Date.now() - startTime;
@@ -412,12 +557,18 @@ export const reviewCommand = new Command("review")
         };
 
         saveSessionSafe(rootDir, session, finalFindings);
+        const personaCost = deriveCostFromSession(session, rootDir);
         displayFindings(session, finalFindings, opts, {
           mergedCount: dedupResult.mergedCount,
+          rawFindingCount,
+          filterStats: combinedFilterStats,
+          cost: personaCost,
         });
         if (opts.githubPr) {
           await postToGitHubSafe(session, finalFindings, {
             mergedCount: dedupResult.mergedCount,
+            filterStats: combinedFilterStats,
+            estimatedCost: personaCost,
           });
         }
       },
@@ -446,8 +597,45 @@ const displayFindings = (
     json?: boolean;
     minSeverity?: string;
   },
-  extra?: { mergedCount?: number },
+  extra?: {
+    mergedCount?: number;
+    rawFindingCount?: number;
+    filterStats?: FilterStats;
+    cost?: number | null;
+  },
 ): void => {
+  // "No new findings" message when all findings were filtered
+  if (
+    findings.length === 0 &&
+    extra?.rawFindingCount !== undefined &&
+    extra.rawFindingCount > 0 &&
+    extra.filterStats
+  ) {
+    if (opts.json) {
+      console.log(
+        JSON.stringify(
+          { session, findings: [], filterStats: extra.filterStats },
+          null,
+          2,
+        ),
+      );
+    } else {
+      const { dismissalFilteredCount, noiseFilteredCount } = extra.filterStats;
+      const parts: string[] = [];
+      if (dismissalFilteredCount > 0) {
+        parts.push(`${dismissalFilteredCount} dismissed re-raises`);
+      }
+      if (noiseFilteredCount > 0) {
+        parts.push(`${noiseFilteredCount} noise`);
+      }
+      const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+      console.log(
+        `No new findings. ${extra.filterStats.totalFilteredCount} finding(s) filtered${detail}.`,
+      );
+    }
+    return;
+  }
+
   const filtered = opts.minSeverity
     ? filterBySeverity(findings, opts.minSeverity as Severity)
     : findings;
@@ -458,10 +646,11 @@ const displayFindings = (
     console.log(
       formatPersonaReport(session, filtered, {
         mergedCount: extra?.mergedCount,
+        cost: extra?.cost,
       }),
     );
   } else {
-    console.log(formatReviewReport(session, filtered));
+    console.log(formatReviewReport(session, filtered, { cost: extra?.cost }));
   }
 
   // Exit 1 if any critical or high findings (based on full results, not display filter)
@@ -476,7 +665,11 @@ const displayFindings = (
 const postToGitHubSafe = async (
   session: ReviewSession,
   findings: readonly ReviewFinding[],
-  extra?: { mergedCount?: number },
+  extra?: {
+    mergedCount?: number;
+    filterStats?: FilterStats;
+    estimatedCost?: number | null;
+  },
 ): Promise<void> => {
   try {
     const ctx = extractPRContext();
@@ -561,6 +754,22 @@ const dismissCommand = new Command("dismiss")
 
         if (localResult) {
           const { finding, sessionId } = localResult;
+
+          // Show finding context before dismissal
+          const location = finding.startLine
+            ? `${finding.path}:${finding.startLine}`
+            : finding.path;
+          const persona = finding.persona
+            ? ` (${finding.persona} persona)`
+            : "";
+          console.log(
+            `  ${location} [${finding.severity}/${finding.category}]${persona}`,
+          );
+          console.log(`  ${finding.description}`);
+          if (finding.suggestion) {
+            console.log(`  > Suggestion: ${finding.suggestion}`);
+          }
+
           const dismissal: Dismissal = {
             id: randomUUID(),
             findingId: finding.id,
@@ -573,6 +782,7 @@ const dismissCommand = new Command("dismiss")
             category: finding.category,
             description: finding.description,
             suggestion: finding.suggestion,
+            startLine: finding.startLine,
             persona: finding.persona,
             note: opts.note,
           };
@@ -615,7 +825,16 @@ const dismissCommand = new Command("dismiss")
           );
         }
 
-        const { finding: prFinding, commentId } = lookup;
+        const { finding: prFinding } = lookup;
+
+        // Show finding context before dismissal
+        console.log(
+          `  ${prFinding.path} [${prFinding.severity}/${prFinding.category}]${prFinding.persona ? ` (${prFinding.persona} persona)` : ""}`,
+        );
+        console.log(`  ${prFinding.description}`);
+        if (prFinding.suggestion) {
+          console.log(`  > Suggestion: ${prFinding.suggestion}`);
+        }
 
         const dismissal: Dismissal = {
           id: randomUUID(),
@@ -634,12 +853,11 @@ const dismissCommand = new Command("dismiss")
         };
 
         appendDismissal(rootDir, dismissal);
-
-        // Post reply to GitHub thread so sync-dismissals can pick it up
-        const replyBody = formatDismissalReply(opts.reason, opts.note);
-        await replyToReviewComment(prCtx, commentId, replyBody);
         console.log(
-          `Dismissed (from PR #${pullNumber}): ${prFinding.path} [${prFinding.severity}/${prFinding.category}] — ${opts.reason} (replied on GitHub)`,
+          `Dismissed: ${prFinding.path} [${prFinding.severity}/${prFinding.category}] — ${opts.reason}`,
+        );
+        console.log(
+          `Run \`telesis review sync-replies --pr ${pullNumber}\` to post reply to GitHub.`,
         );
       },
     ),
@@ -776,8 +994,130 @@ const syncDismissalsCommand = new Command("sync-dismissals")
     }),
   );
 
+// --- Sync replies subcommand ---
+
+const syncRepliesCommand = new Command("sync-replies")
+  .description("Post dismissal replies to GitHub PR review comment threads")
+  .requiredOption("--pr <number>", "Pull request number")
+  .action(
+    handleAction(async (opts: { pr: string }) => {
+      const rootDir = resolve(projectRoot());
+
+      const pullNumber = parseInt(opts.pr, 10);
+      if (!Number.isFinite(pullNumber) || pullNumber <= 0) {
+        throw new Error(`Invalid PR number: ${opts.pr}`);
+      }
+
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) {
+        throw new Error(
+          "GITHUB_TOKEN environment variable is not set. " +
+            "Set it to a token with pull-requests:write permission.",
+        );
+      }
+
+      const ctx = extractPRContext() ?? buildLocalPRContext(pullNumber);
+      if (!ctx) {
+        throw new Error(
+          "Could not determine repository context. " +
+            "Ensure GITHUB_TOKEN is set and you are in a repository " +
+            "with a GitHub remote.",
+        );
+      }
+
+      const prCtx = { ...ctx, pullNumber };
+
+      // Only sync locally-created dismissals (not those imported from GitHub)
+      const UUID_RE =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const allDismissals = loadDismissals(rootDir);
+      const cliDismissals = allDismissals.filter(
+        (d) => d.source === "cli" && UUID_RE.test(d.findingId),
+      );
+
+      if (cliDismissals.length === 0) {
+        console.log("No CLI dismissals to sync.");
+        return;
+      }
+
+      // Fetch all PR review comments
+      const comments = await listPullRequestReviewComments(prCtx);
+
+      // Build a map: findingId → root comment ID (from markers)
+      const findingToCommentId = new Map<string, number>();
+      for (const c of comments) {
+        if (c.in_reply_to_id != null) continue;
+        const match = FINDING_MARKER_RE.exec(c.body);
+        if (match?.[1]) {
+          findingToCommentId.set(match[1], c.id);
+        }
+      }
+
+      // Build a set of findingIds that already have bracket-tag replies
+      const alreadySynced = new Set<string>();
+      for (const c of comments) {
+        if (c.in_reply_to_id == null) continue;
+        if (!BRACKET_TAG_RE.test(c.body)) continue;
+        // Find the root comment's findingId
+        const rootId = c.in_reply_to_id;
+        const rootComment = comments.find(
+          (r) => r.id === rootId && r.in_reply_to_id == null,
+        );
+        if (rootComment) {
+          const match = FINDING_MARKER_RE.exec(rootComment.body);
+          if (match?.[1]) {
+            alreadySynced.add(match[1]);
+          }
+        }
+      }
+
+      let synced = 0;
+      let skipped = 0;
+      let noComment = 0;
+
+      for (const dismissal of cliDismissals) {
+        if (alreadySynced.has(dismissal.findingId)) {
+          skipped++;
+          continue;
+        }
+
+        const commentId = findingToCommentId.get(dismissal.findingId);
+        if (!commentId) {
+          noComment++;
+          continue;
+        }
+
+        const replyBody = formatDismissalReply(
+          dismissal.reason,
+          dismissal.note,
+        );
+        try {
+          await replyToReviewComment(prCtx, commentId, replyBody);
+          synced++;
+        } catch (err) {
+          console.error(
+            `Warning: failed to post reply for ${dismissal.findingId}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
+      const parts = [
+        `Synced ${synced} repl${synced === 1 ? "y" : "ies"} to PR #${pullNumber}.`,
+      ];
+      if (skipped > 0) {
+        parts.push(`${skipped} already synced.`);
+      }
+      if (noComment > 0) {
+        parts.push(`${noComment} had no matching PR comment.`);
+      }
+      console.log(parts.join(" "));
+    }),
+  );
+
 // Register subcommands on review
 reviewCommand.addCommand(dismissCommand);
 reviewCommand.addCommand(dismissalsCommand);
 reviewCommand.addCommand(dismissalStatsCommand);
 reviewCommand.addCommand(syncDismissalsCommand);
+reviewCommand.addCommand(syncRepliesCommand);

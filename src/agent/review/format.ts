@@ -1,4 +1,7 @@
 import type { ReviewSession, ReviewFinding, Severity } from "./types.js";
+import type { Dismissal } from "./dismissal/types.js";
+import type { ModelCallRecord } from "../telemetry/types.js";
+import { loadPricing, calculateCost } from "../telemetry/pricing.js";
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   critical: 0,
@@ -45,9 +48,13 @@ const wrapText = (text: string, indent: number, maxWidth: number): string => {
   return lines.join("\n");
 };
 
-const formatFinding = (finding: ReviewFinding): string => {
+export const formatFinding = (
+  finding: ReviewFinding,
+  dismissal?: Dismissal,
+): string => {
   const icon = SEVERITY_ICON[finding.severity];
-  const header = `  ${icon} [${finding.severity}] ${finding.category} — ${formatLocation(finding)}`;
+  const dismissed = dismissal ? ` [DISMISSED: ${dismissal.reason}]` : "";
+  const header = `  ${icon} [${finding.severity}] ${finding.category} — ${formatLocation(finding)}${dismissed}`;
   const desc = wrapText(finding.description, 4, 72);
   const suggestion = wrapText("Suggestion: " + finding.suggestion, 4, 72);
   return `${header}\n${desc}\n\n${suggestion}`;
@@ -74,15 +81,45 @@ const countBySeverity = (findings: readonly ReviewFinding[]): string => {
     .join(", ");
 };
 
+/**
+ * Derives estimated cost from a review session's token usage using
+ * the project's pricing config. Returns null if pricing is unavailable.
+ */
+export const deriveCostFromSession = (
+  session: ReviewSession,
+  rootDir: string,
+): number | null => {
+  const pricing = loadPricing(rootDir);
+  if (!pricing) return null;
+
+  const record: ModelCallRecord = {
+    id: "synthetic",
+    timestamp: session.timestamp,
+    component: "review",
+    model: session.model,
+    provider: "anthropic",
+    inputTokens: session.tokenUsage.inputTokens,
+    outputTokens: session.tokenUsage.outputTokens,
+    cacheReadTokens: session.tokenUsage.cacheReadTokens,
+    cacheWriteTokens: session.tokenUsage.cacheWriteTokens,
+    durationMs: session.durationMs,
+    sessionId: session.id,
+  };
+
+  return calculateCost([record], pricing);
+};
+
 const buildSummaryLine = (
   session: ReviewSession,
   findings: readonly ReviewFinding[],
+  cost?: number | null,
 ): string => {
   const totalTokens =
     session.tokenUsage.inputTokens + session.tokenUsage.outputTokens;
+  const costSuffix = cost != null && cost > 0 ? ` · $${cost.toFixed(2)}` : "";
   return findings.length === 0
-    ? `0 findings · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}`
-    : `${findings.length} findings (${countBySeverity(findings)}) · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}`;
+    ? `0 findings · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}${costSuffix}`
+    : `${findings.length} findings (${countBySeverity(findings)}) · ${formatTokens(totalTokens)} tokens · ${formatDuration(session.durationMs)}${costSuffix}`;
 };
 
 const sortedFindings = (
@@ -98,6 +135,10 @@ const capitalize = (s: string): string =>
 export const formatReviewReport = (
   session: ReviewSession,
   findings: readonly ReviewFinding[],
+  options?: {
+    dismissals?: ReadonlyMap<string, Dismissal>;
+    cost?: number | null;
+  },
 ): string => {
   const header = `Review: ${session.ref}`;
   const divider = "═".repeat(50);
@@ -108,14 +149,14 @@ export const formatReviewReport = (
     lines.push("");
   } else {
     for (const finding of sortedFindings(findings)) {
-      lines.push(formatFinding(finding));
+      lines.push(formatFinding(finding, options?.dismissals?.get(finding.id)));
       lines.push("");
     }
   }
 
   const separator = "─".repeat(50);
   lines.push(separator);
-  lines.push(buildSummaryLine(session, findings));
+  lines.push(buildSummaryLine(session, findings, options?.cost));
 
   return lines.join("\n");
 };
@@ -127,7 +168,10 @@ export interface PersonaReportOptions {
 export const formatPersonaReport = (
   session: ReviewSession,
   findings: readonly ReviewFinding[],
-  options: PersonaReportOptions = {},
+  options: PersonaReportOptions & {
+    dismissals?: ReadonlyMap<string, Dismissal>;
+    cost?: number | null;
+  } = {},
 ): string => {
   const personaSlugs = session.personas ?? [];
   const header = `Review: ${session.ref}`;
@@ -154,7 +198,7 @@ export const formatPersonaReport = (
       lines.push("  No findings.");
     } else {
       for (const finding of sortedFindings(personaFindings)) {
-        lines.push(formatFinding(finding));
+        lines.push(formatFinding(finding, options.dismissals?.get(finding.id)));
       }
     }
     lines.push("");
@@ -162,7 +206,7 @@ export const formatPersonaReport = (
 
   const separator = "─".repeat(50);
   lines.push(separator);
-  lines.push(buildSummaryLine(session, findings));
+  lines.push(buildSummaryLine(session, findings, options.cost));
 
   if (options.mergedCount && options.mergedCount > 0) {
     lines.push(`  [${options.mergedCount} duplicates merged across personas]`);

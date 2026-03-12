@@ -11,6 +11,7 @@ import {
   formatReviewSummaryBody,
   formatDriftComment,
   DRIFT_COMMENT_MARKER,
+  type FilterStats,
 } from "./format.js";
 import {
   GitHubApiError,
@@ -36,7 +37,11 @@ interface ReviewPayload {
 export const findingsToReview = (
   session: ReviewSession,
   findings: readonly ReviewFinding[],
-  extra?: { mergedCount?: number },
+  extra?: {
+    mergedCount?: number;
+    filterStats?: FilterStats;
+    estimatedCost?: number | null;
+  },
 ): ReviewPayload => {
   const inlineFindings: ReviewFinding[] = [];
   const summaryFindings: ReviewFinding[] = [];
@@ -90,7 +95,11 @@ export const postReviewToGitHub = async (
   ctx: GitHubPRContext,
   session: ReviewSession,
   findings: readonly ReviewFinding[],
-  extra?: { mergedCount?: number },
+  extra?: {
+    mergedCount?: number;
+    filterStats?: FilterStats;
+    estimatedCost?: number | null;
+  },
 ): Promise<PostReviewResult> => {
   const { event, body, comments } = findingsToReview(session, findings, extra);
 
@@ -103,6 +112,15 @@ export const postReviewToGitHub = async (
       err.status === 422 &&
       comments.length > 0
     ) {
+      console.error(
+        `GitHub 422 on review with ${comments.length} inline comments. ` +
+          `commit_id: ${ctx.commitSha}. Response: ${err.body}`,
+      );
+      for (const c of comments) {
+        console.error(
+          `  Comment: ${c.path}:${c.startLine ?? c.line}-${c.line} (side: ${c.side})`,
+        );
+      }
       const allAsSummary = formatReviewSummaryBody(
         session,
         [], // no inline findings

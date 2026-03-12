@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { filterNoise } from "./noise-filter.js";
+import {
+  filterNoise,
+  buildDismissalNoisePatterns,
+  filterWithPatterns,
+} from "./noise-filter.js";
 import type { ReviewFinding } from "./types.js";
 
 const makeFinding = (
@@ -331,5 +335,64 @@ describe("filterNoise", () => {
     ];
     const result = filterNoise(findings);
     expect(result.findings).toHaveLength(1);
+  });
+});
+
+describe("buildDismissalNoisePatterns", () => {
+  it("generates noise patterns from candidate patterns", () => {
+    const candidates = [{ substring: "redirect error handling", count: 5 }];
+    const patterns = buildDismissalNoisePatterns(candidates);
+    expect(patterns).toHaveLength(1);
+    expect(patterns[0].name).toContain("dismissal-pattern");
+  });
+
+  it("generated pattern matches finding descriptions containing the phrase", () => {
+    const candidates = [{ substring: "redirect error handling", count: 3 }];
+    const [pattern] = buildDismissalNoisePatterns(candidates);
+    const finding = makeFinding({
+      description:
+        "The redirect error handling could be improved with a fallback",
+    });
+    expect(pattern.test(finding)).toBe(true);
+  });
+
+  it("generated pattern does NOT match unrelated descriptions", () => {
+    const candidates = [{ substring: "redirect error handling", count: 3 }];
+    const [pattern] = buildDismissalNoisePatterns(candidates);
+    const finding = makeFinding({
+      description: "Missing null check on user input",
+    });
+    expect(pattern.test(finding)).toBe(false);
+  });
+
+  it("matching is case-insensitive", () => {
+    const candidates = [{ substring: "Redirect Error Handling", count: 3 }];
+    const [pattern] = buildDismissalNoisePatterns(candidates);
+    const finding = makeFinding({
+      description: "The redirect error handling is wrong",
+    });
+    expect(pattern.test(finding)).toBe(true);
+  });
+});
+
+describe("filterWithPatterns", () => {
+  it("filters using both built-in and extra patterns", () => {
+    const extra = buildDismissalNoisePatterns([
+      { substring: "custom noise phrase", count: 3 },
+    ]);
+    const findings = [
+      makeFinding({
+        description: "This has a custom noise phrase in it",
+      }),
+      makeFinding({
+        description: "This is correct but could be better",
+      }), // hedging (built-in)
+      makeFinding({
+        description: "A real issue with the code",
+      }),
+    ];
+    const result = filterWithPatterns(findings, extra);
+    expect(result.findings).toHaveLength(1);
+    expect(result.filteredCount).toBe(2);
   });
 });

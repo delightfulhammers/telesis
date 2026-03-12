@@ -31,6 +31,7 @@ export interface Dismissal {
   readonly category: Category;
   readonly description: string;
   readonly suggestion: string;
+  readonly startLine?: number;
   readonly persona?: string;
   readonly note?: string;
 }

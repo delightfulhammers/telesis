@@ -58,13 +58,48 @@ export const formatFindingAsSummary = (finding: ReviewFinding): string => {
  * Formats the review summary body for a PR review.
  * Contains header info, summary-only findings, and stats.
  */
+export interface FilterStats {
+  readonly dismissalFilteredCount: number;
+  readonly noiseFilteredCount: number;
+  readonly totalFilteredCount: number;
+}
+
 export const formatReviewSummaryBody = (
   session: ReviewSession,
   inlineFindings: readonly ReviewFinding[],
   summaryFindings: readonly ReviewFinding[],
-  extra?: { mergedCount?: number },
+  extra?: {
+    mergedCount?: number;
+    filterStats?: FilterStats;
+    estimatedCost?: number | null;
+  },
 ): string => {
   const lines: string[] = [];
+  const totalFindings = inlineFindings.length + summaryFindings.length;
+
+  // "No new findings" summary when all findings were filtered
+  if (totalFindings === 0 && extra?.filterStats?.totalFilteredCount) {
+    const { dismissalFilteredCount, noiseFilteredCount, totalFilteredCount } =
+      extra.filterStats;
+    lines.push("## Telesis Review — No New Findings");
+    lines.push("");
+    lines.push(
+      "All findings from this review round matched previously dismissed items or known",
+    );
+    lines.push("noise patterns. No action required.");
+    lines.push("");
+
+    const parts: string[] = [];
+    if (dismissalFilteredCount > 0) {
+      parts.push(`${dismissalFilteredCount} dismissed re-raises`);
+    }
+    if (noiseFilteredCount > 0) {
+      parts.push(`${noiseFilteredCount} noise`);
+    }
+    const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+    lines.push(`_${totalFilteredCount} finding(s) filtered${detail}_`);
+    return lines.join("\n");
+  }
 
   lines.push("## Telesis Review");
   lines.push("");
@@ -96,7 +131,6 @@ export const formatReviewSummaryBody = (
   }
 
   // Stats
-  const totalFindings = inlineFindings.length + summaryFindings.length;
   const statParts: string[] = [
     `${totalFindings} findings`,
     `${inlineFindings.length} inline`,
@@ -108,6 +142,10 @@ export const formatReviewSummaryBody = (
 
   lines.push("---");
   lines.push(`_${statParts.join(", ")}_`);
+
+  if (extra?.estimatedCost != null && extra.estimatedCost > 0) {
+    lines.push(`**Estimated cost:** $${extra.estimatedCost.toFixed(2)}`);
+  }
 
   return lines.join("\n");
 };
