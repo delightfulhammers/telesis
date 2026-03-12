@@ -93,15 +93,9 @@ const jaccardSimilarity = (
 
 /**
  * Checks if a finding's startLine is within ±threshold of a dismissal's
- * startLine. The dismissal's startLine is recovered from its stored finding
- * metadata — dismissals don't store line numbers directly, so this relies
- * on the description field not being the line source. We use the finding's
- * own startLine and compare with the dismissal's finding startLine if present.
- *
- * Since dismissals don't store startLine, positional matching compares
- * against any finding at the same path+category using the dismissal's
- * description as a proxy. In practice, the startLine field in the finding
- * being checked is compared to the dismissal's stored context.
+ * startLine. Returns false if either line is undefined — historical
+ * dismissals created before startLine was added to the Dismissal type
+ * will fall through to description similarity matching (strategy 3).
  */
 const linesOverlap = (
   findingLine: number | undefined,

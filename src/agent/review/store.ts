@@ -7,10 +7,9 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { ReviewSession, ReviewFinding } from "./types.js";
+import { UUID_RE } from "./dismissal/types.js";
 
 const REVIEWS_DIR = ".telesis/reviews";
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const validateSessionId = (sessionId: string): void => {
   if (!UUID_RE.test(sessionId)) {

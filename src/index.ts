@@ -10,10 +10,11 @@ import { driftCommand } from "./cli/drift.js";
 import { noteCommand } from "./cli/note.js";
 import { reviewCommand } from "./cli/review.js";
 import { milestoneCommand } from "./cli/milestone.js";
+import { journalCommand } from "./cli/journal.js";
 
 const program = new Command("telesis")
   .description("Development intelligence platform")
-  .version("0.10.1")
+  .version("0.11.0")
   .enablePositionalOptions()
   .addCommand(initCommand)
   .addCommand(contextCommand)
@@ -24,6 +25,7 @@ const program = new Command("telesis")
   .addCommand(driftCommand)
   .addCommand(noteCommand)
   .addCommand(reviewCommand)
-  .addCommand(milestoneCommand);
+  .addCommand(milestoneCommand)
+  .addCommand(journalCommand);
 
 program.parse();

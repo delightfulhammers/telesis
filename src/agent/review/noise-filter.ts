@@ -62,32 +62,6 @@ const NOISE_PATTERNS: readonly NoisePattern[] = [
 ];
 
 /**
- * Deterministic post-filter that catches noise patterns the model emits
- * despite prompt guidance. Cheap regex-based filter applied after dedup
- * and before display.
- */
-export const filterNoise = (
-  findings: readonly ReviewFinding[],
-): FilterResult => {
-  const passed: ReviewFinding[] = [];
-  const filteredReasons: Record<string, number> = {};
-  let filteredCount = 0;
-
-  for (const f of findings) {
-    const matchedPattern = NOISE_PATTERNS.find((p) => p.test(f));
-    if (matchedPattern) {
-      filteredCount++;
-      filteredReasons[matchedPattern.name] =
-        (filteredReasons[matchedPattern.name] ?? 0) + 1;
-    } else {
-      passed.push(f);
-    }
-  }
-
-  return { findings: passed, filteredCount, filteredReasons };
-};
-
-/**
  * Converts candidate noise patterns (from dismissal stats) into NoisePattern
  * objects for use in the filter pipeline. Each pattern tests whether the
  * finding's description contains the phrase as a case-insensitive substring.
@@ -109,7 +83,10 @@ export const filterWithPatterns = (
   findings: readonly ReviewFinding[],
   extraPatterns: readonly NoisePattern[],
 ): FilterResult => {
-  const allPatterns = [...NOISE_PATTERNS, ...extraPatterns];
+  const allPatterns =
+    extraPatterns.length === 0
+      ? NOISE_PATTERNS
+      : [...NOISE_PATTERNS, ...extraPatterns];
   const passed: ReviewFinding[] = [];
   const filteredReasons: Record<string, number> = {};
   let filteredCount = 0;
@@ -127,3 +104,11 @@ export const filterWithPatterns = (
 
   return { findings: passed, filteredCount, filteredReasons };
 };
+
+/**
+ * Deterministic post-filter that catches noise patterns the model emits
+ * despite prompt guidance. Cheap regex-based filter applied after dedup
+ * and before display.
+ */
+export const filterNoise = (findings: readonly ReviewFinding[]): FilterResult =>
+  filterWithPatterns(findings, []);

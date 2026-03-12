@@ -1,4 +1,8 @@
-import type { ReviewFinding, ReviewSession } from "../agent/review/types.js";
+import type {
+  ReviewFinding,
+  ReviewSession,
+  FilterStats,
+} from "../agent/review/types.js";
 import type { DriftReport } from "../drift/types.js";
 import type {
   GitHubPRContext,
@@ -11,7 +15,6 @@ import {
   formatReviewSummaryBody,
   formatDriftComment,
   DRIFT_COMMENT_MARKER,
-  type FilterStats,
 } from "./format.js";
 import {
   GitHubApiError,

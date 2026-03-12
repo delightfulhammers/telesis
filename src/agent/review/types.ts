@@ -159,3 +159,9 @@ export interface VerificationResult {
   readonly tokenUsage?: TokenUsage;
   readonly durationMs?: number;
 }
+
+export interface FilterStats {
+  readonly dismissalFilteredCount: number;
+  readonly noiseFilteredCount: number;
+  readonly totalFilteredCount: number;
+}

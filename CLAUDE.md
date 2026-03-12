@@ -57,46 +57,41 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.10.1 — Review Quality & Local-First Correction
+## v0.11.0 — Journal & CI Cleanup
 
-**Goal:** Make the review pipeline converge to zero re-raises of dismissed findings, and
-correct the dismiss command's architecture to follow local-first principles.
+**Goal:** Introduce `telesis journal` as a managed design artifact and remove the CI review
+workflow now that development is shifting to a local-first, big-commit model.
 
 **Status:** Complete
 
-**Reference:** Issues #50–#53
-
 ### What Changes
 
-Post-review fuzzy matching filters findings that match previously dismissed items —
-deterministic matching by ID, position, and description similarity, followed by an LLM
-judge for semantic re-raises that slip through. When all findings are filtered, a clean
-"No New Findings" message replaces the findings report (locally and on GitHub).
-
-The dismiss command is decoupled from GitHub: all state writes to `.telesis/dismissals.jsonl`
-first, and a new `sync-replies` command pushes dismissal replies to GitHub PR threads on
-demand.
-
-Additional improvements: noise pattern auto-suppression from dismissal statistics,
-`--show` annotates findings with dismissal status, and review cost tracking in PR comments
-and local output.
+The design journal becomes a first-class Telesis artifact stored in `.telesis/journal.jsonl`
+(JSONL, consistent with notes and dismissals). CLI commands support adding entries, listing
+them, showing individual entries, and surfacing recent entries in `telesis context`. The
+GitHub Actions CI review workflow is removed — review moves to aggressive local self-review
+before commits.
 
 ### Acceptance Criteria
 
-1. Finding matching a dismissed finding by exact ID is filtered
-2. Finding matching by path + category + line overlap (±5 lines) is filtered
-3. Finding matching by path + category + description similarity (Jaccard ≥ 0.5) is filtered
-4. LLM judge filters semantic re-raises that pass deterministic matching
-5. When all findings filtered, local output shows "No new findings. X filtered..."
-6. When all findings filtered with `--github-pr`, APPROVE review with "No New Findings" summary
-7. Candidate noise patterns (3+ occurrences) auto-suppress matching findings
-8. `telesis review dismiss` does NOT call GitHub API (local-only write)
-9. `telesis review sync-replies --pr <N>` posts unsynced dismissal replies to GitHub
-10. `telesis review --show <id>` annotates dismissed findings with `[DISMISSED: reason]`
-11. GitHub PR review summary includes estimated cost
-12. Local review summary includes estimated cost
-13. All existing tests pass
-14. `telesis drift` zero errors
+1. `telesis journal add <title> <body>` creates a dated journal entry in `.telesis/journal.jsonl`
+2. `telesis journal list` lists journal entries by date and title (reverse chronological)
+3. `telesis journal list --json` outputs entries as JSON
+4. `telesis journal show <query>` displays an entry by ID, date, or title substring
+5. `telesis context` includes a "Recent Journal Entries" section with the 3 most recent
+   entry titles (not full content — these are large)
+6. `.github/workflows/telesis-ci.yml` is removed
+7. `telesis drift` no longer checks for CI-related artifacts
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Journal parser:** Parse existing JOURNAL.md format, extract entries by date
+2. **Phase 2 — Journal CLI:** `add`, `list`, `show` commands
+3. **Phase 3 — Context integration:** Surface recent entries in CLAUDE.md
+4. **Phase 4 — CI removal:** Remove workflow file, update drift checks
+5. **Phase 5 — Validation:** Verify all criteria, run drift
 
 ---
 
@@ -286,6 +281,14 @@ At any point in this project, Claude Code sessions should be able to answer:
 - What's the next thing to build? → current milestone acceptance criteria
 
 If any of those questions can't be answered from the docs, the docs need updating before more code gets written.
+
+---
+
+## Recent Journal Entries
+
+- 2026-03-12 — ACP as the Dispatcher Protocol
+- 2026-03-12 — The Full Loop: Telesis as Work Executor
+- 2026-03-12 — OpenClaw Ecosystem Analysis
 
 ---
 

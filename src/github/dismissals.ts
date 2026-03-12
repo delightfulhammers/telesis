@@ -4,9 +4,7 @@ import {
   type GitHubReviewComment,
 } from "./client.js";
 import { FINDING_MARKER_RE } from "./format.js";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { UUID_RE } from "../agent/review/dismissal/types.js";
 import type { Severity, Category } from "../agent/review/types.js";
 import { SEVERITIES, CATEGORIES } from "../agent/review/types.js";
 import type { DismissalReason } from "../agent/review/dismissal/types.js";

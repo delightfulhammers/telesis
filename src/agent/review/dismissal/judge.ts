@@ -10,14 +10,24 @@ export interface JudgeResult {
   readonly tokenUsage?: TokenUsage;
 }
 
+const MAX_DESCRIPTION_LENGTH = 300;
+const MAX_SUGGESTION_LENGTH = 300;
+const MAX_NOTE_LENGTH = 100;
+
+const truncate = (s: string, max: number): string =>
+  s.length <= max ? s : s.slice(0, max) + "…";
+
 const buildJudgePrompt = (
   finding: ReviewFinding,
   matchingDismissals: readonly Dismissal[],
 ): string => {
+  // Dismissal descriptions and notes may originate from untrusted sources
+  // (e.g., GitHub PR comments imported via sync-dismissals). Truncate to
+  // limit prompt injection surface.
   const dismissalDescriptions = matchingDismissals
     .map(
       (d, i) =>
-        `Dismissal ${i + 1}:\n  Description: ${d.description}\n  Reason: ${d.reason}${d.note ? `\n  Note: ${d.note}` : ""}`,
+        `Dismissal ${i + 1}:\n  Description: ${truncate(d.description, MAX_DESCRIPTION_LENGTH)}\n  Reason: ${d.reason}${d.note ? `\n  Note: ${truncate(d.note, MAX_NOTE_LENGTH)}` : ""}`,
     )
     .join("\n\n");
 
@@ -26,8 +36,8 @@ const buildJudgePrompt = (
 New finding:
   Path: ${finding.path}
   Category: ${finding.category}
-  Description: ${finding.description}
-  Suggestion: ${finding.suggestion}
+  Description: ${truncate(finding.description, 500)}
+  Suggestion: ${truncate(finding.suggestion, MAX_SUGGESTION_LENGTH)}
 
 Previously dismissed finding(s):
 ${dismissalDescriptions}
@@ -75,21 +85,29 @@ export const filterWithJudge = async (
     }
   }
 
-  const passed: ReviewFinding[] = [];
-  const filteredIds: string[] = [];
-  let totalUsage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+  // Partition findings into those needing the judge and those that skip it
+  const needsJudge: { finding: ReviewFinding; candidates: Dismissal[] }[] = [];
+  const noOverlap: ReviewFinding[] = [];
 
   for (const finding of findings) {
     const key = `${finding.path}::${finding.category}`;
     const candidates = dismissalsByPathCategory.get(key);
-
-    // No overlap — skip judge, keep finding
-    if (!candidates || candidates.length === 0) {
-      passed.push(finding);
-      continue;
+    if (candidates && candidates.length > 0) {
+      needsJudge.push({ finding, candidates });
+    } else {
+      noOverlap.push(finding);
     }
+  }
 
-    // Ask the judge
+  // Run judge calls in parallel with bounded concurrency
+  const CONCURRENCY = 5;
+  const judgeOne = async ({
+    finding,
+    candidates,
+  }: {
+    finding: ReviewFinding;
+    candidates: Dismissal[];
+  }) => {
     const prompt = buildJudgePrompt(finding, candidates);
     try {
       const response = await client.complete({
@@ -97,24 +115,45 @@ export const filterWithJudge = async (
         messages: [{ role: "user", content: prompt }],
         maxTokens: 128,
       });
-
-      totalUsage = addUsage(totalUsage, response.usage);
-
-      if (parseJudgeResponse(response.content)) {
-        filteredIds.push(finding.id);
-        console.error(
-          `  Filtered (LLM judge): ${finding.path} [${finding.category}] — ${finding.id}`,
-        );
-      } else {
-        passed.push(finding);
-      }
+      return {
+        finding,
+        filtered: parseJudgeResponse(response.content),
+        usage: response.usage,
+      };
     } catch (err) {
-      // On failure, keep the finding (safe default)
       console.error(
         `  Judge error for ${finding.id}, keeping finding:`,
         err instanceof Error ? err.message : err,
       );
-      passed.push(finding);
+      return {
+        finding,
+        filtered: false,
+        usage: { inputTokens: 0, outputTokens: 0 } as TokenUsage,
+      };
+    }
+  };
+
+  type JudgeOneResult = Awaited<ReturnType<typeof judgeOne>>;
+  const judgeResults: JudgeOneResult[] = [];
+  for (let i = 0; i < needsJudge.length; i += CONCURRENCY) {
+    const chunk = needsJudge.slice(i, i + CONCURRENCY);
+    const chunkResults = await Promise.all(chunk.map(judgeOne));
+    judgeResults.push(...chunkResults);
+  }
+
+  const passed: ReviewFinding[] = [...noOverlap];
+  const filteredIds: string[] = [];
+  let totalUsage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+
+  for (const result of judgeResults) {
+    totalUsage = addUsage(totalUsage, result.usage);
+    if (result.filtered) {
+      filteredIds.push(result.finding.id);
+      console.error(
+        `  Filtered (LLM judge): ${result.finding.path} [${result.finding.category}] — ${result.finding.id}`,
+      );
+    } else {
+      passed.push(result.finding);
     }
   }
 

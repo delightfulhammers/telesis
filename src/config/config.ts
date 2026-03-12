@@ -32,6 +32,7 @@ export interface PersonaConfig {
 
 export interface ReviewConfig {
   readonly model?: string;
+  readonly judgeModel?: string;
   readonly personas?: readonly PersonaConfig[];
 }
 
@@ -64,6 +65,8 @@ const parseReviewConfig = (raw: unknown): ReviewConfig | undefined => {
   const r = raw as Record<string, unknown>;
 
   const model = typeof r.model === "string" ? r.model : undefined;
+  const judgeModel =
+    typeof r.judgeModel === "string" ? r.judgeModel : undefined;
 
   let personas: PersonaConfig[] | undefined;
   if (Array.isArray(r.personas)) {
@@ -73,9 +76,9 @@ const parseReviewConfig = (raw: unknown): ReviewConfig | undefined => {
     if (parsed.length > 0) personas = parsed;
   }
 
-  if (!model && !personas) return undefined;
+  if (!model && !judgeModel && !personas) return undefined;
 
-  return { model, personas };
+  return { model, judgeModel, personas };
 };
 
 export const load = (rootDir: string): Config => {

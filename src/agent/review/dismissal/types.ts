@@ -38,3 +38,7 @@ export interface Dismissal {
 
 export const isValidDismissalReason = (s: string): s is DismissalReason =>
   (DISMISSAL_REASONS as readonly string[]).includes(s);
+
+/** Canonical UUID v4 regex, shared across packages. */
+export const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

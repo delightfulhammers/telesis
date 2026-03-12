@@ -150,6 +150,18 @@ Reviews code changes against project conventions, architecture rules, and design
 - Finding ID markers embedded in GitHub review comments for correlation during sync
 - Review cost tracking in PR comments and local output
 
+### `telesis journal`
+
+Design journal for exploratory thinking — observations, emerging ideas, and design
+explorations that haven't crystallized into ADRs or TDDs yet.
+
+- `telesis journal add <title> <body>` adds a dated journal entry
+- `telesis journal list` lists all entries by date and title (reverse chronological)
+- `telesis journal list --json` outputs entries as JSON
+- `telesis journal show <query>` displays an entry by ID, date, or title substring
+- Entries persisted in `.telesis/journal.jsonl` (append-only JSONL)
+- Recent entries surface in `telesis context` output (3 most recent titles)
+
 ### `telesis milestone`
 
 Milestone validation and completion.

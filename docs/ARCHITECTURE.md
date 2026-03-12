@@ -51,6 +51,7 @@ telesis/
       complete.ts         ← completeMilestone — status update, version bump, TDD update, context regen
       format.ts           ← formatCheckReport — terminal output for milestone check
     notes/                ← development notes (JSONL store, formatting)
+    journal/              ← design journal (JSONL store, formatting, migration) (v0.11.0)
     docgen/               ← shared document generation utilities
     eval/                 ← document quality evaluation suite
     drift/                ← drift detection checks and runner (v0.3.0+)

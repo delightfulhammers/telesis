@@ -18,8 +18,8 @@ import {
   formatPersonaReport,
   formatSessionList,
   filterBySeverity,
-  deriveCostFromSession,
 } from "../agent/review/format.js";
+import { deriveCostFromSession } from "../agent/review/cost.js";
 import { SEVERITIES, type Severity } from "../agent/review/types.js";
 import type {
   ReviewSession,
@@ -53,6 +53,7 @@ import { postReviewToGitHub } from "../github/adapter.js";
 import {
   DISMISSAL_REASONS,
   isValidDismissalReason,
+  UUID_RE,
 } from "../agent/review/dismissal/types.js";
 import type { Dismissal } from "../agent/review/dismissal/types.js";
 import {
@@ -74,14 +75,15 @@ import {
   formatDismissalReply,
   BRACKET_TAG_RE,
 } from "../github/dismissals.js";
-import { FINDING_MARKER_RE, type FilterStats } from "../github/format.js";
+import { FINDING_MARKER_RE } from "../github/format.js";
+import type { FilterStats } from "../agent/review/types.js";
 import {
   replyToReviewComment,
   listPullRequestReviewComments,
 } from "../github/client.js";
 
-/** Model used for the LLM judge that detects semantic re-raises. */
-const JUDGE_MODEL = "claude-haiku-4-5-20251001";
+/** Default model for the LLM judge that detects semantic re-raises. */
+const DEFAULT_JUDGE_MODEL = "claude-haiku-4-5-20251001";
 
 const addTokenUsage = (
   a: { inputTokens: number; outputTokens: number },
@@ -151,6 +153,7 @@ const applyJudgeFilter = async (
   client: ModelClient,
   filterResult: { findings: readonly ReviewFinding[]; stats: FilterStats },
   dismissals: readonly Dismissal[],
+  judgeModel: string = DEFAULT_JUDGE_MODEL,
 ): Promise<{
   findings: readonly ReviewFinding[];
   stats: FilterStats;
@@ -158,7 +161,7 @@ const applyJudgeFilter = async (
 }> => {
   const judgeResult = await filterWithJudge(
     client,
-    JUDGE_MODEL,
+    judgeModel,
     filterResult.findings,
     dismissals,
   );
@@ -386,6 +389,7 @@ export const reviewCommand = new Command("review")
             client,
             filterResult,
             dismissedFindings,
+            reviewConfig?.judgeModel,
           );
           const finalFindings = judged.findings;
           const combinedFilterStats = judged.stats;
@@ -517,6 +521,7 @@ export const reviewCommand = new Command("review")
           client,
           filterResult,
           dismissedFindings,
+          reviewConfig?.judgeModel,
         );
         const finalFindings = judged.findings;
         const combinedFilterStats = judged.stats;
@@ -604,7 +609,9 @@ const displayFindings = (
     cost?: number | null;
   },
 ): void => {
-  // "No new findings" message when all findings were filtered
+  // "No new findings" message when all findings were filtered.
+  // Intentionally exits 0: dismissed/noise-filtered findings are considered resolved.
+  // The user has already triaged these — re-failing the build would defeat the purpose.
   if (
     findings.length === 0 &&
     extra?.rawFindingCount !== undefined &&
@@ -1028,8 +1035,6 @@ const syncRepliesCommand = new Command("sync-replies")
       const prCtx = { ...ctx, pullNumber };
 
       // Only sync locally-created dismissals (not those imported from GitHub)
-      const UUID_RE =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const allDismissals = loadDismissals(rootDir);
       const cliDismissals = allDismissals.filter(
         (d) => d.source === "cli" && UUID_RE.test(d.findingId),
@@ -1042,6 +1047,9 @@ const syncRepliesCommand = new Command("sync-replies")
 
       // Fetch all PR review comments
       const comments = await listPullRequestReviewComments(prCtx);
+
+      // Index root comments by ID for O(1) lookup
+      const commentsById = new Map(comments.map((c) => [c.id, c]));
 
       // Build a map: findingId → root comment ID (from markers)
       const findingToCommentId = new Map<string, number>();
@@ -1058,12 +1066,8 @@ const syncRepliesCommand = new Command("sync-replies")
       for (const c of comments) {
         if (c.in_reply_to_id == null) continue;
         if (!BRACKET_TAG_RE.test(c.body)) continue;
-        // Find the root comment's findingId
-        const rootId = c.in_reply_to_id;
-        const rootComment = comments.find(
-          (r) => r.id === rootId && r.in_reply_to_id == null,
-        );
-        if (rootComment) {
+        const rootComment = commentsById.get(c.in_reply_to_id);
+        if (rootComment && rootComment.in_reply_to_id == null) {
           const match = FINDING_MARKER_RE.exec(rootComment.body);
           if (match?.[1]) {
             alreadySynced.add(match[1]);

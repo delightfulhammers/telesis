@@ -230,6 +230,19 @@ describe("formatReviewSummaryBody", () => {
     expect(result).toContain("**Estimated cost:** $0.42");
   });
 
+  it("includes estimated cost in 'No New Findings' path", () => {
+    const result = formatReviewSummaryBody(makeSession(), [], [], {
+      filterStats: {
+        dismissalFilteredCount: 2,
+        noiseFilteredCount: 0,
+        totalFilteredCount: 2,
+      },
+      estimatedCost: 0.15,
+    });
+    expect(result).toContain("## Telesis Review — No New Findings");
+    expect(result).toContain("**Estimated cost:** $0.15");
+  });
+
   it("omits cost line when cost is null", () => {
     const result = formatReviewSummaryBody(makeSession(), [makeFinding()], [], {
       estimatedCost: null,

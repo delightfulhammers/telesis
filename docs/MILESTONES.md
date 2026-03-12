@@ -653,21 +653,22 @@ and local output.
 **Goal:** Introduce `telesis journal` as a managed design artifact and remove the CI review
 workflow now that development is shifting to a local-first, big-commit model.
 
-**Status:** Planned
+**Status:** Complete
 
 ### What Changes
 
-The design journal (`docs/JOURNAL.md`) becomes a first-class Telesis artifact with CLI
-commands for adding entries, listing them, and surfacing recent entries in `telesis context`.
-The GitHub Actions CI review workflow is removed — review moves to aggressive local
-self-review before commits.
+The design journal becomes a first-class Telesis artifact stored in `.telesis/journal.jsonl`
+(JSONL, consistent with notes and dismissals). CLI commands support adding entries, listing
+them, showing individual entries, and surfacing recent entries in `telesis context`. The
+GitHub Actions CI review workflow is removed — review moves to aggressive local self-review
+before commits.
 
 ### Acceptance Criteria
 
-1. `telesis journal add "title"` creates a new dated entry in `docs/JOURNAL.md`
-2. `telesis journal list` lists journal entries by date and title
-3. `telesis journal show <date-or-title>` displays a specific entry
-4. Journal entries follow the established format: `## YYYY-MM-DD — Title`
+1. `telesis journal add <title> <body>` creates a dated journal entry in `.telesis/journal.jsonl`
+2. `telesis journal list` lists journal entries by date and title (reverse chronological)
+3. `telesis journal list --json` outputs entries as JSON
+4. `telesis journal show <query>` displays an entry by ID, date, or title substring
 5. `telesis context` includes a "Recent Journal Entries" section with the 3 most recent
    entry titles (not full content — these are large)
 6. `.github/workflows/telesis-ci.yml` is removed

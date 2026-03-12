@@ -2,6 +2,7 @@ import {
   formatFindingLocation,
   type ReviewFinding,
   type ReviewSession,
+  type FilterStats,
 } from "../agent/review/types.js";
 import type { DriftReport } from "../drift/types.js";
 
@@ -54,16 +55,6 @@ export const formatFindingAsSummary = (finding: ReviewFinding): string => {
   return `- \`${location}\`: ${finding.description}${persona}${suggestion}`;
 };
 
-/**
- * Formats the review summary body for a PR review.
- * Contains header info, summary-only findings, and stats.
- */
-export interface FilterStats {
-  readonly dismissalFilteredCount: number;
-  readonly noiseFilteredCount: number;
-  readonly totalFilteredCount: number;
-}
-
 export const formatReviewSummaryBody = (
   session: ReviewSession,
   inlineFindings: readonly ReviewFinding[],
@@ -98,6 +89,11 @@ export const formatReviewSummaryBody = (
     }
     const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
     lines.push(`_${totalFilteredCount} finding(s) filtered${detail}_`);
+
+    if (extra?.estimatedCost != null && extra.estimatedCost > 0) {
+      lines.push(`**Estimated cost:** $${extra.estimatedCost.toFixed(2)}`);
+    }
+
     return lines.join("\n");
   }
 
