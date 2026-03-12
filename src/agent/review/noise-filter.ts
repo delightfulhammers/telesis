@@ -6,7 +6,7 @@ export interface FilterResult {
   readonly filteredReasons: Record<string, number>;
 }
 
-interface NoisePattern {
+export interface NoisePattern {
   readonly name: string;
   readonly test: (finding: ReviewFinding) => boolean;
 }
@@ -75,6 +75,47 @@ export const filterNoise = (
 
   for (const f of findings) {
     const matchedPattern = NOISE_PATTERNS.find((p) => p.test(f));
+    if (matchedPattern) {
+      filteredCount++;
+      filteredReasons[matchedPattern.name] =
+        (filteredReasons[matchedPattern.name] ?? 0) + 1;
+    } else {
+      passed.push(f);
+    }
+  }
+
+  return { findings: passed, filteredCount, filteredReasons };
+};
+
+/**
+ * Converts candidate noise patterns (from dismissal stats) into NoisePattern
+ * objects for use in the filter pipeline. Each pattern tests whether the
+ * finding's description contains the phrase as a case-insensitive substring.
+ */
+export const buildDismissalNoisePatterns = (
+  patterns: readonly { readonly substring: string; readonly count: number }[],
+): readonly NoisePattern[] =>
+  patterns.map((p) => ({
+    name: `dismissal-pattern(${p.substring.slice(0, 30)})`,
+    test: (f: ReviewFinding) =>
+      f.description.toLowerCase().includes(p.substring.toLowerCase()),
+  }));
+
+/**
+ * Filters findings using built-in patterns plus additional dynamic patterns.
+ * Returns the same FilterResult shape as filterNoise.
+ */
+export const filterWithPatterns = (
+  findings: readonly ReviewFinding[],
+  extraPatterns: readonly NoisePattern[],
+): FilterResult => {
+  const allPatterns = [...NOISE_PATTERNS, ...extraPatterns];
+  const passed: ReviewFinding[] = [];
+  const filteredReasons: Record<string, number> = {};
+  let filteredCount = 0;
+
+  for (const f of findings) {
+    const matchedPattern = allPatterns.find((p) => p.test(f));
     if (matchedPattern) {
       filteredCount++;
       filteredReasons[matchedPattern.name] =

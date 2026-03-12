@@ -149,6 +149,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./telesis review --ref origin/main...HEAD --github-pr
 
+      - name: Sync dismissal replies to PR
+        if: steps.skip-check.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./telesis review sync-replies --pr ${{ github.event.pull_request.number }}
+        continue-on-error: true
+
       - name: Upload review cache
         if: steps.skip-check.outputs.skip != 'true'
         uses: actions/upload-artifact@v4

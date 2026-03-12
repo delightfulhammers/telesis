@@ -186,6 +186,56 @@ describe("formatReviewSummaryBody", () => {
     expect(result).toContain("2 summary");
     expect(result).toContain("2 merged");
   });
+
+  it("produces 'No New Findings' summary when all findings were filtered", () => {
+    const result = formatReviewSummaryBody(makeSession(), [], [], {
+      filterStats: {
+        dismissalFilteredCount: 3,
+        noiseFilteredCount: 1,
+        totalFilteredCount: 4,
+      },
+    });
+    expect(result).toContain("## Telesis Review — No New Findings");
+    expect(result).toContain("No action required");
+    expect(result).toContain("4 finding(s) filtered");
+    expect(result).toContain("3 dismissed re-raises");
+    expect(result).toContain("1 noise");
+    expect(result).not.toContain("**Ref:**");
+  });
+
+  it("produces normal summary when there are findings despite filter stats", () => {
+    const result = formatReviewSummaryBody(makeSession(), [makeFinding()], [], {
+      filterStats: {
+        dismissalFilteredCount: 2,
+        noiseFilteredCount: 0,
+        totalFilteredCount: 2,
+      },
+    });
+    expect(result).toContain("## Telesis Review");
+    expect(result).not.toContain("No New Findings");
+    expect(result).toContain("1 findings");
+  });
+
+  it("produces normal summary when zero findings and no filter stats", () => {
+    const result = formatReviewSummaryBody(makeSession(), [], []);
+    expect(result).toContain("## Telesis Review");
+    expect(result).not.toContain("No New Findings");
+    expect(result).toContain("0 findings");
+  });
+
+  it("includes estimated cost when provided", () => {
+    const result = formatReviewSummaryBody(makeSession(), [makeFinding()], [], {
+      estimatedCost: 0.42,
+    });
+    expect(result).toContain("**Estimated cost:** $0.42");
+  });
+
+  it("omits cost line when cost is null", () => {
+    const result = formatReviewSummaryBody(makeSession(), [makeFinding()], [], {
+      estimatedCost: null,
+    });
+    expect(result).not.toContain("Estimated cost");
+  });
 });
 
 describe("formatDriftComment", () => {

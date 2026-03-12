@@ -1,11 +1,17 @@
 import { describe, it, expect } from "vitest";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   formatReviewReport,
   formatPersonaReport,
   formatSessionList,
   filterBySeverity,
+  formatFinding,
+  deriveCostFromSession,
 } from "./format.js";
 import type { ReviewSession, ReviewFinding } from "./types.js";
+import type { Dismissal } from "./dismissal/types.js";
 
 const makeSession = (
   overrides: Partial<ReviewSession> = {},
@@ -278,5 +284,107 @@ describe("filterBySeverity", () => {
   it("shows all when threshold is low", () => {
     const filtered = filterBySeverity(findings, "low");
     expect(filtered).toHaveLength(4);
+  });
+});
+
+describe("formatFinding", () => {
+  const finding: ReviewFinding = {
+    id: "f-1",
+    sessionId: "s-1",
+    severity: "high",
+    category: "security",
+    path: "src/auth.ts",
+    startLine: 42,
+    description: "SQL injection via unsanitized input",
+    suggestion: "Use parameterized queries",
+  };
+
+  it("formats without dismissal annotation when no dismissal", () => {
+    const result = formatFinding(finding);
+    expect(result).toContain("[high] security");
+    expect(result).toContain("src/auth.ts:42");
+    expect(result).not.toContain("DISMISSED");
+  });
+
+  it("includes [DISMISSED: reason] when dismissal provided", () => {
+    const dismissal: Dismissal = {
+      id: "d-1",
+      findingId: "f-1",
+      sessionId: "s-1",
+      reason: "false-positive",
+      timestamp: "2026-03-10T00:00:00Z",
+      source: "cli",
+      path: "src/auth.ts",
+      severity: "high",
+      category: "security",
+      description: "SQL injection via unsanitized input",
+      suggestion: "Use parameterized queries",
+    };
+    const result = formatFinding(finding, dismissal);
+    expect(result).toContain("[DISMISSED: false-positive]");
+    expect(result).toContain("[high] security");
+  });
+});
+
+describe("cost in summary line", () => {
+  it("includes cost when provided to formatReviewReport", () => {
+    const session = makeSession({ mode: "single" });
+    const result = formatReviewReport(session, [], { cost: 0.05 });
+    expect(result).toContain("$0.05");
+  });
+
+  it("omits cost when null", () => {
+    const session = makeSession({ mode: "single" });
+    const result = formatReviewReport(session, [], { cost: null });
+    expect(result).not.toContain("$");
+  });
+
+  it("includes cost when provided to formatPersonaReport", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security"],
+    });
+    const result = formatPersonaReport(session, [], { cost: 1.23 });
+    expect(result).toContain("$1.23");
+  });
+});
+
+describe("deriveCostFromSession", () => {
+  it("returns correct cost with valid pricing", () => {
+    const dir = join(
+      tmpdir(),
+      `telesis-format-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(join(dir, ".telesis"), { recursive: true });
+    writeFileSync(
+      join(dir, ".telesis/pricing.yml"),
+      `lastUpdated: "2026-03-10"
+models:
+  anthropic:
+    claude-sonnet-4-6:
+      inputPer1MTokens: 3.0
+      outputPer1MTokens: 15.0
+`,
+    );
+
+    const session = makeSession({
+      model: "claude-sonnet-4-6",
+      tokenUsage: { inputTokens: 10000, outputTokens: 2000 },
+    });
+    const cost = deriveCostFromSession(session, dir);
+    expect(cost).not.toBeNull();
+    // 10000 input * $3/1M = $0.03, 2000 output * $15/1M = $0.03
+    expect(cost).toBeCloseTo(0.06, 2);
+  });
+
+  it("returns null when pricing file missing", () => {
+    const dir = join(
+      tmpdir(),
+      `telesis-format-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(dir, { recursive: true });
+    const session = makeSession();
+    const cost = deriveCostFromSession(session, dir);
+    expect(cost).toBeNull();
   });
 });
