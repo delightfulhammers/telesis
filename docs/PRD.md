@@ -143,9 +143,12 @@ Reviews code changes against project conventions, architecture rules, and design
 - `telesis review sync-dismissals --pr <N>` imports dismissal signals from GitHub PR review threads
 - `telesis review dismissal-stats` shows aggregated dismissal statistics and candidate noise patterns
 - `telesis review dismissal-stats --json` outputs stats as JSON
+- `telesis review sync-replies --pr <N>` posts unsynced dismissal replies to GitHub PR threads
 - Dismissed findings persisted in `.telesis/dismissals.jsonl` (cross-session, append-only)
 - Dismissed findings injected into review prompts as strongest suppression signal (capped at 50)
+- Post-review fuzzy matching filters re-raises of dismissed findings (deterministic + LLM judge)
 - Finding ID markers embedded in GitHub review comments for correlation during sync
+- Review cost tracking in PR comments and local output
 
 ### `telesis milestone`
 

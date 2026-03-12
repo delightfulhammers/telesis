@@ -13,7 +13,7 @@ import { milestoneCommand } from "./cli/milestone.js";
 
 const program = new Command("telesis")
   .description("Development intelligence platform")
-  .version("0.10.0")
+  .version("0.10.1")
   .enablePositionalOptions()
   .addCommand(initCommand)
   .addCommand(contextCommand)

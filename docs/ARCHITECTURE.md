@@ -97,12 +97,14 @@ telesis/
         json-parse.ts     ← shared JSON response parser (fence extraction)
         store.ts          ← per-session JSONL storage in .telesis/reviews/
         format.ts         ← terminal report formatting (flat + persona-grouped)
-        dismissal/        ← review triage feedback loop (v0.10.0)
+        dismissal/        ← review triage feedback loop (v0.10.0, v0.10.1)
           types.ts        ← Dismissal, DismissalReason, DismissalSource types
           store.ts        ← append-only JSONL storage in .telesis/dismissals.jsonl
           source.ts       ← DismissalSignal, DismissalSource platform adapter interface
           stats.ts        ← aggregation by reason/category/severity/persona, noise pattern detection
           format.ts       ← terminal formatting for dismissal list and stats
+          matcher.ts      ← deterministic fuzzy matching against dismissed findings (v0.10.1)
+          judge.ts        ← LLM judge for semantic re-raise detection (v0.10.1)
       model/
         client.ts         ← ModelClient abstraction (only Anthropic SDK import)
         types.ts          ← CompletionRequest/Response types

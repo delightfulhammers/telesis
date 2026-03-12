@@ -1,6 +1,6 @@
 # Telesis — Milestones
 *By Delightful Hammers*
-*Last updated: 2026-03-11*
+*Last updated: 2026-03-12*
 
 ---
 
@@ -605,11 +605,282 @@ Four new CLI commands extend `telesis review`:
 
 ---
 
-## Future Milestones
+## v0.10.1 — Review Quality & Local-First Correction
 
-*(Tracked here as direction, not commitment.)*
+**Goal:** Make the review pipeline converge to zero re-raises of dismissed findings, and
+correct the dismiss command's architecture to follow local-first principles.
 
-- **v0.11.0 — Chronicler Agent:** Automatic extraction of development insights from session
-  transcripts, reducing reliance on manual `telesis note` capture
-- **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development
-  lifecycle, with agents communicating through structured context rather than ad-hoc prompts
+**Status:** Complete
+
+**Reference:** Issues #50–#53
+
+### What Changes
+
+Post-review fuzzy matching filters findings that match previously dismissed items —
+deterministic matching by ID, position, and description similarity, followed by an LLM
+judge for semantic re-raises that slip through. When all findings are filtered, a clean
+"No New Findings" message replaces the findings report (locally and on GitHub).
+
+The dismiss command is decoupled from GitHub: all state writes to `.telesis/dismissals.jsonl`
+first, and a new `sync-replies` command pushes dismissal replies to GitHub PR threads on
+demand.
+
+Additional improvements: noise pattern auto-suppression from dismissal statistics,
+`--show` annotates findings with dismissal status, and review cost tracking in PR comments
+and local output.
+
+### Acceptance Criteria
+
+1. Finding matching a dismissed finding by exact ID is filtered
+2. Finding matching by path + category + line overlap (±5 lines) is filtered
+3. Finding matching by path + category + description similarity (Jaccard ≥ 0.5) is filtered
+4. LLM judge filters semantic re-raises that pass deterministic matching
+5. When all findings filtered, local output shows "No new findings. X filtered..."
+6. When all findings filtered with `--github-pr`, APPROVE review with "No New Findings" summary
+7. Candidate noise patterns (3+ occurrences) auto-suppress matching findings
+8. `telesis review dismiss` does NOT call GitHub API (local-only write)
+9. `telesis review sync-replies --pr <N>` posts unsynced dismissal replies to GitHub
+10. `telesis review --show <id>` annotates dismissed findings with `[DISMISSED: reason]`
+11. GitHub PR review summary includes estimated cost
+12. Local review summary includes estimated cost
+13. All existing tests pass
+14. `telesis drift` zero errors
+
+---
+
+## v0.11.0 — Journal & CI Cleanup
+
+**Goal:** Introduce `telesis journal` as a managed design artifact and remove the CI review
+workflow now that development is shifting to a local-first, big-commit model.
+
+**Status:** Planned
+
+### What Changes
+
+The design journal (`docs/JOURNAL.md`) becomes a first-class Telesis artifact with CLI
+commands for adding entries, listing them, and surfacing recent entries in `telesis context`.
+The GitHub Actions CI review workflow is removed — review moves to aggressive local
+self-review before commits.
+
+### Acceptance Criteria
+
+1. `telesis journal add "title"` creates a new dated entry in `docs/JOURNAL.md`
+2. `telesis journal list` lists journal entries by date and title
+3. `telesis journal show <date-or-title>` displays a specific entry
+4. Journal entries follow the established format: `## YYYY-MM-DD — Title`
+5. `telesis context` includes a "Recent Journal Entries" section with the 3 most recent
+   entry titles (not full content — these are large)
+6. `.github/workflows/telesis-ci.yml` is removed
+7. `telesis drift` no longer checks for CI-related artifacts
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Journal parser:** Parse existing JOURNAL.md format, extract entries by date
+2. **Phase 2 — Journal CLI:** `add`, `list`, `show` commands
+3. **Phase 3 — Context integration:** Surface recent entries in CLAUDE.md
+4. **Phase 4 — CI removal:** Remove workflow file, update drift checks
+5. **Phase 5 — Validation:** Verify all criteria, run drift
+
+---
+
+## v0.12.0 — Daemon Foundation
+
+**Goal:** Transform Telesis from a stateless CLI into a long-running daemon with an RxJS
+event backbone, filesystem watching, and OS-level lifecycle management. The daemon becomes
+the substrate on which all future agent orchestration runs.
+
+**Status:** Planned
+
+### What Changes
+
+A daemon process is introduced with `telesis daemon start|stop|status|install` commands.
+The daemon watches the project filesystem for changes and emits typed events through an
+RxJS event backbone. A local Unix socket provides the control interface. OS supervision
+is handled via LaunchAgent (macOS) or systemd (Linux). A minimal TUI client connects to
+the daemon for real-time event monitoring.
+
+### Acceptance Criteria
+
+1. `telesis daemon start` starts a background daemon process
+2. `telesis daemon stop` gracefully shuts down the daemon
+3. `telesis daemon status` reports whether the daemon is running and basic health info
+4. `telesis daemon install` configures OS-level supervision (LaunchAgent or systemd)
+5. The daemon watches the project directory for file changes and emits typed events
+6. Events follow a discriminated union format: `{ type, timestamp, source, payload }`
+7. The event backbone uses RxJS Observables with backpressure support
+8. A local Unix socket serves as the control interface (start, stop, subscribe)
+9. A minimal TUI client connects to the daemon and displays real-time events
+10. The daemon survives terminal close when installed via OS supervision
+11. PID file management prevents duplicate daemon instances
+12. All new business logic has colocated unit tests
+13. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Event types and backbone:** Discriminated union event types, RxJS bus
+2. **Phase 2 — Filesystem watcher:** chokidar-based watcher emitting events to the bus
+3. **Phase 3 — Daemon lifecycle:** start/stop/status, PID file, Unix socket
+4. **Phase 4 — OS supervision:** LaunchAgent plist generation, systemd unit generation
+5. **Phase 5 — TUI client:** Minimal terminal UI connecting over the socket
+6. **Phase 6 — Validation:** End-to-end daemon lifecycle testing
+
+---
+
+## v0.13.0 — ACP Dispatcher
+
+**Goal:** Enable Telesis to spawn and manage coding agents (Claude, Codex, Gemini) via the
+Agent Client Protocol (ACP), turning it from a passive observer into an active work executor.
+
+**Status:** Planned
+
+### What Changes
+
+A dispatcher agent is introduced that can spawn coding agents via ACP (JSON-RPC over stdio),
+manage their sessions, supply them with project context from `.telesis/`, and stream their
+events back through the daemon's event backbone. The dispatcher handles agent lifecycle
+(spawn, monitor, terminate), session persistence via JSONL event logs, and bounded
+concurrency.
+
+### Acceptance Criteria
+
+1. `telesis dispatch <task>` spawns a coding agent with the given task description
+2. `telesis dispatch --agent <name>` selects a specific agent (claude, codex, gemini)
+3. The dispatcher supplies the agent with project context (spec, architecture, conventions)
+4. Agent sessions are persisted as JSONL event logs in `.telesis/sessions/`
+5. Agent events stream through the daemon event backbone in real time
+6. The TUI displays live agent activity (events, tool calls, output)
+7. Bounded concurrency limits the number of simultaneous agents (configurable)
+8. Agent crashes are detected and reported, not silently swallowed
+9. `telesis dispatch list` shows active and completed agent sessions
+10. `telesis dispatch show <session-id>` replays a session's event log
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — ACP client:** JSON-RPC over stdio, session management, based on acpx patterns
+2. **Phase 2 — Context assembly:** Package project context for agent consumption
+3. **Phase 3 — Session persistence:** JSONL event logs with segment rotation
+4. **Phase 4 — Daemon integration:** Stream agent events through RxJS backbone
+5. **Phase 5 — Dispatcher CLI:** `dispatch`, `dispatch list`, `dispatch show` commands
+6. **Phase 6 — Concurrency and lifecycle:** Bounded parallelism, crash detection, cleanup
+
+---
+
+## v0.14.0 — Active Oversight & Chronicler
+
+**Goal:** Specialist agents observe the coding agent event stream in real time, providing
+continuous oversight rather than post-hoc review. The chronicler captures development
+insights automatically from session transcripts.
+
+**Status:** Planned
+
+### What Changes
+
+The agent roster gains active oversight capabilities. The Reviewer, Architect, and a new
+Chronicler agent observe the event stream from dispatched coding agents and intervene
+when they detect drift, spec violations, or notable decisions.
+
+The Chronicler replaces manual `telesis note` for routine insight capture — it watches
+coding sessions, extracts observations about patterns, decisions, and gotchas, and persists
+them as structured notes. The human remains in the loop for architectural decisions and
+milestone gates.
+
+### Acceptance Criteria
+
+1. The Reviewer agent monitors coding agent output for issues in real time
+2. The Architect agent detects drift from spec during coding agent sessions
+3. The Chronicler automatically extracts development insights from completed sessions
+4. Chronicler-generated notes are distinguishable from human-authored notes
+5. Oversight agents operate on the event stream (not polling)
+6. Oversight findings surface in the TUI as they occur
+7. Agents use versioned policy files (`.telesis/agents/<name>.md`) for configuration
+8. Autonomy configuration controls when agents intervene vs. observe silently
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Agent policy files:** Versioned `.telesis/agents/` configuration
+2. **Phase 2 — Event stream observers:** Agent framework for subscribing to event streams
+3. **Phase 3 — Reviewer observer:** Real-time review during coding sessions
+4. **Phase 4 — Architect observer:** Drift detection during coding sessions
+5. **Phase 5 — Chronicler:** Session transcript analysis, automatic note extraction
+6. **Phase 6 — Autonomy configuration:** supervised/autonomous/gated modes
+
+---
+
+## v0.15.0 — Work Intake
+
+**Goal:** Enable Telesis to ingest work from external sources (issue trackers, human
+commands via TUI) and route it through the dispatch pipeline, closing the gap between
+"work exists" and "work is being done."
+
+**Status:** Planned
+
+### What Changes
+
+Work intake adapters connect Telesis to external sources of work: GitHub Issues, Linear,
+Jira, and direct human commands via the TUI. Incoming work items are normalized into a
+common format, prioritized, and routed to the dispatcher. The human approves work
+assignment at configurable gates.
+
+### Acceptance Criteria
+
+1. `telesis intake github` imports open issues from the configured GitHub repo
+2. `telesis intake linear` imports issues from a configured Linear project
+3. Work items are normalized into a common internal format
+4. The TUI displays pending work items for human review and approval
+5. Approved work items are dispatched to coding agents automatically
+6. Work item status is tracked end-to-end (intake → dispatch → completion)
+7. Configurable filters control which issues are eligible for intake
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Work item types:** Common format for normalized work items
+2. **Phase 2 — GitHub adapter:** Import issues via `gh` CLI / GitHub API
+3. **Phase 3 — Linear adapter:** Import issues via Linear API
+4. **Phase 4 — Intake CLI and TUI:** Display, filter, approve work items
+5. **Phase 5 — Dispatch integration:** Route approved items to the dispatcher
+
+---
+
+## v1.0.0 — Full Loop
+
+**Goal:** Complete the intake → understand → plan → dispatch → monitor → validate →
+correct → complete cycle. Telesis operates as a fully autonomous development companion
+within human-defined boundaries.
+
+**Status:** Planned
+
+### What Changes
+
+All pieces connect: work arrives via intake, context is assembled, a plan is formed, coding
+agents are dispatched, oversight agents monitor execution, validation confirms correctness,
+and the loop self-corrects on failure. The human sets boundaries (milestones, autonomy
+level, approval gates) and Telesis operates within them.
+
+### Acceptance Criteria
+
+1. End-to-end: an issue can flow from intake to merged code with human approval at gates
+2. The planning agent decomposes work items into dispatchable tasks
+3. Failed validation triggers automatic correction (retry with feedback)
+4. The correction loop has bounded retries with human escalation
+5. Milestone gates pause autonomous operation for human review
+6. The full loop operates on the Telesis repo itself (self-hosting)
+7. Comprehensive documentation covers the full orchestration model
+8. All business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Planner agent:** Decompose work items into tasks
+2. **Phase 2 — Validation agent:** Verify dispatch output against acceptance criteria
+3. **Phase 3 — Correction loop:** Retry with feedback on validation failure
+4. **Phase 4 — End-to-end wiring:** Connect intake → plan → dispatch → monitor → validate → correct
+5. **Phase 5 — Self-hosting validation:** Run the full loop on Telesis itself
+6. **Phase 6 — Documentation and stabilization**

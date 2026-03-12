@@ -57,51 +57,46 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.10.0 — Review Triage Feedback Loop
+## v0.10.1 — Review Quality & Local-First Correction
 
-**Goal:** Track triage dismissals from any platform (CLI, GitHub, extensible to GitLab/
-Gitea/Bitbucket), persist them in `.telesis/`, and inject them as the strongest suppression
-signal in review prompts.
+**Goal:** Make the review pipeline converge to zero re-raises of dismissed findings, and
+correct the dismiss command's architecture to follow local-first principles.
 
 **Status:** Complete
 
-**Reference:** TDD-007 (Review Triage Feedback), Issue #45, PR #49
+**Reference:** Issues #50–#53
 
 ### What Changes
 
-A closed-loop feedback system is added to the review pipeline. When a human dismisses a
-finding (via CLI or by replying to a GitHub review comment), that signal is persisted in
-`.telesis/dismissals.jsonl` and injected into future review prompts as the strongest
-suppression signal — stronger than prior findings or theme conclusions.
+Post-review fuzzy matching filters findings that match previously dismissed items —
+deterministic matching by ID, position, and description similarity, followed by an LLM
+judge for semantic re-raises that slip through. When all findings are filtered, a clean
+"No New Findings" message replaces the findings report (locally and on GitHub).
 
-Four new CLI commands extend `telesis review`:
-- `telesis review dismiss <id> --reason <category>` dismisses a finding
-- `telesis review dismissals` lists all dismissals
-- `telesis review sync-dismissals --pr <N>` imports dismissals from GitHub PR threads
-- `telesis review dismissal-stats` shows aggregated statistics and candidate noise patterns
+The dismiss command is decoupled from GitHub: all state writes to `.telesis/dismissals.jsonl`
+first, and a new `sync-replies` command pushes dismissal replies to GitHub PR threads on
+demand.
+
+Additional improvements: noise pattern auto-suppression from dismissal statistics,
+`--show` annotates findings with dismissal status, and review cost tracking in PR comments
+and local output.
 
 ### Acceptance Criteria
 
-1. `telesis review dismiss <id> --reason <category>` creates a dismissal record
-2. `telesis review dismissals` lists all dismissals with metadata
-3. `telesis review dismissals --json` outputs dismissals as JSON
-4. Dismissed findings are injected into review prompts (stronger than prior findings)
-5. Dismissed findings section appears after prior findings section in prompts
-6. Dismissed findings are capped at 50 entries in prompts
-7. Finding ID markers are embedded in GitHub review comments for correlation
-8. `telesis review sync-dismissals --pr <N>` imports dismissals from GitHub PR threads
-9. `telesis review dismissal-stats` shows aggregated dismissal statistics
-10. `DismissalSource` interface enables future platform adapters
-11. All new business logic has colocated unit tests
-12. Running `telesis drift` produces zero errors
-
-### Build Sequence
-
-1. **Phase 1 — Types, store, CLI dismiss:** Dismissal types, JSONL store, dismiss + dismissals commands
-2. **Phase 2 — Prompt injection:** `formatDismissedFindings()`, thread through prompt builders and agent layer
-3. **Phase 3 — GitHub signal import:** Finding markers, review comment listing, GitHub adapter, sync-dismissals
-4. **Phase 4 — Pattern aggregation:** Stats computation, dismissal-stats command
-5. **Phase 5 — TDD and documentation:** TDD-007, milestone/PRD/architecture updates
+1. Finding matching a dismissed finding by exact ID is filtered
+2. Finding matching by path + category + line overlap (±5 lines) is filtered
+3. Finding matching by path + category + description similarity (Jaccard ≥ 0.5) is filtered
+4. LLM judge filters semantic re-raises that pass deterministic matching
+5. When all findings filtered, local output shows "No new findings. X filtered..."
+6. When all findings filtered with `--github-pr`, APPROVE review with "No New Findings" summary
+7. Candidate noise patterns (3+ occurrences) auto-suppress matching findings
+8. `telesis review dismiss` does NOT call GitHub API (local-only write)
+9. `telesis review sync-replies --pr <N>` posts unsynced dismissal replies to GitHub
+10. `telesis review --show <id>` annotates dismissed findings with `[DISMISSED: reason]`
+11. GitHub PR review summary includes estimated cost
+12. Local review summary includes estimated cost
+13. All existing tests pass
+14. `telesis drift` zero errors
 
 ---
 
