@@ -80,6 +80,24 @@ describe("cliVersionSyncCheck", () => {
     expect(result.message).toContain("skipped");
   });
 
+  it("passes when version is read dynamically from package.json", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "test", version: "1.2.3" }),
+    );
+    writeFileSync(
+      join(dir, "src", "index.ts"),
+      'const program = new Command("test")\n  .version(readVersion())\n  .parse();\n',
+    );
+
+    const result = cliVersionSyncCheck.run(dir);
+    expect(result.passed).toBe(true);
+    expect(result.message).toContain("dynamically");
+    expect(result.message).toContain("1.2.3");
+  });
+
   it("skips when package.json has no version", () => {
     const dir = makeTempDir();
     mkdirSync(join(dir, "src"), { recursive: true });

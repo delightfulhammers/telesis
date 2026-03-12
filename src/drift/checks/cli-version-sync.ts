@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DriftCheck, DriftFinding } from "../types.js";
 
-const CLI_VERSION_RE = /\.version\("([^"]+)"\)/;
+const HARDCODED_VERSION_RE = /\.version\("([^"]+)"\)/;
+const DYNAMIC_VERSION_RE = /\.version\(readVersion\(\)\)/;
 
 export const cliVersionSyncCheck: DriftCheck = {
   name: "cli-version-sync",
@@ -60,7 +61,19 @@ export const cliVersionSyncCheck: DriftCheck = {
         details: [],
       };
     }
-    const match = CLI_VERSION_RE.exec(entryContent);
+
+    // Dynamic version (reads package.json at runtime) — always in sync by construction
+    if (DYNAMIC_VERSION_RE.test(entryContent)) {
+      return {
+        check: "cli-version-sync",
+        passed: true,
+        message: `Version read dynamically from package.json (${pkgVersion})`,
+        severity: "warning",
+        details: [],
+      };
+    }
+
+    const match = HARDCODED_VERSION_RE.exec(entryContent);
 
     if (!match?.[1]) {
       return {

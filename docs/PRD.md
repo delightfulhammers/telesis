@@ -162,6 +162,22 @@ explorations that haven't crystallized into ADRs or TDDs yet.
 - Entries persisted in `.telesis/journal.jsonl` (append-only JSONL)
 - Recent entries surface in `telesis context` output (3 most recent titles)
 
+### `telesis daemon`
+
+Manages the Telesis daemon — a long-running background process that watches the project
+filesystem and maintains a reactive event backbone for future agent orchestration.
+
+- `telesis daemon start` starts the daemon as a background process
+- `telesis daemon stop` gracefully shuts down the daemon
+- `telesis daemon status` reports whether the daemon is running, PID, uptime, event count
+- `telesis daemon install` configures OS-level supervision (LaunchAgent on macOS, systemd on Linux)
+- `telesis daemon tui` connects to the daemon and streams live events to the terminal
+- The daemon watches the project directory for file changes and emits typed events
+- Events use a discriminated union format: `{ type, timestamp, source, payload }`
+- A Unix socket (`.telesis/daemon.sock`) serves as the IPC interface (NDJSON protocol)
+- PID file (`.telesis/daemon.pid`) prevents duplicate instances
+- The daemon survives terminal close when installed via OS supervision
+
 ### `telesis milestone`
 
 Milestone validation and completion.

@@ -1,6 +1,6 @@
 {
   "name": "telesis",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Development intelligence platform",
   "type": "module",
   "main": "src/index.ts",
@@ -16,7 +16,8 @@
     "@anthropic-ai/sdk": "^0.78.0",
     "commander": "^13.1.0",
     "js-yaml": "^4.1.0",
-    "mustache": "^4.2.0"
+    "mustache": "^4.2.0",
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

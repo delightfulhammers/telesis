@@ -37,6 +37,7 @@ telesis/
       note.ts             ← development notes command (v0.4.0+)
       review.ts           ← code review command (v0.5.0+)
       milestone.ts        ← milestone check + complete commands (v0.9.0)
+      daemon.ts           ← daemon start/stop/status/install/tui commands (v0.12.0)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection
     config/               ← .telesis/config.yml read/write
@@ -52,6 +53,17 @@ telesis/
       format.ts           ← formatCheckReport — terminal output for milestone check
     notes/                ← development notes (JSONL store, formatting)
     journal/              ← design journal (JSONL store, formatting, migration) (v0.11.0)
+    daemon/               ← daemon process, event bus, socket server, fs watcher (v0.12.0)
+      types.ts            ← event discriminated union, socket protocol, config types
+      bus.ts              ← RxJS event bus (sole rxjs importer)
+      watcher.ts          ← node:fs.watch wrapper with ignore/debounce
+      pid.ts              ← PID file management
+      socket.ts           ← Unix socket server, NDJSON framing, client tracking
+      lifecycle.ts        ← start/stop/status orchestration
+      client.ts           ← socket client for CLI/TUI
+      entrypoint.ts       ← daemon main loop
+      supervision.ts      ← LaunchAgent/systemd unit generation
+      tui.ts              ← event stream renderer
     docgen/               ← shared document generation utilities
     eval/                 ← document quality evaluation suite
     drift/                ← drift detection checks and runner (v0.3.0+)
@@ -144,6 +156,9 @@ telesis/
 **Agent layer (v0.2.0+):**
 - **`@anthropic-ai/sdk`** — primary model provider (imported only in `agent/model/client.ts`)
 
+**Daemon layer (v0.12.0+):**
+- **`rxjs`** — reactive event backbone (imported only in `daemon/bus.ts`)
+
 **Dev:**
 - **`typescript`** — type checking (`tsc --noEmit` for linting)
 - **`vitest`** — test framework
@@ -161,6 +176,8 @@ telesis/
 - **`src/agent/model/client.ts`** is the only file that imports `@anthropic-ai/sdk` directly.
   All other code calls `ModelClient`. This is a hard rule — it keeps provider coupling
   contained.
+- **`src/daemon/bus.ts`** is the only file that imports `rxjs`. All other daemon code uses
+  the `EventBus` interface. Same containment pattern as the model and GitHub clients.
 - **`src/github/client.ts`** is the only file that calls `fetch` for the GitHub API.
   All other code uses the adapter and format modules. Same containment pattern as the model client.
 - **`src/agent/`** packages (`interview/`, `generate/`, `telemetry/`) know nothing about the

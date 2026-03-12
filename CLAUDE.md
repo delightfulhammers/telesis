@@ -57,41 +57,48 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.11.0 — Journal & CI Cleanup
+## v0.12.0 — Daemon Foundation
 
-**Goal:** Introduce `telesis journal` as a managed design artifact and remove the CI review
-workflow now that development is shifting to a local-first, big-commit model.
+**Goal:** Transform Telesis from a stateless CLI into a long-running daemon with an RxJS
+event backbone, filesystem watching, and OS-level lifecycle management. The daemon becomes
+the substrate on which all future agent orchestration runs.
 
 **Status:** Complete
 
+**Reference:** TDD-008 (Daemon Foundation)
+
 ### What Changes
 
-The design journal becomes a first-class Telesis artifact stored in `.telesis/journal.jsonl`
-(JSONL, consistent with notes and dismissals). CLI commands support adding entries, listing
-them, showing individual entries, and surfacing recent entries in `telesis context`. The
-GitHub Actions CI review workflow is removed — review moves to aggressive local self-review
-before commits.
+A daemon process is introduced with `telesis daemon start|stop|status|install` commands.
+The daemon watches the project filesystem for changes and emits typed events through an
+RxJS event backbone. A local Unix socket provides the control interface. OS supervision
+is handled via LaunchAgent (macOS) or systemd (Linux). A minimal TUI client connects to
+the daemon for real-time event monitoring.
 
 ### Acceptance Criteria
 
-1. `telesis journal add <title> <body>` creates a dated journal entry in `.telesis/journal.jsonl`
-2. `telesis journal list` lists journal entries by date and title (reverse chronological)
-3. `telesis journal list --json` outputs entries as JSON
-4. `telesis journal show <query>` displays an entry by ID, date, or title substring
-5. `telesis context` includes a "Recent Journal Entries" section with the 3 most recent
-   entry titles (not full content — these are large)
-6. `.github/workflows/telesis-ci.yml` is removed
-7. `telesis drift` no longer checks for CI-related artifacts
-8. All new business logic has colocated unit tests
-9. Running `telesis drift` produces zero errors
+1. `telesis daemon start` starts a background daemon process
+2. `telesis daemon stop` gracefully shuts down the daemon
+3. `telesis daemon status` reports whether the daemon is running and basic health info
+4. `telesis daemon install` configures OS-level supervision (LaunchAgent or systemd)
+5. The daemon watches the project directory for file changes and emits typed events
+6. Events follow a discriminated union format: `{ type, timestamp, source, payload }`
+7. The event backbone uses RxJS Observables with backpressure support
+8. A local Unix socket serves as the control interface (start, stop, subscribe)
+9. A minimal TUI client connects to the daemon and displays real-time events
+10. The daemon survives terminal close when installed via OS supervision
+11. PID file management prevents duplicate daemon instances
+12. All new business logic has colocated unit tests
+13. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Journal parser:** Parse existing JOURNAL.md format, extract entries by date
-2. **Phase 2 — Journal CLI:** `add`, `list`, `show` commands
-3. **Phase 3 — Context integration:** Surface recent entries in CLAUDE.md
-4. **Phase 4 — CI removal:** Remove workflow file, update drift checks
-5. **Phase 5 — Validation:** Verify all criteria, run drift
+1. **Phase 1 — Event types and backbone:** Discriminated union event types, RxJS bus
+2. **Phase 2 — Filesystem watcher:** chokidar-based watcher emitting events to the bus
+3. **Phase 3 — Daemon lifecycle:** start/stop/status, PID file, Unix socket
+4. **Phase 4 — OS supervision:** LaunchAgent plist generation, systemd unit generation
+5. **Phase 5 — TUI client:** Minimal terminal UI connecting over the socket
+6. **Phase 6 — Validation:** End-to-end daemon lifecycle testing
 
 ---
 
@@ -108,7 +115,7 @@ before commits.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (7 component designs)
+- TDDs: `docs/tdd/` (8 component designs)
 
 ---
 

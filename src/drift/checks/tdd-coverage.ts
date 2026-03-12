@@ -26,6 +26,8 @@ const EXEMPT_PACKAGES: ReadonlySet<string> = new Set([
   // v0.3.0-v0.4.0 — stable subsystems predating TDD convention
   "eval",
   "notes",
+  // v0.11.0 — pure JSONL store/format, no interface boundary
+  "journal",
   // Agent infrastructure — thin wrappers
   "agent/model",
   "agent/telemetry",

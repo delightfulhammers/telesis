@@ -177,3 +177,53 @@ export const save = (rootDir: string, cfg: Config): void => {
 export const exists = (rootDir: string): boolean => {
   return existsSync(configPath(rootDir));
 };
+
+export interface DaemonConfig {
+  readonly watch?: {
+    readonly ignore?: readonly string[];
+  };
+  readonly heartbeatIntervalMs?: number;
+}
+
+/** Parse daemon config from .telesis/config.yml, returning defaults if absent */
+export const parseDaemonConfig = (rootDir: string): DaemonConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.daemon) return {};
+
+  const daemon = raw.daemon;
+  if (typeof daemon !== "object" || daemon === null) return {};
+
+  const d = daemon as Record<string, unknown>;
+  const result: {
+    watch?: { ignore?: readonly string[] };
+    heartbeatIntervalMs?: number;
+  } = {};
+
+  if (typeof d.heartbeatIntervalMs === "number" && d.heartbeatIntervalMs > 0) {
+    result.heartbeatIntervalMs = d.heartbeatIntervalMs;
+  }
+
+  if (d.watch && typeof d.watch === "object") {
+    const w = d.watch as Record<string, unknown>;
+    if (Array.isArray(w.ignore)) {
+      const ignore = w.ignore.filter(
+        (v): v is string => typeof v === "string" && v.length > 0,
+      );
+      if (ignore.length > 0) {
+        result.watch = { ignore };
+      }
+    }
+  }
+
+  return result;
+};

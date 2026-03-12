@@ -11,6 +11,7 @@ import { claudeMdFreshnessCheck } from "./claude-md-freshness.js";
 import { versionConsistencyCheck } from "./version-consistency.js";
 import { tddCoverageCheck } from "./tdd-coverage.js";
 import { cliVersionSyncCheck } from "./cli-version-sync.js";
+import { rxjsImportCheck } from "./rxjs-import.js";
 
 /** All registered drift checks, in display order. */
 export const allChecks: readonly DriftCheck[] = [
@@ -26,4 +27,5 @@ export const allChecks: readonly DriftCheck[] = [
   versionConsistencyCheck,
   tddCoverageCheck,
   cliVersionSyncCheck,
+  rxjsImportCheck,
 ];
