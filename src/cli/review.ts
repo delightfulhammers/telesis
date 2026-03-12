@@ -667,6 +667,7 @@ const syncDismissalsCommand = new Command("sync-dismissals")
       const findingIndex = buildFindingIndex(rootDir);
 
       let imported = 0;
+      let failed = 0;
       for (const signal of signals) {
         // Look up the original finding for full metadata
         const result = signal.findingId
@@ -689,13 +690,23 @@ const syncDismissalsCommand = new Command("sync-dismissals")
           note: `Imported from ${signal.platformRef}`,
         };
 
-        appendDismissal(rootDir, dismissal);
-        imported++;
+        try {
+          appendDismissal(rootDir, dismissal);
+          imported++;
+        } catch (err) {
+          failed++;
+          console.error(
+            `Warning: failed to write dismissal for ${signal.path}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
       }
 
-      console.log(
-        `Imported ${imported} dismissal${imported === 1 ? "" : "s"} from PR #${pullNumber}.`,
-      );
+      const parts = [`Imported ${imported} dismissal${imported === 1 ? "" : "s"} from PR #${pullNumber}.`];
+      if (failed > 0) {
+        parts.push(`${failed} failed to write.`);
+      }
+      console.log(parts.join(" "));
     }),
   );
 

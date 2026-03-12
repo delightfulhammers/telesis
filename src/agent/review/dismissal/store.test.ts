@@ -135,6 +135,34 @@ describe("loadDismissals", () => {
     expect(loaded[0].id).toBe("d-full");
   });
 
+  it("rejects records with invalid enum values", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, ".telesis"), { recursive: true });
+
+    const invalidReason = JSON.stringify(
+      makeDismissal({ id: "d-bad-reason", reason: "invalid-reason" as any }),
+    );
+    const invalidSeverity = JSON.stringify(
+      makeDismissal({ id: "d-bad-severity", severity: "extreme" as any }),
+    );
+    const invalidCategory = JSON.stringify(
+      makeDismissal({ id: "d-bad-category", category: "unknown-cat" as any }),
+    );
+    const invalidSource = JSON.stringify(
+      makeDismissal({ id: "d-bad-source", source: "jira" as any }),
+    );
+    const valid = JSON.stringify(makeDismissal({ id: "d-valid" }));
+
+    writeFileSync(
+      join(dir, ".telesis", "dismissals.jsonl"),
+      [invalidReason, invalidSeverity, invalidCategory, invalidSource, valid].join("\n") + "\n",
+    );
+
+    const loaded = loadDismissals(dir);
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0].id).toBe("d-valid");
+  });
+
   it("returns empty for empty file", () => {
     const dir = makeTempDir();
     mkdirSync(join(dir, ".telesis"), { recursive: true });
