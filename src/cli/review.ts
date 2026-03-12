@@ -133,8 +133,7 @@ const applyFilters = (
     findings: dismissalResult.findings,
     stats: {
       dismissalFilteredCount: dismissalResult.filteredCount,
-      noiseFilteredCount:
-        noiseResult.filteredCount + confidenceResult.filteredCount,
+      noiseFilteredCount: noiseResult.filteredCount,
       totalFilteredCount:
         confidenceResult.filteredCount +
         noiseResult.filteredCount +
@@ -611,18 +610,28 @@ const displayFindings = (
     extra.rawFindingCount > 0 &&
     extra.filterStats
   ) {
-    const { dismissalFilteredCount, noiseFilteredCount } = extra.filterStats;
-    const parts: string[] = [];
-    if (dismissalFilteredCount > 0) {
-      parts.push(`${dismissalFilteredCount} dismissed re-raises`);
+    if (opts.json) {
+      console.log(
+        JSON.stringify(
+          { session, findings: [], filterStats: extra.filterStats },
+          null,
+          2,
+        ),
+      );
+    } else {
+      const { dismissalFilteredCount, noiseFilteredCount } = extra.filterStats;
+      const parts: string[] = [];
+      if (dismissalFilteredCount > 0) {
+        parts.push(`${dismissalFilteredCount} dismissed re-raises`);
+      }
+      if (noiseFilteredCount > 0) {
+        parts.push(`${noiseFilteredCount} noise`);
+      }
+      const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+      console.log(
+        `No new findings. ${extra.filterStats.totalFilteredCount} finding(s) filtered${detail}.`,
+      );
     }
-    if (noiseFilteredCount > 0) {
-      parts.push(`${noiseFilteredCount} noise`);
-    }
-    const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-    console.log(
-      `No new findings. ${extra.filterStats.totalFilteredCount} finding(s) filtered${detail}.`,
-    );
     return;
   }
 
@@ -1020,7 +1029,7 @@ const syncRepliesCommand = new Command("sync-replies")
 
       const prCtx = { ...ctx, pullNumber };
 
-      // Load CLI dismissals with valid UUIDs
+      // Only sync locally-created dismissals (not those imported from GitHub)
       const UUID_RE =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const allDismissals = loadDismissals(rootDir);
