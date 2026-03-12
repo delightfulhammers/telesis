@@ -113,6 +113,28 @@ describe("loadDismissals", () => {
     expect(loaded).toHaveLength(2);
   });
 
+  it("rejects records missing required fields beyond id/findingId/reason", () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, ".telesis"), { recursive: true });
+
+    // Has id, findingId, reason — but missing sessionId, timestamp, source, etc.
+    const partial = JSON.stringify({
+      id: "d-partial",
+      findingId: "f-partial",
+      reason: "false-positive",
+    });
+    const full = JSON.stringify(makeDismissal({ id: "d-full" }));
+
+    writeFileSync(
+      join(dir, ".telesis", "dismissals.jsonl"),
+      [partial, full].join("\n") + "\n",
+    );
+
+    const loaded = loadDismissals(dir);
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0].id).toBe("d-full");
+  });
+
   it("returns empty for empty file", () => {
     const dir = makeTempDir();
     mkdirSync(join(dir, ".telesis"), { recursive: true });

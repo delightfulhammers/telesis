@@ -495,21 +495,36 @@ const postToGitHubSafe = async (
 
 // --- Dismiss subcommand ---
 
-const findFindingById = (
-  rootDir: string,
-  findingId: string,
-): { finding: ReviewFinding; sessionId: string } | null => {
+type FindingIndex = ReadonlyMap<
+  string,
+  { finding: ReviewFinding; sessionId: string }
+>;
+
+const buildFindingIndex = (rootDir: string): FindingIndex => {
+  const index = new Map<
+    string,
+    { finding: ReviewFinding; sessionId: string }
+  >();
   const sessions = listReviewSessions(rootDir);
   for (const session of sessions) {
     try {
       const loaded = loadReviewSession(rootDir, session.id);
-      const match = loaded.findings.find((f) => f.id === findingId);
-      if (match) return { finding: match, sessionId: session.id };
+      for (const finding of loaded.findings) {
+        index.set(finding.id, { finding, sessionId: session.id });
+      }
     } catch {
       // skip unreadable sessions
     }
   }
-  return null;
+  return index;
+};
+
+const findFindingById = (
+  rootDir: string,
+  findingId: string,
+): { finding: ReviewFinding; sessionId: string } | null => {
+  const index = buildFindingIndex(rootDir);
+  return index.get(findingId) ?? null;
 };
 
 const dismissCommand = new Command("dismiss")
@@ -648,11 +663,14 @@ const syncDismissalsCommand = new Command("sync-dismissals")
         return;
       }
 
+      // Build index once for all signals (O(sessions + signals) instead of O(sessions × signals))
+      const findingIndex = buildFindingIndex(rootDir);
+
       let imported = 0;
       for (const signal of signals) {
-        // Try to find the original finding for full metadata
+        // Look up the original finding for full metadata
         const result = signal.findingId
-          ? findFindingById(rootDir, signal.findingId)
+          ? (findingIndex.get(signal.findingId) ?? null)
           : null;
 
         const dismissal: Dismissal = {

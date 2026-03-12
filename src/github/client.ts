@@ -189,7 +189,7 @@ export interface GitHubReviewComment {
   readonly path: string;
   readonly position: number | null;
   readonly line: number | null;
-  readonly in_reply_to_id?: number;
+  readonly in_reply_to_id?: number | null;
 }
 
 /**

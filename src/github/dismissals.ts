@@ -63,7 +63,7 @@ export const extractDismissalSignals = (
   for (const [threadId, threadComments] of threads) {
     // Find the root comment: the thread originator (not a reply) with a finding marker
     const root = threadComments.find(
-      (c) => c.in_reply_to_id === undefined && FINDING_MARKER_RE.test(c.body),
+      (c) => c.in_reply_to_id == null && FINDING_MARKER_RE.test(c.body),
     );
     if (!root) continue;
 

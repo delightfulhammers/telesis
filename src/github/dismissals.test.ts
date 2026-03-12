@@ -156,6 +156,27 @@ describe("extractDismissalSignals", () => {
     expect(signals[1].reason).toBe("style-preference");
   });
 
+  it("handles root comments with in_reply_to_id: null (GitHub API format)", () => {
+    const comments = [
+      makeComment({
+        id: 1,
+        body: "<!-- telesis:finding:abc-null -->\n**[high]** bug",
+        in_reply_to_id: null,
+        path: "src/foo.ts",
+      }),
+      makeComment({
+        id: 2,
+        body: "[fp] not a real issue",
+        in_reply_to_id: 1,
+      }),
+    ];
+
+    const signals = extractDismissalSignals(comments, 42);
+    expect(signals).toHaveLength(1);
+    expect(signals[0].findingId).toBe("abc-null");
+    expect(signals[0].reason).toBe("false-positive");
+  });
+
   it("ignores threads where marker is in a reply (not root)", () => {
     const comments = [
       makeComment({ id: 1, body: "Normal comment" }),

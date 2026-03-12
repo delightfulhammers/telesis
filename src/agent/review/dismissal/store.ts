@@ -8,12 +8,23 @@ const DEFAULT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const dismissalsPath = (rootDir: string): string =>
   join(rootDir, DISMISSALS_PATH);
 
-const isDismissalRecord = (obj: unknown): obj is Dismissal =>
-  typeof obj === "object" &&
-  obj !== null &&
-  typeof (obj as Record<string, unknown>).id === "string" &&
-  typeof (obj as Record<string, unknown>).findingId === "string" &&
-  typeof (obj as Record<string, unknown>).reason === "string";
+const isDismissalRecord = (obj: unknown): obj is Dismissal => {
+  if (typeof obj !== "object" || obj === null) return false;
+  const r = obj as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.findingId === "string" &&
+    typeof r.reason === "string" &&
+    typeof r.sessionId === "string" &&
+    typeof r.timestamp === "string" &&
+    typeof r.source === "string" &&
+    typeof r.path === "string" &&
+    typeof r.severity === "string" &&
+    typeof r.category === "string" &&
+    typeof r.description === "string" &&
+    typeof r.suggestion === "string"
+  );
+};
 
 export const appendDismissal = (
   rootDir: string,
