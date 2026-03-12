@@ -72,6 +72,7 @@ import {
   createGitHubDismissalSource,
   findFindingInPR,
   formatDismissalReply,
+  BRACKET_TAG_RE,
 } from "../github/dismissals.js";
 import { FINDING_MARKER_RE, type FilterStats } from "../github/format.js";
 import {
@@ -994,9 +995,6 @@ const syncDismissalsCommand = new Command("sync-dismissals")
   );
 
 // --- Sync replies subcommand ---
-
-const BRACKET_TAG_RE =
-  /\[(fp|na|style|style-preference|already-addressed|false-positive|not-actionable)\]/i;
 
 const syncRepliesCommand = new Command("sync-replies")
   .description("Post dismissal replies to GitHub PR review comment threads")

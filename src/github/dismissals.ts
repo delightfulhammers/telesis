@@ -217,6 +217,10 @@ export const findFindingInPR = async (
   return null;
 };
 
+/** Regex matching any bracket-tag produced by formatDismissalReply. */
+export const BRACKET_TAG_RE =
+  /\[(fp|na|style|style-preference|already-addressed|false-positive|not-actionable)\]/i;
+
 /** Maps DismissalReason to its bracket-tag for GitHub replies. */
 const REASON_TAGS: Record<DismissalReason, string> = {
   "false-positive": "[fp]",
