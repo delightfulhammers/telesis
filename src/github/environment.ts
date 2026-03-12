@@ -74,7 +74,13 @@ export const extractRepoContext = (): {
   const ghRepo = process.env.GITHUB_REPOSITORY;
   if (ghRepo) {
     const parts = ghRepo.split("/");
-    if (parts.length === 2 && parts[0] && parts[1]) {
+    if (
+      parts.length === 2 &&
+      parts[0] &&
+      parts[1] &&
+      SAFE_NAME_RE.test(parts[0]) &&
+      SAFE_NAME_RE.test(parts[1])
+    ) {
       return { owner: parts[0], repo: parts[1] };
     }
   }
