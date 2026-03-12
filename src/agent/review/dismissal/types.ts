@@ -9,12 +9,15 @@ export const DISMISSAL_REASONS = [
 
 export type DismissalReason = (typeof DISMISSAL_REASONS)[number];
 
-export type DismissalSource =
-  | "cli"
-  | "github"
-  | "gitlab"
-  | "gitea"
-  | "bitbucket";
+export const DISMISSAL_SOURCES = [
+  "cli",
+  "github",
+  "gitlab",
+  "gitea",
+  "bitbucket",
+] as const;
+
+export type DismissalSource = (typeof DISMISSAL_SOURCES)[number];
 
 export interface Dismissal {
   readonly id: string;

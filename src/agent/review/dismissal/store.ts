@@ -1,21 +1,11 @@
 import { mkdirSync, appendFileSync, readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import type { Dismissal } from "./types.js";
-import { DISMISSAL_REASONS } from "./types.js";
-import { SEVERITIES } from "../types.js";
+import { DISMISSAL_REASONS, DISMISSAL_SOURCES } from "./types.js";
+import { SEVERITIES, CATEGORIES } from "../types.js";
 
 const DISMISSALS_PATH = ".telesis/dismissals.jsonl";
 const DEFAULT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
-
-const VALID_SOURCES = new Set(["cli", "github", "gitlab", "gitea", "bitbucket"]);
-const VALID_CATEGORIES = new Set([
-  "bug",
-  "security",
-  "architecture",
-  "maintainability",
-  "performance",
-  "style",
-]);
 
 const dismissalsPath = (rootDir: string): string =>
   join(rootDir, DISMISSALS_PATH);
@@ -34,11 +24,11 @@ const isDismissalRecord = (obj: unknown): obj is Dismissal => {
     typeof r.reason === "string" &&
     (DISMISSAL_REASONS as readonly string[]).includes(r.reason as string) &&
     typeof r.source === "string" &&
-    VALID_SOURCES.has(r.source as string) &&
+    (DISMISSAL_SOURCES as readonly string[]).includes(r.source as string) &&
     typeof r.severity === "string" &&
     (SEVERITIES as readonly string[]).includes(r.severity as string) &&
     typeof r.category === "string" &&
-    VALID_CATEGORIES.has(r.category as string)
+    (CATEGORIES as readonly string[]).includes(r.category as string)
   );
 };
 

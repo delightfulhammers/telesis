@@ -99,6 +99,8 @@ describe("extractDismissalSignals", () => {
     expect(signals[0].reason).toBe("false-positive");
     expect(signals[0].path).toBe("src/foo.ts");
     expect(signals[0].platformRef).toContain("github:PR#42");
+    expect(signals[0].description).not.toContain("<!-- telesis:finding:");
+    expect(signals[0].description).toBe("**[high]** bug\n\nSome issue");
   });
 
   it("uses last reply for reason inference", () => {

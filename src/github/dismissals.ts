@@ -46,6 +46,15 @@ const groupIntoThreads = (
 };
 
 /**
+ * Strips the finding marker HTML comment from a comment body,
+ * returning only the human-readable content.
+ */
+const stripMarker = (body: string): string =>
+  body
+    .replace(/<!-- telesis:finding:[\w-]+ -->\n?/g, "")
+    .trim();
+
+/**
  * Extracts dismissal signals from GitHub PR review comments.
  *
  * Strategy:
@@ -83,7 +92,7 @@ export const extractDismissalSignals = (
     signals.push({
       findingId,
       path: root.path,
-      description: root.body,
+      description: stripMarker(root.body),
       reason,
       platformRef: `github:PR#${pullNumber}/thread/${threadId}`,
     });

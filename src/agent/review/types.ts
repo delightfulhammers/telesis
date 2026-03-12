@@ -18,13 +18,16 @@ export interface ResolvedDiff {
 export const SEVERITIES = ["critical", "high", "medium", "low"] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
-export type Category =
-  | "bug"
-  | "security"
-  | "architecture"
-  | "maintainability"
-  | "performance"
-  | "style";
+export const CATEGORIES = [
+  "bug",
+  "security",
+  "architecture",
+  "maintainability",
+  "performance",
+  "style",
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
 
 export interface ReviewFinding {
   readonly id: string;
