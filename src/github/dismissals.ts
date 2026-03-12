@@ -4,6 +4,8 @@ import {
   type GitHubReviewComment,
 } from "./client.js";
 import { FINDING_MARKER_RE } from "./format.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import type { Severity, Category } from "../agent/review/types.js";
 import { SEVERITIES, CATEGORIES } from "../agent/review/types.js";
 import type { DismissalReason } from "../agent/review/dismissal/types.js";
@@ -82,6 +84,7 @@ export const extractDismissalSignals = (
     if (!markerMatch) continue;
 
     const findingId = markerMatch[1];
+    if (!UUID_RE.test(findingId)) continue;
 
     // Look for replies (comments that are not the root)
     const replies = threadComments.filter((c) => c.id !== root.id);
@@ -132,13 +135,17 @@ export const parseCommentFinding = (
   if (!markerMatch?.[1]) return null;
 
   const findingId = markerMatch[1];
+  if (!UUID_RE.test(findingId)) return null;
+
   const clean = stripMarker(body);
+  const lines = clean.split("\n");
 
-  const severityCategoryMatch = SEVERITY_CATEGORY_RE.exec(clean);
-  if (!severityCategoryMatch) return null;
+  // First line: **[severity]** category
+  const headerMatch = SEVERITY_CATEGORY_RE.exec(lines[0] ?? "");
+  if (!headerMatch) return null;
 
-  const rawSeverity = severityCategoryMatch[1].toLowerCase();
-  const rawCategory = severityCategoryMatch[2].toLowerCase();
+  const rawSeverity = headerMatch[1].toLowerCase();
+  const rawCategory = headerMatch[2].toLowerCase();
 
   const severity = (SEVERITIES as readonly string[]).includes(rawSeverity)
     ? (rawSeverity as Severity)
@@ -147,24 +154,34 @@ export const parseCommentFinding = (
     ? (rawCategory as Category)
     : "bug";
 
-  // Description is the text after the severity/category line, before suggestion/persona
-  const afterHeader = clean
-    .replace(SEVERITY_CATEGORY_RE, "")
-    .replace(SUGGESTION_RE, "")
-    .replace(PERSONA_RE, "")
-    .trim();
+  // Parse remaining lines: description, suggestion, persona
+  let suggestion = "";
+  let persona: string | undefined;
+  const descriptionLines: string[] = [];
 
-  const suggestionMatch = SUGGESTION_RE.exec(clean);
-  const personaMatch = PERSONA_RE.exec(clean);
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    const suggestionMatch = SUGGESTION_RE.exec(line);
+    if (suggestionMatch) {
+      suggestion = suggestionMatch[1];
+      continue;
+    }
+    const personaMatch = PERSONA_RE.exec(line);
+    if (personaMatch) {
+      persona = personaMatch[1];
+      continue;
+    }
+    descriptionLines.push(line);
+  }
 
   return {
     findingId,
     path,
     severity,
     category,
-    description: afterHeader,
-    suggestion: suggestionMatch?.[1] ?? "",
-    persona: personaMatch?.[1],
+    description: descriptionLines.join("\n").trim(),
+    suggestion,
+    persona,
   };
 };
 

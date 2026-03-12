@@ -78,8 +78,12 @@ export const findCandidateNoisePatterns = (
   // Group by reason
   const byReason = new Map<DismissalReason, readonly Dismissal[]>();
   for (const d of dismissals) {
-    const existing = byReason.get(d.reason) ?? [];
-    byReason.set(d.reason, [...existing, d]);
+    const existing = byReason.get(d.reason);
+    if (existing) {
+      (existing as Dismissal[]).push(d);
+    } else {
+      byReason.set(d.reason, [d]);
+    }
   }
 
   const patterns: CandidateNoisePattern[] = [];

@@ -145,6 +145,7 @@ describe("extractRepoContext", () => {
 
   afterEach(() => {
     process.env = originalEnv;
+    vi.restoreAllMocks();
   });
 
   it("uses GITHUB_REPOSITORY when set", () => {
@@ -154,11 +155,17 @@ describe("extractRepoContext", () => {
   });
 
   it("falls back to git remote when GITHUB_REPOSITORY is not set", () => {
-    // This test runs in the telesis repo, so origin should be parseable
+    // This test runs in the telesis repo, so origin should resolve
     const ctx = extractRepoContext();
     expect(ctx).not.toBeNull();
     expect(ctx!.owner).toBe("delightfulhammers");
     expect(ctx!.repo).toBe("telesis");
+  });
+
+  it("parses HTTPS remote URLs via GITHUB_REPOSITORY", () => {
+    process.env.GITHUB_REPOSITORY = "owner/repo";
+    const ctx = extractRepoContext();
+    expect(ctx).toEqual({ owner: "owner", repo: "repo" });
   });
 });
 
@@ -178,8 +185,9 @@ describe("buildLocalPRContext", () => {
     expect(buildLocalPRContext(42)).toBeNull();
   });
 
-  it("builds context from git remote when GITHUB_TOKEN is set", () => {
+  it("builds context when GITHUB_TOKEN and GITHUB_REPOSITORY are set", () => {
     process.env.GITHUB_TOKEN = "ghp_test123";
+    process.env.GITHUB_REPOSITORY = "delightfulhammers/telesis";
     const ctx = buildLocalPRContext(42);
     expect(ctx).not.toBeNull();
     expect(ctx!.owner).toBe("delightfulhammers");

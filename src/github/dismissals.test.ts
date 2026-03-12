@@ -76,7 +76,7 @@ describe("extractDismissalSignals", () => {
     const comments = [
       makeComment({
         id: 1,
-        body: "<!-- telesis:finding:abc-123 -->\n**[high]** bug",
+        body: "<!-- telesis:finding:a0000000-0000-0000-0000-000000000001 -->\n**[high]** bug",
       }),
     ];
     expect(extractDismissalSignals(comments, 42)).toEqual([]);
@@ -86,7 +86,7 @@ describe("extractDismissalSignals", () => {
     const comments = [
       makeComment({
         id: 1,
-        body: "<!-- telesis:finding:abc-123 -->\n**[high]** bug\n\nSome issue",
+        body: "<!-- telesis:finding:a0000000-0000-0000-0000-000000000001 -->\n**[high]** bug\n\nSome issue",
         path: "src/foo.ts",
       }),
       makeComment({
@@ -99,7 +99,7 @@ describe("extractDismissalSignals", () => {
 
     const signals = extractDismissalSignals(comments, 42);
     expect(signals).toHaveLength(1);
-    expect(signals[0].findingId).toBe("abc-123");
+    expect(signals[0].findingId).toBe("a0000000-0000-0000-0000-000000000001");
     expect(signals[0].reason).toBe("false-positive");
     expect(signals[0].path).toBe("src/foo.ts");
     expect(signals[0].platformRef).toContain("github:PR#42");
@@ -111,7 +111,7 @@ describe("extractDismissalSignals", () => {
     const comments = [
       makeComment({
         id: 1,
-        body: "<!-- telesis:finding:abc-123 -->\n**[high]** bug",
+        body: "<!-- telesis:finding:a0000000-0000-0000-0000-000000000001 -->\n**[high]** bug",
       }),
       makeComment({
         id: 2,
@@ -134,7 +134,7 @@ describe("extractDismissalSignals", () => {
     const comments = [
       makeComment({
         id: 1,
-        body: "<!-- telesis:finding:f1 -->\nIssue 1",
+        body: "<!-- telesis:finding:f0000000-0000-0000-0000-000000000001 -->\nIssue 1",
         path: "src/a.ts",
       }),
       makeComment({
@@ -144,7 +144,7 @@ describe("extractDismissalSignals", () => {
       }),
       makeComment({
         id: 3,
-        body: "<!-- telesis:finding:f2 -->\nIssue 2",
+        body: "<!-- telesis:finding:f0000000-0000-0000-0000-000000000002 -->\nIssue 2",
         path: "src/b.ts",
       }),
       makeComment({
@@ -156,9 +156,9 @@ describe("extractDismissalSignals", () => {
 
     const signals = extractDismissalSignals(comments, 5);
     expect(signals).toHaveLength(2);
-    expect(signals[0].findingId).toBe("f1");
+    expect(signals[0].findingId).toBe("f0000000-0000-0000-0000-000000000001");
     expect(signals[0].reason).toBe("false-positive");
-    expect(signals[1].findingId).toBe("f2");
+    expect(signals[1].findingId).toBe("f0000000-0000-0000-0000-000000000002");
     expect(signals[1].reason).toBe("style-preference");
   });
 
@@ -166,7 +166,7 @@ describe("extractDismissalSignals", () => {
     const comments = [
       makeComment({
         id: 1,
-        body: "<!-- telesis:finding:abc-null -->\n**[high]** bug",
+        body: "<!-- telesis:finding:a0000000-0000-0000-0000-000000000099 -->\n**[high]** bug",
         in_reply_to_id: null,
         path: "src/foo.ts",
       }),
@@ -179,7 +179,7 @@ describe("extractDismissalSignals", () => {
 
     const signals = extractDismissalSignals(comments, 42);
     expect(signals).toHaveLength(1);
-    expect(signals[0].findingId).toBe("abc-null");
+    expect(signals[0].findingId).toBe("a0000000-0000-0000-0000-000000000099");
     expect(signals[0].reason).toBe("false-positive");
   });
 
@@ -187,7 +187,7 @@ describe("extractDismissalSignals", () => {
     const comments = [
       makeComment({
         id: 1,
-        body: "<!-- telesis:finding:f1 -->\n**[high]** bug\n\nDescription here",
+        body: "<!-- telesis:finding:f0000000-0000-0000-0000-000000000001 -->\n**[high]** bug\n\nDescription here",
         path: "src/foo.ts",
       }),
       makeComment({
@@ -206,7 +206,7 @@ describe("extractDismissalSignals", () => {
       makeComment({ id: 1, body: "Normal comment" }),
       makeComment({
         id: 2,
-        body: "<!-- telesis:finding:abc -->\nPasted marker in reply",
+        body: "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\nPasted marker in reply",
         in_reply_to_id: 1,
       }),
     ];
@@ -221,7 +221,7 @@ describe("extractDismissalSignals", () => {
 describe("parseCommentFinding", () => {
   it("parses a full finding comment", () => {
     const body = [
-      "<!-- telesis:finding:abc-123 -->",
+      "<!-- telesis:finding:a0000000-0000-0000-0000-000000000001 -->",
       "**[high]** bug",
       "",
       "Some description here",
@@ -233,7 +233,7 @@ describe("parseCommentFinding", () => {
 
     const result = parseCommentFinding(body, "src/foo.ts");
     expect(result).not.toBeNull();
-    expect(result!.findingId).toBe("abc-123");
+    expect(result!.findingId).toBe("a0000000-0000-0000-0000-000000000001");
     expect(result!.severity).toBe("high");
     expect(result!.category).toBe("bug");
     expect(result!.description).toBe("Some description here");
@@ -244,7 +244,7 @@ describe("parseCommentFinding", () => {
 
   it("parses a finding without suggestion or persona", () => {
     const body = [
-      "<!-- telesis:finding:def-456 -->",
+      "<!-- telesis:finding:d0000000-0000-0000-0000-000000000456 -->",
       "**[medium]** security",
       "",
       "Missing input validation",
@@ -252,7 +252,7 @@ describe("parseCommentFinding", () => {
 
     const result = parseCommentFinding(body, "src/bar.ts");
     expect(result).not.toBeNull();
-    expect(result!.findingId).toBe("def-456");
+    expect(result!.findingId).toBe("d0000000-0000-0000-0000-000000000456");
     expect(result!.severity).toBe("medium");
     expect(result!.category).toBe("security");
     expect(result!.description).toBe("Missing input validation");
@@ -265,18 +265,18 @@ describe("parseCommentFinding", () => {
   });
 
   it("returns null for marker without severity/category line", () => {
-    const body = "<!-- telesis:finding:abc -->\nJust text, no severity line";
+    const body = "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\nJust text, no severity line";
     expect(parseCommentFinding(body, "src/foo.ts")).toBeNull();
   });
 
   it("defaults unknown severity to medium", () => {
-    const body = "<!-- telesis:finding:abc -->\n**[extreme]** bug\n\nDesc";
+    const body = "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\n**[extreme]** bug\n\nDesc";
     const result = parseCommentFinding(body, "src/foo.ts");
     expect(result!.severity).toBe("medium");
   });
 
   it("defaults unknown category to bug", () => {
-    const body = "<!-- telesis:finding:abc -->\n**[high]** unknown\n\nDesc";
+    const body = "<!-- telesis:finding:a0000000-0000-0000-0000-00000000000a -->\n**[high]** unknown\n\nDesc";
     const result = parseCommentFinding(body, "src/foo.ts");
     expect(result!.category).toBe("bug");
   });

@@ -87,7 +87,13 @@ export const extractRepoContext = (): {
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
     const match = GITHUB_REMOTE_RE.exec(remoteUrl);
-    if (match && match[1] && match[2]) {
+    if (
+      match &&
+      match[1] &&
+      match[2] &&
+      SAFE_NAME_RE.test(match[1]) &&
+      SAFE_NAME_RE.test(match[2])
+    ) {
       return { owner: match[1], repo: match[2] };
     }
   } catch {

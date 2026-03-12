@@ -525,14 +525,6 @@ const buildFindingIndex = (rootDir: string): FindingIndex => {
   return index;
 };
 
-const findFindingById = (
-  rootDir: string,
-  findingId: string,
-): { finding: ReviewFinding; sessionId: string } | null => {
-  const index = buildFindingIndex(rootDir);
-  return index.get(findingId) ?? null;
-};
-
 const dismissCommand = new Command("dismiss")
   .description("Dismiss a review finding")
   .argument("<finding-id>", "The finding ID to dismiss")
@@ -557,7 +549,8 @@ const dismissCommand = new Command("dismiss")
         }
 
         // Try local sessions first
-        const localResult = findFindingById(rootDir, findingId);
+        const findingIndex = buildFindingIndex(rootDir);
+        const localResult = findingIndex.get(findingId) ?? null;
 
         if (localResult) {
           const { finding, sessionId } = localResult;
