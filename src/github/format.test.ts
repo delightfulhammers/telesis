@@ -6,6 +6,8 @@ import {
   formatFindingAsSummary,
   formatReviewSummaryBody,
   formatDriftComment,
+  findingMarker,
+  FINDING_MARKER_RE,
   DRIFT_COMMENT_MARKER,
 } from "./format.js";
 
@@ -50,6 +52,25 @@ describe("formatFindingComment", () => {
     expect(result).toContain(
       "> **Suggestion:** Add a null check before access",
     );
+  });
+
+  it("embeds finding ID marker as hidden HTML comment", () => {
+    const finding = makeFinding({ id: "abc-123-def-456" });
+    const result = formatFindingComment(finding);
+
+    expect(result).toContain("<!-- telesis:finding:abc-123-def-456 -->");
+    // Marker should be on the first line (before the severity line)
+    const lines = result.split("\n");
+    expect(lines[0]).toBe("<!-- telesis:finding:abc-123-def-456 -->");
+  });
+
+  it("marker is extractable by FINDING_MARKER_RE", () => {
+    const finding = makeFinding();
+    const result = formatFindingComment(finding);
+    const match = FINDING_MARKER_RE.exec(result);
+
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe(finding.id);
   });
 
   it("includes persona attribution when set", () => {

@@ -38,6 +38,25 @@ import { filterNoise } from "../agent/review/noise-filter.js";
 import { load as loadConfig } from "../config/config.js";
 import { extractPRContext } from "../github/environment.js";
 import { postReviewToGitHub } from "../github/adapter.js";
+import {
+  DISMISSAL_REASONS,
+  isValidDismissalReason,
+} from "../agent/review/dismissal/types.js";
+import type { Dismissal } from "../agent/review/dismissal/types.js";
+import {
+  appendDismissal,
+  loadDismissals,
+  loadRecentDismissals,
+} from "../agent/review/dismissal/store.js";
+import {
+  computeDismissalStats,
+  findCandidateNoisePatterns,
+} from "../agent/review/dismissal/stats.js";
+import {
+  formatDismissalList,
+  formatDismissalStats,
+} from "../agent/review/dismissal/format.js";
+import { createGitHubDismissalSource } from "../github/dismissals.js";
 
 const addTokenUsage = (
   a: { inputTokens: number; outputTokens: number },
@@ -195,6 +214,14 @@ export const reviewCommand = new Command("review")
         });
         const model = reviewConfig?.model ?? "claude-sonnet-4-6";
 
+        // Load dismissed findings for suppression
+        const dismissedFindings = loadRecentDismissals(rootDir);
+        if (dismissedFindings.length > 0) {
+          console.error(
+            `Injecting ${dismissedFindings.length} dismissed findings for suppression`,
+          );
+        }
+
         // Single-pass mode
         if (opts.single) {
           // Theme + prior findings extraction (same as persona path)
@@ -218,6 +245,7 @@ export const reviewCommand = new Command("review")
             singleThemeResult.themes,
             singleThemeResult.conclusions,
             singlePriorFindings,
+            dismissedFindings,
           );
 
           // Verification pass (same as persona path)
@@ -315,6 +343,7 @@ export const reviewCommand = new Command("review")
           themeResult.themes,
           themeResult.conclusions,
           priorFindings,
+          dismissedFindings,
         );
 
         // Deduplication (unless disabled)
@@ -463,3 +492,197 @@ const postToGitHubSafe = async (
     );
   }
 };
+
+// --- Dismiss subcommand ---
+
+const findFindingById = (
+  rootDir: string,
+  findingId: string,
+): { finding: ReviewFinding; sessionId: string } | null => {
+  const sessions = listReviewSessions(rootDir);
+  for (const session of sessions) {
+    try {
+      const loaded = loadReviewSession(rootDir, session.id);
+      const match = loaded.findings.find((f) => f.id === findingId);
+      if (match) return { finding: match, sessionId: session.id };
+    } catch {
+      // skip unreadable sessions
+    }
+  }
+  return null;
+};
+
+const dismissCommand = new Command("dismiss")
+  .description("Dismiss a review finding")
+  .argument("<finding-id>", "The finding ID to dismiss")
+  .requiredOption(
+    "--reason <category>",
+    `Dismissal reason (${DISMISSAL_REASONS.join(", ")})`,
+  )
+  .option("--note <text>", "Optional free-text note")
+  .action(
+    handleAction(
+      async (findingId: string, opts: { reason: string; note?: string }) => {
+        const rootDir = resolve(projectRoot());
+
+        if (!isValidDismissalReason(opts.reason)) {
+          throw new Error(
+            `Invalid reason: ${opts.reason}. Valid: ${DISMISSAL_REASONS.join(", ")}`,
+          );
+        }
+
+        const result = findFindingById(rootDir, findingId);
+        if (!result) {
+          throw new Error(
+            `Finding not found: ${findingId}. ` +
+              "Use `telesis review --list` to see sessions, " +
+              "`telesis review --show <id>` to see findings.",
+          );
+        }
+
+        const { finding, sessionId } = result;
+
+        const dismissal: Dismissal = {
+          id: randomUUID(),
+          findingId: finding.id,
+          sessionId,
+          reason: opts.reason,
+          timestamp: new Date().toISOString(),
+          source: "cli",
+          path: finding.path,
+          severity: finding.severity,
+          category: finding.category,
+          description: finding.description,
+          suggestion: finding.suggestion,
+          persona: finding.persona,
+          note: opts.note,
+        };
+
+        appendDismissal(rootDir, dismissal);
+        console.log(
+          `Dismissed: ${finding.path} [${finding.severity}/${finding.category}] — ${opts.reason}`,
+        );
+      },
+    ),
+  );
+
+// --- Dismissals list subcommand ---
+
+const dismissalsCommand = new Command("dismissals")
+  .description("List all dismissals")
+  .option("--json", "Output as JSON")
+  .action(
+    handleAction(async (opts: { json?: boolean }) => {
+      const rootDir = resolve(projectRoot());
+      const dismissals = loadDismissals(rootDir);
+
+      if (opts.json) {
+        console.log(JSON.stringify(dismissals, null, 2));
+      } else {
+        console.log(formatDismissalList(dismissals));
+      }
+    }),
+  );
+
+// --- Dismissal stats subcommand ---
+
+const dismissalStatsCommand = new Command("dismissal-stats")
+  .description("Show aggregated dismissal statistics")
+  .option("--json", "Output as JSON")
+  .action(
+    handleAction(async (opts: { json?: boolean }) => {
+      const rootDir = resolve(projectRoot());
+      const dismissals = loadDismissals(rootDir);
+      const stats = computeDismissalStats(dismissals);
+      const patterns = findCandidateNoisePatterns(dismissals);
+
+      if (opts.json) {
+        console.log(JSON.stringify({ stats, patterns }, null, 2));
+      } else {
+        console.log(formatDismissalStats(stats, patterns));
+      }
+    }),
+  );
+
+// --- Sync dismissals subcommand ---
+
+const syncDismissalsCommand = new Command("sync-dismissals")
+  .description("Import dismissal signals from GitHub PR review threads")
+  .requiredOption("--pr <number>", "Pull request number")
+  .action(
+    handleAction(async (opts: { pr: string }) => {
+      const rootDir = resolve(projectRoot());
+
+      const pullNumber = parseInt(opts.pr, 10);
+      if (!Number.isFinite(pullNumber) || pullNumber <= 0) {
+        throw new Error(`Invalid PR number: ${opts.pr}`);
+      }
+
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) {
+        throw new Error(
+          "GITHUB_TOKEN environment variable is not set. " +
+            "Set it to a token with pull-requests:read permission.",
+        );
+      }
+
+      // Try to infer owner/repo from GitHub event or git remote
+      const ctx = extractPRContext();
+      if (!ctx) {
+        throw new Error(
+          "Could not determine repository context. " +
+            "Ensure GITHUB_EVENT_PATH is set (GitHub Actions) " +
+            "or run from a repository with a GitHub remote.",
+        );
+      }
+
+      const source = createGitHubDismissalSource({
+        ...ctx,
+        pullNumber,
+      });
+
+      const signals = await source.fetchDismissals();
+
+      if (signals.length === 0) {
+        console.log("No dismissal signals found in PR review threads.");
+        return;
+      }
+
+      let imported = 0;
+      for (const signal of signals) {
+        // Try to find the original finding for full metadata
+        const result = signal.findingId
+          ? findFindingById(rootDir, signal.findingId)
+          : null;
+
+        const dismissal: Dismissal = {
+          id: randomUUID(),
+          findingId: signal.findingId ?? "unknown",
+          sessionId: result?.sessionId ?? "unknown",
+          reason: signal.reason,
+          timestamp: new Date().toISOString(),
+          source: "github",
+          path: result?.finding.path ?? signal.path,
+          severity: result?.finding.severity ?? "medium",
+          category: result?.finding.category ?? "bug",
+          description: result?.finding.description ?? signal.description,
+          suggestion: result?.finding.suggestion ?? "",
+          persona: result?.finding.persona,
+          note: `Imported from ${signal.platformRef}`,
+        };
+
+        appendDismissal(rootDir, dismissal);
+        imported++;
+      }
+
+      console.log(
+        `Imported ${imported} dismissal${imported === 1 ? "" : "s"} from PR #${pullNumber}.`,
+      );
+    }),
+  );
+
+// Register subcommands on review
+reviewCommand.addCommand(dismissCommand);
+reviewCommand.addCommand(dismissalsCommand);
+reviewCommand.addCommand(dismissalStatsCommand);
+reviewCommand.addCommand(syncDismissalsCommand);

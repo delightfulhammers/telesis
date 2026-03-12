@@ -182,6 +182,46 @@ export const findCommentByMarker = async (
   return null;
 };
 
+/** Shape of a review comment returned by the GitHub API. */
+export interface GitHubReviewComment {
+  readonly id: number;
+  readonly body: string;
+  readonly path: string;
+  readonly position: number | null;
+  readonly line: number | null;
+  readonly in_reply_to_id?: number;
+}
+
+/**
+ * Lists all review comments on a pull request with pagination.
+ * Returns inline review comments (not issue comments).
+ */
+export const listPullRequestReviewComments = async (
+  ctx: GitHubPRContext,
+): Promise<readonly GitHubReviewComment[]> => {
+  const baseUrl = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/comments?per_page=100`;
+  const allComments: GitHubReviewComment[] = [];
+
+  for (let page = 1; page <= MAX_COMMENT_PAGES; page++) {
+    const url = `${baseUrl}&page=${page}`;
+
+    const data = await fetchWithRetry(
+      url,
+      { method: "GET", headers: headers(ctx.token) },
+      "list review comments",
+    );
+
+    if (!Array.isArray(data)) break;
+
+    const comments = data as readonly GitHubReviewComment[];
+    allComments.push(...comments);
+
+    if (comments.length < 100) break;
+  }
+
+  return allComments;
+};
+
 /**
  * Updates an existing PR comment by ID.
  */

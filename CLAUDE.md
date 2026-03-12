@@ -57,27 +57,51 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.9.0 — Milestone Validation
+## v0.10.0 — Review Triage Feedback Loop
 
-**Goal:** Automated validation of milestone acceptance criteria, replacing manual
-verification with structured checks that confirm a milestone is actually done.
+**Goal:** Track triage dismissals from any platform (CLI, GitHub, extensible to GitLab/
+Gitea/Bitbucket), persist them in `.telesis/`, and inject them as the strongest suppression
+signal in review prompts.
 
-**Status:** Complete
+**Status:** In Progress
+
+**Reference:** TDD-007 (Review Triage Feedback), Issue #45
 
 ### What Changes
 
-`telesis milestone check` evaluates the current milestone's acceptance criteria against
-the actual state of the project — tests passing, drift clean, docs updated, required
-commands implemented. This is the gate that prevents "marking done" before it's actually
-done.
+A closed-loop feedback system is added to the review pipeline. When a human dismisses a
+finding (via CLI or by replying to a GitHub review comment), that signal is persisted in
+`.telesis/dismissals.jsonl` and injected into future review prompts as the strongest
+suppression signal — stronger than prior findings or theme conclusions.
+
+Four new CLI commands extend `telesis review`:
+- `telesis review dismiss <id> --reason <category>` dismisses a finding
+- `telesis review dismissals` lists all dismissals
+- `telesis review sync-dismissals --pr <N>` imports dismissals from GitHub PR threads
+- `telesis review dismissal-stats` shows aggregated statistics and candidate noise patterns
 
 ### Acceptance Criteria
 
-1. `telesis milestone check` evaluates acceptance criteria for the active milestone
-2. Criteria that can be verified automatically are checked (tests pass, drift clean, commands exist)
-3. Criteria that require human judgment are listed for manual confirmation
-4. `telesis milestone complete` marks the milestone done only after checks pass
-5. Completing a milestone automatically runs the post-milestone checklist (doc updates, context regen)
+1. `telesis review dismiss <id> --reason <category>` creates a dismissal record
+2. `telesis review dismissals` lists all dismissals with metadata
+3. `telesis review dismissals --json` outputs dismissals as JSON
+4. Dismissed findings are injected into review prompts (stronger than prior findings)
+5. Dismissed findings section appears after prior findings section in prompts
+6. Dismissed findings are capped at 50 entries in prompts
+7. Finding ID markers are embedded in GitHub review comments for correlation
+8. `telesis review sync-dismissals --pr <N>` imports dismissals from GitHub PR threads
+9. `telesis review dismissal-stats` shows aggregated dismissal statistics
+10. `DismissalSource` interface enables future platform adapters
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Types, store, CLI dismiss:** Dismissal types, JSONL store, dismiss + dismissals commands
+2. **Phase 2 — Prompt injection:** `formatDismissedFindings()`, thread through prompt builders and agent layer
+3. **Phase 3 — GitHub signal import:** Finding markers, review comment listing, GitHub adapter, sync-dismissals
+4. **Phase 4 — Pattern aggregation:** Stats computation, dismissal-stats command
+5. **Phase 5 — TDD and documentation:** TDD-007, milestone/PRD/architecture updates
 
 ---
 
@@ -94,7 +118,7 @@ done.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (6 component designs)
+- TDDs: `docs/tdd/` (7 component designs)
 
 ---
 

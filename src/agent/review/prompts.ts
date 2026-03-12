@@ -5,6 +5,7 @@ import {
   type ReviewFinding,
   type ThemeConclusion,
 } from "./types.js";
+import type { Dismissal } from "./dismissal/types.js";
 
 const RESPONSE_FORMAT = `## Response Format
 
@@ -127,6 +128,33 @@ on the same code locations:
 ${items.join("\n\n")}`;
 };
 
+/**
+ * Formats dismissed findings as the strongest suppression context.
+ * These are findings a human explicitly reviewed and rejected.
+ * Capped at 50 (higher than prior findings' 30 — human-validated signals
+ * carry stronger weight).
+ */
+export const formatDismissedFindings = (
+  dismissals: readonly Dismissal[],
+): string => {
+  if (dismissals.length === 0) return "";
+
+  const capped = dismissals.slice(0, 50);
+
+  const items = capped.map((d) => {
+    const persona = d.persona ? ` (${d.persona})` : "";
+    return `- \`${d.path}\` [${d.severity}/${d.category}]${persona} (dismissed: ${d.reason}): ${d.description}\n  > Original suggestion: ${d.suggestion}`;
+  });
+
+  return `\n\n## Previously Dismissed Findings (DO NOT RE-REPORT)
+
+The following findings were reviewed by a human and explicitly dismissed.
+They are NOT issues. Do not report them, variations of them, or similar
+findings on the same code locations. The dismissal reason is included.
+
+${items.join("\n\n")}`;
+};
+
 const formatFocusSection = (persona: PersonaDefinition): string => {
   const parts: string[] = [];
 
@@ -145,6 +173,7 @@ export const buildSinglePassPrompt = (
   themes: readonly string[] = [],
   conclusions: readonly ThemeConclusion[] = [],
   priorFindings: readonly ReviewFinding[] = [],
+  dismissedFindings: readonly Dismissal[] = [],
 ): string =>
   `You are a code reviewer for the ${context.projectName} project (${context.primaryLanguage}).
 
@@ -160,7 +189,7 @@ ${SEVERITY_GUIDELINES}
 
 ${CONFIDENCE_GUIDELINES}
 
-${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}`;
+${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}${formatDismissedFindings(dismissedFindings)}`;
 
 export const buildPersonaSystemPrompt = (
   persona: PersonaDefinition,
@@ -168,6 +197,7 @@ export const buildPersonaSystemPrompt = (
   themes: readonly string[] = [],
   conclusions: readonly ThemeConclusion[] = [],
   priorFindings: readonly ReviewFinding[] = [],
+  dismissedFindings: readonly Dismissal[] = [],
 ): string =>
   `You are the ${persona.name} for the ${context.projectName} project (${context.primaryLanguage}).
 
@@ -183,7 +213,7 @@ ${SEVERITY_GUIDELINES}
 
 ${CONFIDENCE_GUIDELINES}
 
-${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}`;
+${ANTI_PATTERNS}${formatThemesSection(themes, conclusions)}${formatPriorFindings(priorFindings)}${formatDismissedFindings(dismissedFindings)}`;
 
 export const buildUserMessage = (
   diff: string,

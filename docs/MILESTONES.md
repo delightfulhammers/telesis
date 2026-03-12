@@ -557,11 +557,59 @@ done.
 
 ---
 
+## v0.10.0 — Review Triage Feedback Loop
+
+**Goal:** Track triage dismissals from any platform (CLI, GitHub, extensible to GitLab/
+Gitea/Bitbucket), persist them in `.telesis/`, and inject them as the strongest suppression
+signal in review prompts.
+
+**Status:** In Progress
+
+**Reference:** TDD-007 (Review Triage Feedback), Issue #45
+
+### What Changes
+
+A closed-loop feedback system is added to the review pipeline. When a human dismisses a
+finding (via CLI or by replying to a GitHub review comment), that signal is persisted in
+`.telesis/dismissals.jsonl` and injected into future review prompts as the strongest
+suppression signal — stronger than prior findings or theme conclusions.
+
+Four new CLI commands extend `telesis review`:
+- `telesis review dismiss <id> --reason <category>` dismisses a finding
+- `telesis review dismissals` lists all dismissals
+- `telesis review sync-dismissals --pr <N>` imports dismissals from GitHub PR threads
+- `telesis review dismissal-stats` shows aggregated statistics and candidate noise patterns
+
+### Acceptance Criteria
+
+1. `telesis review dismiss <id> --reason <category>` creates a dismissal record
+2. `telesis review dismissals` lists all dismissals with metadata
+3. `telesis review dismissals --json` outputs dismissals as JSON
+4. Dismissed findings are injected into review prompts (stronger than prior findings)
+5. Dismissed findings section appears after prior findings section in prompts
+6. Dismissed findings are capped at 50 entries in prompts
+7. Finding ID markers are embedded in GitHub review comments for correlation
+8. `telesis review sync-dismissals --pr <N>` imports dismissals from GitHub PR threads
+9. `telesis review dismissal-stats` shows aggregated dismissal statistics
+10. `DismissalSource` interface enables future platform adapters
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Types, store, CLI dismiss:** Dismissal types, JSONL store, dismiss + dismissals commands
+2. **Phase 2 — Prompt injection:** `formatDismissedFindings()`, thread through prompt builders and agent layer
+3. **Phase 3 — GitHub signal import:** Finding markers, review comment listing, GitHub adapter, sync-dismissals
+4. **Phase 4 — Pattern aggregation:** Stats computation, dismissal-stats command
+5. **Phase 5 — TDD and documentation:** TDD-007, milestone/PRD/architecture updates
+
+---
+
 ## Future Milestones
 
 *(Tracked here as direction, not commitment.)*
 
-- **v0.10.0 — Chronicler Agent:** Automatic extraction of development insights from session
+- **v0.11.0 — Chronicler Agent:** Automatic extraction of development insights from session
   transcripts, reducing reliance on manual `telesis note` capture
 - **v1.0.0 — Swarm Orchestration:** Multi-agent coordination across the development
   lifecycle, with agents communicating through structured context rather than ad-hoc prompts
