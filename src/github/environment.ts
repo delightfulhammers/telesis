@@ -1,8 +1,11 @@
 import { readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import type { GitHubPRContext } from "./types.js";
 
 const SAFE_NAME_RE = /^[\w.-]+$/;
 const SHA_RE = /^[0-9a-f]{40}$/i;
+const GITHUB_REMOTE_RE =
+  /github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/;
 
 /** Returns true when running inside GitHub Actions. */
 export const isGitHubActions = (): boolean =>
@@ -56,6 +59,71 @@ export const extractPRContext = (): GitHubPRContext | null => {
     repo: repoName,
     pullNumber: number,
     commitSha: sha,
+    token,
+  };
+};
+
+/**
+ * Extracts owner/repo from the git remote URL.
+ * Tries GITHUB_REPOSITORY env var first (CI), then parses the origin remote.
+ */
+export const extractRepoContext = (): {
+  owner: string;
+  repo: string;
+} | null => {
+  // CI shortcut
+  const ghRepo = process.env.GITHUB_REPOSITORY;
+  if (ghRepo) {
+    const parts = ghRepo.split("/");
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      return { owner: parts[0], repo: parts[1] };
+    }
+  }
+
+  // Parse from git remote
+  try {
+    const remoteUrl = execSync("git remote get-url origin", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    const match = GITHUB_REMOTE_RE.exec(remoteUrl);
+    if (match && match[1] && match[2]) {
+      return { owner: match[1], repo: match[2] };
+    }
+  } catch {
+    // not a git repo or no origin remote
+  }
+
+  return null;
+};
+
+/**
+ * Builds a GitHubPRContext for local use (outside CI).
+ * Requires GITHUB_TOKEN and a PR number. Infers owner/repo from git remote.
+ */
+export const buildLocalPRContext = (
+  pullNumber: number,
+): GitHubPRContext | null => {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return null;
+
+  const repoCtx = extractRepoContext();
+  if (!repoCtx) return null;
+
+  let commitSha = "0000000000000000000000000000000000000000";
+  try {
+    commitSha = execSync("git rev-parse HEAD", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    // use placeholder
+  }
+
+  return {
+    ...repoCtx,
+    pullNumber,
+    commitSha,
     token,
   };
 };

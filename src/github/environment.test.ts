@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { useTempDir } from "../test-utils.js";
-import { isGitHubActions, extractPRContext } from "./environment.js";
+import {
+  isGitHubActions,
+  extractPRContext,
+  extractRepoContext,
+  buildLocalPRContext,
+} from "./environment.js";
 
 const makeTempDir = useTempDir("github-env");
 
@@ -127,5 +132,59 @@ describe("extractPRContext", () => {
     process.env.GITHUB_TOKEN = "ghp_test123";
 
     expect(extractPRContext()).toBeNull();
+  });
+});
+
+describe("extractRepoContext", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.GITHUB_REPOSITORY;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("uses GITHUB_REPOSITORY when set", () => {
+    process.env.GITHUB_REPOSITORY = "delightfulhammers/telesis";
+    const ctx = extractRepoContext();
+    expect(ctx).toEqual({ owner: "delightfulhammers", repo: "telesis" });
+  });
+
+  it("falls back to git remote when GITHUB_REPOSITORY is not set", () => {
+    // This test runs in the telesis repo, so origin should be parseable
+    const ctx = extractRepoContext();
+    expect(ctx).not.toBeNull();
+    expect(ctx!.owner).toBe("delightfulhammers");
+    expect(ctx!.repo).toBe("telesis");
+  });
+});
+
+describe("buildLocalPRContext", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns null when GITHUB_TOKEN is not set", () => {
+    delete process.env.GITHUB_TOKEN;
+    expect(buildLocalPRContext(42)).toBeNull();
+  });
+
+  it("builds context from git remote when GITHUB_TOKEN is set", () => {
+    process.env.GITHUB_TOKEN = "ghp_test123";
+    const ctx = buildLocalPRContext(42);
+    expect(ctx).not.toBeNull();
+    expect(ctx!.owner).toBe("delightfulhammers");
+    expect(ctx!.repo).toBe("telesis");
+    expect(ctx!.pullNumber).toBe(42);
+    expect(ctx!.token).toBe("ghp_test123");
   });
 });

@@ -4,6 +4,8 @@ import {
   type GitHubReviewComment,
 } from "./client.js";
 import { FINDING_MARKER_RE } from "./format.js";
+import type { Severity, Category } from "../agent/review/types.js";
+import { SEVERITIES, CATEGORIES } from "../agent/review/types.js";
 import type { DismissalReason } from "../agent/review/dismissal/types.js";
 import type {
   DismissalSignal,
@@ -99,6 +101,91 @@ export const extractDismissalSignals = (
   }
 
   return signals;
+};
+
+/**
+ * Parsed finding metadata extracted from a GitHub review comment body.
+ */
+export interface ParsedCommentFinding {
+  readonly findingId: string;
+  readonly path: string;
+  readonly severity: Severity;
+  readonly category: Category;
+  readonly description: string;
+  readonly suggestion: string;
+  readonly persona?: string;
+}
+
+const SEVERITY_CATEGORY_RE = /^\*\*\[(\w+)\]\*\*\s+(\w+)/m;
+const SUGGESTION_RE = /^>\s*\*\*Suggestion:\*\*\s*(.+)/m;
+const PERSONA_RE = /^_—\s+(.+?)\s+persona_$/m;
+
+/**
+ * Parses finding metadata from a GitHub review comment body.
+ * Expects the format produced by formatFindingComment.
+ */
+export const parseCommentFinding = (
+  body: string,
+  path: string,
+): ParsedCommentFinding | null => {
+  const markerMatch = FINDING_MARKER_RE.exec(body);
+  if (!markerMatch?.[1]) return null;
+
+  const findingId = markerMatch[1];
+  const clean = stripMarker(body);
+
+  const severityCategoryMatch = SEVERITY_CATEGORY_RE.exec(clean);
+  if (!severityCategoryMatch) return null;
+
+  const rawSeverity = severityCategoryMatch[1].toLowerCase();
+  const rawCategory = severityCategoryMatch[2].toLowerCase();
+
+  const severity = (SEVERITIES as readonly string[]).includes(rawSeverity)
+    ? (rawSeverity as Severity)
+    : "medium";
+  const category = (CATEGORIES as readonly string[]).includes(rawCategory)
+    ? (rawCategory as Category)
+    : "bug";
+
+  // Description is the text after the severity/category line, before suggestion/persona
+  const afterHeader = clean
+    .replace(SEVERITY_CATEGORY_RE, "")
+    .replace(SUGGESTION_RE, "")
+    .replace(PERSONA_RE, "")
+    .trim();
+
+  const suggestionMatch = SUGGESTION_RE.exec(clean);
+  const personaMatch = PERSONA_RE.exec(clean);
+
+  return {
+    findingId,
+    path,
+    severity,
+    category,
+    description: afterHeader,
+    suggestion: suggestionMatch?.[1] ?? "",
+    persona: personaMatch?.[1],
+  };
+};
+
+/**
+ * Fetches PR review comments and finds a specific finding by ID.
+ * Returns parsed metadata or null if not found.
+ */
+export const findFindingInPR = async (
+  ctx: GitHubPRContext,
+  findingId: string,
+): Promise<ParsedCommentFinding | null> => {
+  const comments = await listPullRequestReviewComments(ctx);
+
+  for (const comment of comments) {
+    if (!FINDING_MARKER_RE.test(comment.body)) continue;
+
+    const parsed = parseCommentFinding(comment.body, comment.path);
+    if (parsed && parsed.findingId === findingId) return parsed;
+  }
+
+  return null;
 };
 
 /**

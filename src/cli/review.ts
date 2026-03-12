@@ -36,7 +36,10 @@ import { verifyFindings } from "../agent/review/verify.js";
 import { filterByConfidence } from "../agent/review/agent.js";
 import { filterNoise } from "../agent/review/noise-filter.js";
 import { load as loadConfig } from "../config/config.js";
-import { extractPRContext } from "../github/environment.js";
+import {
+  extractPRContext,
+  buildLocalPRContext,
+} from "../github/environment.js";
 import { postReviewToGitHub } from "../github/adapter.js";
 import {
   DISMISSAL_REASONS,
@@ -56,7 +59,10 @@ import {
   formatDismissalList,
   formatDismissalStats,
 } from "../agent/review/dismissal/format.js";
-import { createGitHubDismissalSource } from "../github/dismissals.js";
+import {
+  createGitHubDismissalSource,
+  findFindingInPR,
+} from "../github/dismissals.js";
 
 const addTokenUsage = (
   a: { inputTokens: number; outputTokens: number },
@@ -535,9 +541,13 @@ const dismissCommand = new Command("dismiss")
     `Dismissal reason (${DISMISSAL_REASONS.join(", ")})`,
   )
   .option("--note <text>", "Optional free-text note")
+  .option("--pr <number>", "PR number to search for finding (when not in local sessions)")
   .action(
     handleAction(
-      async (findingId: string, opts: { reason: string; note?: string }) => {
+      async (
+        findingId: string,
+        opts: { reason: string; note?: string; pr?: string },
+      ) => {
         const rootDir = resolve(projectRoot());
 
         if (!isValidDismissalReason(opts.reason)) {
@@ -546,36 +556,86 @@ const dismissCommand = new Command("dismiss")
           );
         }
 
-        const result = findFindingById(rootDir, findingId);
-        if (!result) {
+        // Try local sessions first
+        const localResult = findFindingById(rootDir, findingId);
+
+        if (localResult) {
+          const { finding, sessionId } = localResult;
+          const dismissal: Dismissal = {
+            id: randomUUID(),
+            findingId: finding.id,
+            sessionId,
+            reason: opts.reason,
+            timestamp: new Date().toISOString(),
+            source: "cli",
+            path: finding.path,
+            severity: finding.severity,
+            category: finding.category,
+            description: finding.description,
+            suggestion: finding.suggestion,
+            persona: finding.persona,
+            note: opts.note,
+          };
+
+          appendDismissal(rootDir, dismissal);
+          console.log(
+            `Dismissed: ${finding.path} [${finding.severity}/${finding.category}] — ${opts.reason}`,
+          );
+          return;
+        }
+
+        // Fall back to GitHub PR comments
+        if (!opts.pr) {
           throw new Error(
-            `Finding not found: ${findingId}. ` +
-              "Use `telesis review --list` to see sessions, " +
-              "`telesis review --show <id>` to see findings.",
+            `Finding not found in local sessions: ${findingId}. ` +
+              "Use --pr <number> to search GitHub PR comments, or " +
+              "`telesis review --list` to see local sessions.",
           );
         }
 
-        const { finding, sessionId } = result;
+        const pullNumber = parseInt(opts.pr, 10);
+        if (!Number.isFinite(pullNumber) || pullNumber <= 0) {
+          throw new Error(`Invalid PR number: ${opts.pr}`);
+        }
+
+        const ctx = extractPRContext() ?? buildLocalPRContext(pullNumber);
+        if (!ctx) {
+          throw new Error(
+            "Could not determine repository context. " +
+              "Ensure GITHUB_TOKEN is set and you are in a repository " +
+              "with a GitHub remote.",
+          );
+        }
+
+        const prFinding = await findFindingInPR(
+          { ...ctx, pullNumber },
+          findingId,
+        );
+        if (!prFinding) {
+          throw new Error(
+            `Finding not found in local sessions or PR #${pullNumber}: ${findingId}.`,
+          );
+        }
 
         const dismissal: Dismissal = {
           id: randomUUID(),
-          findingId: finding.id,
-          sessionId,
+          findingId: prFinding.findingId,
+          sessionId: "github",
           reason: opts.reason,
           timestamp: new Date().toISOString(),
           source: "cli",
-          path: finding.path,
-          severity: finding.severity,
-          category: finding.category,
-          description: finding.description,
-          suggestion: finding.suggestion,
-          persona: finding.persona,
+          path: prFinding.path,
+          severity: prFinding.severity,
+          category: prFinding.category,
+          description: prFinding.description,
+          suggestion: prFinding.suggestion,
+          persona: prFinding.persona,
           note: opts.note,
         };
 
         appendDismissal(rootDir, dismissal);
         console.log(
-          `Dismissed: ${finding.path} [${finding.severity}/${finding.category}] — ${opts.reason}`,
+          `Dismissed (from PR #${pullNumber}): ${prFinding.path} [${prFinding.severity}/${prFinding.category}] — ${opts.reason}`,
         );
       },
     ),
@@ -641,13 +701,13 @@ const syncDismissalsCommand = new Command("sync-dismissals")
         );
       }
 
-      // Try to infer owner/repo from GitHub event or git remote
-      const ctx = extractPRContext();
+      // Try CI context first, fall back to local git remote
+      const ctx = extractPRContext() ?? buildLocalPRContext(pullNumber);
       if (!ctx) {
         throw new Error(
           "Could not determine repository context. " +
-            "Ensure GITHUB_EVENT_PATH is set (GitHub Actions) " +
-            "or run from a repository with a GitHub remote.",
+            "Ensure GITHUB_TOKEN is set and you are in a repository " +
+            "with a GitHub remote.",
         );
       }
 

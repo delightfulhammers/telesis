@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { inferReasonFromText, extractDismissalSignals } from "./dismissals.js";
+import {
+  inferReasonFromText,
+  extractDismissalSignals,
+  parseCommentFinding,
+} from "./dismissals.js";
 import type { GitHubReviewComment } from "./client.js";
 
 const makeComment = (
@@ -179,6 +183,24 @@ describe("extractDismissalSignals", () => {
     expect(signals[0].reason).toBe("false-positive");
   });
 
+  it("strips marker from description in signals", () => {
+    const comments = [
+      makeComment({
+        id: 1,
+        body: "<!-- telesis:finding:f1 -->\n**[high]** bug\n\nDescription here",
+        path: "src/foo.ts",
+      }),
+      makeComment({
+        id: 2,
+        body: "[fp]",
+        in_reply_to_id: 1,
+      }),
+    ];
+
+    const signals = extractDismissalSignals(comments, 1);
+    expect(signals[0].description).not.toContain("<!-- telesis");
+  });
+
   it("ignores threads where marker is in a reply (not root)", () => {
     const comments = [
       makeComment({ id: 1, body: "Normal comment" }),
@@ -193,5 +215,69 @@ describe("extractDismissalSignals", () => {
     // The reply (id:2) goes into thread 1 (in_reply_to_id=1), and the root (id:1) has no marker.
     const signals = extractDismissalSignals(comments, 42);
     expect(signals).toHaveLength(0);
+  });
+});
+
+describe("parseCommentFinding", () => {
+  it("parses a full finding comment", () => {
+    const body = [
+      "<!-- telesis:finding:abc-123 -->",
+      "**[high]** bug",
+      "",
+      "Some description here",
+      "",
+      "> **Suggestion:** Fix the thing",
+      "",
+      "_— correctness persona_",
+    ].join("\n");
+
+    const result = parseCommentFinding(body, "src/foo.ts");
+    expect(result).not.toBeNull();
+    expect(result!.findingId).toBe("abc-123");
+    expect(result!.severity).toBe("high");
+    expect(result!.category).toBe("bug");
+    expect(result!.description).toBe("Some description here");
+    expect(result!.suggestion).toBe("Fix the thing");
+    expect(result!.persona).toBe("correctness");
+    expect(result!.path).toBe("src/foo.ts");
+  });
+
+  it("parses a finding without suggestion or persona", () => {
+    const body = [
+      "<!-- telesis:finding:def-456 -->",
+      "**[medium]** security",
+      "",
+      "Missing input validation",
+    ].join("\n");
+
+    const result = parseCommentFinding(body, "src/bar.ts");
+    expect(result).not.toBeNull();
+    expect(result!.findingId).toBe("def-456");
+    expect(result!.severity).toBe("medium");
+    expect(result!.category).toBe("security");
+    expect(result!.description).toBe("Missing input validation");
+    expect(result!.suggestion).toBe("");
+    expect(result!.persona).toBeUndefined();
+  });
+
+  it("returns null for non-marker comment", () => {
+    expect(parseCommentFinding("just a comment", "src/foo.ts")).toBeNull();
+  });
+
+  it("returns null for marker without severity/category line", () => {
+    const body = "<!-- telesis:finding:abc -->\nJust text, no severity line";
+    expect(parseCommentFinding(body, "src/foo.ts")).toBeNull();
+  });
+
+  it("defaults unknown severity to medium", () => {
+    const body = "<!-- telesis:finding:abc -->\n**[extreme]** bug\n\nDesc";
+    const result = parseCommentFinding(body, "src/foo.ts");
+    expect(result!.severity).toBe("medium");
+  });
+
+  it("defaults unknown category to bug", () => {
+    const body = "<!-- telesis:finding:abc -->\n**[high]** unknown\n\nDesc";
+    const result = parseCommentFinding(body, "src/foo.ts");
+    expect(result!.category).toBe("bug");
   });
 });
