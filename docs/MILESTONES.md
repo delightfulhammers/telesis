@@ -563,9 +563,9 @@ done.
 Gitea/Bitbucket), persist them in `.telesis/`, and inject them as the strongest suppression
 signal in review prompts.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Reference:** TDD-007 (Review Triage Feedback), Issue #45
+**Reference:** TDD-007 (Review Triage Feedback), Issue #45, PR #49
 
 ### What Changes
 
