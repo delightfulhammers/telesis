@@ -40,6 +40,13 @@ const NOISE_PATTERNS: readonly NoisePattern[] = [
     test: (f) => f.severity === "low" && f.category === "style",
   },
   {
+    name: "improvement-not-bug",
+    test: (f) =>
+      /\b(works|functional|acceptable|works as intended)\b/i.test(
+        f.description,
+      ) && /\bbut\b/i.test(f.description),
+  },
+  {
     name: "self-contradicting",
     test: (f) =>
       /\bactually correct\b/i.test(f.description) ||

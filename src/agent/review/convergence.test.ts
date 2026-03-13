@@ -237,6 +237,26 @@ describe("loadPriorFindings", () => {
     expect(result).toEqual([]);
   });
 
+  it("ignores sessions with disjoint file sets for the same ref", () => {
+    const dir = makeTempDir();
+    const session = makeSession({
+      id: "00000000-0000-0000-0000-000000000001",
+      ref: "staged changes",
+      files: [{ path: "src/old.ts", status: "modified" }],
+    });
+    saveReviewSession(dir, session, [makeFinding()]);
+
+    const currentFiles = [{ path: "src/new.ts", status: "added" as const }];
+    const result = loadPriorFindings(
+      dir,
+      "staged changes",
+      "current-session",
+      undefined,
+      currentFiles,
+    );
+    expect(result).toEqual([]);
+  });
+
   it("ignores sessions with different ref", () => {
     const dir = makeTempDir();
     const session = makeSession({
@@ -281,5 +301,76 @@ describe("listPriorSessions", () => {
     const result = listPriorSessions(dir, "HEAD~1", s2.id);
     expect(result).toHaveLength(1);
     expect(result[0]!.id).toBe(s1.id);
+  });
+
+  it("excludes sessions with disjoint file sets for the same ref", () => {
+    const dir = makeTempDir();
+    const s1 = makeSession({
+      id: "00000000-0000-0000-0000-000000000001",
+      ref: "staged changes",
+      files: [{ path: "src/foo.ts", status: "modified" }],
+    });
+    const s2 = makeSession({
+      id: "00000000-0000-0000-0000-000000000002",
+      ref: "staged changes",
+      files: [{ path: "src/bar.ts", status: "modified" }],
+    });
+
+    saveReviewSession(dir, s1, []);
+    saveReviewSession(dir, s2, []);
+
+    const currentFiles = [{ path: "src/baz.ts", status: "added" as const }];
+    const result = listPriorSessions(
+      dir,
+      "staged changes",
+      "current-session",
+      undefined,
+      currentFiles,
+    );
+    expect(result).toHaveLength(0);
+  });
+
+  it("includes sessions with overlapping file sets for the same ref", () => {
+    const dir = makeTempDir();
+    const s1 = makeSession({
+      id: "00000000-0000-0000-0000-000000000001",
+      ref: "staged changes",
+      files: [
+        { path: "src/foo.ts", status: "modified" },
+        { path: "src/bar.ts", status: "modified" },
+      ],
+    });
+
+    saveReviewSession(dir, s1, []);
+
+    const currentFiles = [
+      { path: "src/foo.ts", status: "modified" as const },
+      { path: "src/bar.ts", status: "modified" as const },
+      { path: "src/baz.ts", status: "added" as const },
+    ];
+    const result = listPriorSessions(
+      dir,
+      "staged changes",
+      "current-session",
+      undefined,
+      currentFiles,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe(s1.id);
+  });
+
+  it("skips file overlap check when currentFiles is not provided", () => {
+    const dir = makeTempDir();
+    const s1 = makeSession({
+      id: "00000000-0000-0000-0000-000000000001",
+      ref: "HEAD~1",
+      files: [{ path: "src/foo.ts", status: "modified" }],
+    });
+
+    saveReviewSession(dir, s1, []);
+
+    // No currentFiles → pure ref matching (backward compat)
+    const result = listPriorSessions(dir, "HEAD~1", "current-session");
+    expect(result).toHaveLength(1);
   });
 });

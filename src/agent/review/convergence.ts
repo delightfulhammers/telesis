@@ -1,7 +1,39 @@
-import type { ReviewFinding, ReviewSession } from "./types.js";
+import type { ReviewFinding, ReviewSession, ChangedFile } from "./types.js";
 import { findSimilarFinding } from "./similarity.js";
 import type { SimilarityMatch } from "./similarity.js";
 import { listReviewSessions, loadReviewSession } from "./store.js";
+
+// Jaccard ≥ 0.5 requires majority overlap. For a 2-file diff that
+// gains 1 file: {A,B} vs {A,B,C} → Jaccard = 2/3 ≈ 0.67 → match.
+// For completely disjoint sets: {A} vs {B} → 0 → no match.
+// Lower values (0.2-0.3) would treat any shared file as sufficient;
+// 0.5 avoids false chains when a single common utility file appears
+// in otherwise unrelated reviews.
+const FILE_OVERLAP_THRESHOLD = 0.5;
+
+/**
+ * Computes Jaccard similarity between two file path sets.
+ * Used to prevent sessions reviewing disjoint file sets from being
+ * treated as the same review chain (e.g., two "staged changes" reviews
+ * that happen to share the same ref string but cover different files).
+ */
+const fileSetOverlap = (
+  a: readonly ChangedFile[],
+  b: readonly ChangedFile[],
+): number => {
+  const setA = new Set(a.map((f) => f.path));
+  const setB = new Set(b.map((f) => f.path));
+  if (setA.size === 0 || setB.size === 0) return 0;
+
+  let intersection = 0;
+  const smaller = setA.size <= setB.size ? setA : setB;
+  const larger = setA.size <= setB.size ? setB : setA;
+  for (const path of smaller) {
+    if (larger.has(path)) intersection++;
+  }
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+};
 
 // --- Labeled Finding ---
 
@@ -37,12 +69,17 @@ export const loadPriorFindings = (
   ref: string,
   currentSessionId: string,
   sessions?: readonly ReviewSession[],
+  currentFiles?: readonly ChangedFile[],
 ): readonly ReviewFinding[] => {
   const allSessions = sessions ?? listReviewSessions(rootDir);
 
   // Find the most recent session with the same ref, excluding the current one
   const priorSession = allSessions.find(
-    (s) => s.ref === ref && s.id !== currentSessionId,
+    (s) =>
+      s.ref === ref &&
+      s.id !== currentSessionId &&
+      (!currentFiles ||
+        fileSetOverlap(s.files, currentFiles) >= FILE_OVERLAP_THRESHOLD),
   );
 
   if (!priorSession) return [];
@@ -134,9 +171,16 @@ export const listPriorSessions = (
   ref: string,
   currentSessionId: string,
   sessions?: readonly ReviewSession[],
+  currentFiles?: readonly ChangedFile[],
 ): readonly ReviewSession[] => {
   const allSessions = sessions ?? listReviewSessions(rootDir);
-  return allSessions.filter((s) => s.ref === ref && s.id !== currentSessionId);
+  return allSessions.filter(
+    (s) =>
+      s.ref === ref &&
+      s.id !== currentSessionId &&
+      (!currentFiles ||
+        fileSetOverlap(s.files, currentFiles) >= FILE_OVERLAP_THRESHOLD),
+  );
 };
 
 /**

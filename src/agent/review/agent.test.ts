@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import type { ModelClient } from "../model/client.js";
 import type { CompletionRequest, CompletionResponse } from "../model/types.js";
 import type { ChangedFile, ReviewContext } from "./types.js";
-import { reviewDiff, reviewWithPersonas, filterByConfidence } from "./agent.js";
+import {
+  reviewDiff,
+  reviewWithPersonas,
+  filterByConfidence,
+  escalateThresholds,
+} from "./agent.js";
+import { DEFAULT_CONFIDENCE_THRESHOLDS } from "./types.js";
 import {
   securityPersona,
   architecturePersona,
@@ -689,5 +695,51 @@ describe("filterByConfidence", () => {
       low: 60,
     });
     expect(result.findings).toHaveLength(1);
+  });
+});
+
+describe("escalateThresholds", () => {
+  it("returns base thresholds for round 1", () => {
+    const result = escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, 1);
+    expect(result).toEqual(DEFAULT_CONFIDENCE_THRESHOLDS);
+  });
+
+  it("raises thresholds by rate per round after round 1", () => {
+    const result = escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, 3, 5);
+    // Round 3 = 2 rounds past round 1, so +10 per severity
+    expect(result.critical).toBe(60);
+    expect(result.high).toBe(70);
+    expect(result.medium).toBe(80);
+    expect(result.low).toBe(90);
+  });
+
+  it("caps thresholds at the cap value", () => {
+    const result = escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, 10, 5, 90);
+    // Round 10 = 9 * 5 = +45, but capped at 90
+    expect(result.critical).toBe(90);
+    expect(result.high).toBe(90);
+    expect(result.medium).toBe(90);
+    expect(result.low).toBe(90);
+  });
+
+  it("uses default rate of 5 when not specified", () => {
+    const result = escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, 2);
+    // Round 2 = 1 round past round 1, so +5
+    expect(result.critical).toBe(55);
+    expect(result.high).toBe(65);
+    expect(result.medium).toBe(75);
+    expect(result.low).toBe(85);
+  });
+
+  it("uses default cap of 95 when not specified", () => {
+    const result = escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, 20);
+    // Round 20 = 19 * 5 = +95, but low starts at 80 + 95 = 175 → capped at 95
+    expect(result.low).toBe(95);
+  });
+
+  it("does not modify the original thresholds object", () => {
+    const original = { ...DEFAULT_CONFIDENCE_THRESHOLDS };
+    escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, 5, 10);
+    expect(DEFAULT_CONFIDENCE_THRESHOLDS).toEqual(original);
   });
 });

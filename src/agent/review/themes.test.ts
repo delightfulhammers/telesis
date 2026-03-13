@@ -3,9 +3,9 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ModelClient } from "../model/client.js";
 import type { CompletionRequest, CompletionResponse } from "../model/types.js";
-import type { ReviewSession, ReviewFinding } from "./types.js";
+import type { ReviewSession, ReviewFinding, ThemeConclusion } from "./types.js";
 import { saveReviewSession } from "./store.js";
-import { extractThemes } from "./themes.js";
+import { extractThemes, filterByAntiPatterns } from "./themes.js";
 import { useTempDir } from "../../test-utils.js";
 
 const makeTempDir = useTempDir("themes-test");
@@ -286,5 +286,88 @@ describe("extractThemes", () => {
     expect(capturedPrompt).not.toContain("Another old finding");
     // Other ref's findings should be included
     expect(capturedPrompt).toContain("Other finding one");
+  });
+});
+
+describe("filterByAntiPatterns", () => {
+  const conclusions: readonly ThemeConclusion[] = [
+    {
+      theme: "redirect prevention in fetch calls",
+      conclusion: "All fetch calls use redirect: 'error' intentionally",
+      antiPattern: "Do not suggest removing redirect error option from fetch",
+    },
+    {
+      theme: "SQL injection in query builder",
+      conclusion: "All queries use parameterized statements",
+      antiPattern:
+        "Do not suggest additional SQL escaping on parameterized queries",
+    },
+  ];
+
+  it("filters findings matching an anti-pattern by Jaccard similarity", () => {
+    const findings: readonly ReviewFinding[] = [
+      makeFinding(
+        "f1",
+        "s1",
+        "Consider removing the redirect error option from fetch calls for simplicity",
+      ),
+    ];
+    const result = filterByAntiPatterns(findings, conclusions);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredCount).toBe(1);
+  });
+
+  it("keeps findings that do not match any anti-pattern", () => {
+    const findings: readonly ReviewFinding[] = [
+      makeFinding("f1", "s1", "Missing null check on user input validation"),
+    ];
+    const result = filterByAntiPatterns(findings, conclusions);
+    expect(result.findings).toHaveLength(1);
+    expect(result.filteredCount).toBe(0);
+  });
+
+  it("returns all findings when no conclusions are provided", () => {
+    const findings: readonly ReviewFinding[] = [
+      makeFinding("f1", "s1", "Some finding about redirect error handling"),
+    ];
+    const result = filterByAntiPatterns(findings, []);
+    expect(result.findings).toHaveLength(1);
+    expect(result.filteredCount).toBe(0);
+  });
+
+  it("filters multiple findings matching different anti-patterns", () => {
+    const findings: readonly ReviewFinding[] = [
+      makeFinding(
+        "f1",
+        "s1",
+        "Remove the redirect error option from the fetch call",
+      ),
+      makeFinding(
+        "f2",
+        "s1",
+        "Add additional SQL escaping on parameterized queries for safety",
+      ),
+      makeFinding("f3", "s1", "Unrelated bug in error handling"),
+    ];
+    const result = filterByAntiPatterns(findings, conclusions);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].id).toBe("f3");
+    expect(result.filteredCount).toBe(2);
+  });
+
+  it("supports custom similarity threshold", () => {
+    const findings: readonly ReviewFinding[] = [
+      makeFinding(
+        "f1",
+        "s1",
+        "The redirect error option could be reconsidered",
+      ),
+    ];
+    // With a very high threshold, marginal matches survive
+    const strict = filterByAntiPatterns(findings, conclusions, 0.9);
+    expect(strict.findings).toHaveLength(1);
+    // With a low threshold, they get filtered
+    const lenient = filterByAntiPatterns(findings, conclusions, 0.15);
+    expect(lenient.findings).toHaveLength(0);
   });
 });

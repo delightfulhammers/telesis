@@ -105,6 +105,30 @@ const normalizeFinding = (
   };
 };
 
+const DEFAULT_ESCALATION_RATE = 5;
+const DEFAULT_ESCALATION_CAP = 95;
+
+/**
+ * Raises confidence thresholds based on the current review round.
+ * Each round past the first adds `rate` points to every severity's
+ * threshold, capped at `cap`. This causes marginal findings to be
+ * filtered more aggressively as the codebase converges across rounds.
+ */
+export const escalateThresholds = (
+  base: ConfidenceThresholds,
+  round: number,
+  rate: number = DEFAULT_ESCALATION_RATE,
+  cap: number = DEFAULT_ESCALATION_CAP,
+): ConfidenceThresholds => {
+  const bump = Math.max(0, round - 1) * rate;
+  return {
+    critical: Math.min(base.critical + bump, cap),
+    high: Math.min(base.high + bump, cap),
+    medium: Math.min(base.medium + bump, cap),
+    low: Math.min(base.low + bump, cap),
+  };
+};
+
 /**
  * Filters findings below their severity's confidence threshold.
  * Lower severity requires higher confidence to survive — a critical

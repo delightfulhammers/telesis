@@ -4,6 +4,7 @@ import type { ReviewFinding, ReviewSession, ThemeConclusion } from "./types.js";
 import { listReviewSessions, loadReviewSession } from "./store.js";
 import { buildThemeExtractionPrompt } from "./prompts.js";
 import { parseJsonResponse } from "./json-parse.js";
+import { wordBag, jaccardSimilarity } from "./similarity.js";
 
 const DEFAULT_MAX_SESSIONS = 3;
 const MIN_FINDINGS_FOR_THEMES = 3;
@@ -150,4 +151,40 @@ export const extractThemes = async (
     );
     return { themes: [], conclusions: [], recentFindings: findings };
   }
+};
+
+const DEFAULT_ANTI_PATTERN_THRESHOLD = 0.3;
+
+/**
+ * Filters findings that match a ThemeConclusion's antiPattern text.
+ * Uses Jaccard word-bag similarity — if a finding's description is
+ * semantically close to an anti-pattern, it's a known false positive
+ * that the theme extractor has already flagged.
+ */
+export const filterByAntiPatterns = (
+  findings: readonly ReviewFinding[],
+  conclusions: readonly ThemeConclusion[],
+  threshold: number = DEFAULT_ANTI_PATTERN_THRESHOLD,
+): { findings: readonly ReviewFinding[]; filteredCount: number } => {
+  if (conclusions.length === 0) {
+    return { findings, filteredCount: 0 };
+  }
+
+  const antiPatternBags = conclusions.map((c) => wordBag(c.antiPattern));
+  const passed: ReviewFinding[] = [];
+  let filteredCount = 0;
+
+  for (const f of findings) {
+    const descBag = wordBag(f.description);
+    const matches = antiPatternBags.some(
+      (bag) => jaccardSimilarity(descBag, bag) >= threshold,
+    );
+    if (matches) {
+      filteredCount++;
+    } else {
+      passed.push(f);
+    }
+  }
+
+  return { findings: passed, filteredCount };
 };

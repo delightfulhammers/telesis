@@ -20,11 +20,14 @@ import {
   filterBySeverity,
 } from "../agent/review/format.js";
 import { deriveCostFromSession } from "../agent/review/cost.js";
-import { SEVERITIES, type Severity } from "../agent/review/types.js";
-import type {
-  ReviewSession,
-  ReviewFinding,
-  ThemeConclusion,
+import {
+  SEVERITIES,
+  DEFAULT_CONFIDENCE_THRESHOLDS,
+  type Severity,
+  type ReviewSession,
+  type ReviewFinding,
+  type ThemeConclusion,
+  type FilterStats,
 } from "../agent/review/types.js";
 import { selectPersonas } from "../agent/review/orchestrator.js";
 import {
@@ -32,9 +35,12 @@ import {
   applyPersonaOverrides,
 } from "../agent/review/personas.js";
 import { deduplicateFindings } from "../agent/review/dedup.js";
-import { extractThemes } from "../agent/review/themes.js";
+import { extractThemes, filterByAntiPatterns } from "../agent/review/themes.js";
 import { verifyFindings } from "../agent/review/verify.js";
-import { filterByConfidence } from "../agent/review/agent.js";
+import {
+  filterByConfidence,
+  escalateThresholds,
+} from "../agent/review/agent.js";
 import {
   filterNoise,
   buildDismissalNoisePatterns,
@@ -76,7 +82,6 @@ import {
   BRACKET_TAG_RE,
 } from "../github/dismissals.js";
 import { FINDING_MARKER_RE } from "../github/format.js";
-import type { FilterStats } from "../agent/review/types.js";
 import {
   labelFindings,
   loadPriorFindings,
@@ -102,18 +107,23 @@ const addTokenUsage = (
 });
 
 /**
- * Shared filtering pipeline: confidence → noise (built-in + dynamic) → dismissal matcher.
+ * Shared filtering pipeline:
+ *   confidence (round-escalated) → noise → dismissal → anti-pattern.
  * Applied to both single-pass and persona review paths.
  */
 const applyFilters = (
   findings: readonly ReviewFinding[],
   dismissals: readonly Dismissal[],
   dynamicNoisePatterns: readonly NoisePattern[] = [],
+  round: number = 1,
+  conclusions: readonly ThemeConclusion[] = [],
 ): { findings: readonly ReviewFinding[]; stats: FilterStats } => {
-  const confidenceResult = filterByConfidence(findings);
+  const thresholds = escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, round);
+  const confidenceResult = filterByConfidence(findings, thresholds);
   if (confidenceResult.filteredCount > 0) {
     console.error(
-      `Filtered ${confidenceResult.filteredCount} low-confidence findings`,
+      `Filtered ${confidenceResult.filteredCount} low-confidence findings` +
+        (round > 1 ? ` (round ${round}, escalated thresholds)` : ""),
     );
   }
 
@@ -140,15 +150,27 @@ const applyFilters = (
     );
   }
 
+  const antiPatternResult = filterByAntiPatterns(
+    dismissalResult.findings,
+    conclusions,
+  );
+  if (antiPatternResult.filteredCount > 0) {
+    console.error(
+      `Filtered ${antiPatternResult.filteredCount} theme anti-pattern matches`,
+    );
+  }
+
   return {
-    findings: dismissalResult.findings,
+    findings: antiPatternResult.findings,
     stats: {
       dismissalFilteredCount: dismissalResult.filteredCount,
       noiseFilteredCount: noiseResult.filteredCount,
+      antiPatternFilteredCount: antiPatternResult.filteredCount,
       totalFilteredCount:
         confidenceResult.filteredCount +
         noiseResult.filteredCount +
-        dismissalResult.filteredCount,
+        dismissalResult.filteredCount +
+        antiPatternResult.filteredCount,
     },
   };
 };
@@ -184,6 +206,7 @@ const applyJudgeFilter = async (
       dismissalFilteredCount:
         filterResult.stats.dismissalFilteredCount + judgeResult.filteredCount,
       noiseFilteredCount: filterResult.stats.noiseFilteredCount,
+      antiPatternFilteredCount: filterResult.stats.antiPatternFilteredCount,
       totalFilteredCount:
         filterResult.stats.totalFilteredCount + judgeResult.filteredCount,
     },
@@ -386,11 +409,23 @@ export const reviewCommand = new Command("review")
             );
           }
 
+          // Pre-compute prior sessions for both round escalation and convergence
+          const singlePriorSessions = listPriorSessions(
+            rootDir,
+            resolved.ref,
+            sessionId,
+            undefined,
+            resolved.files,
+          );
+          const singleRound = singlePriorSessions.length + 1;
+
           const rawFindingCount = singleVerifyResult.findings.length;
           const filterResult = applyFilters(
             singleVerifyResult.findings,
             dismissedFindings,
             dynamicNoisePatterns,
+            singleRound,
+            singleThemeResult.conclusions,
           );
 
           const judged = await applyJudgeFilter(
@@ -434,21 +469,15 @@ export const reviewCommand = new Command("review")
 
           saveSessionSafe(rootDir, session, finalFindings);
 
-          // Convergence detection
-          const singleAllSessions = listReviewSessions(rootDir);
+          // Convergence detection — reuses singlePriorSessions from above
           const singlePriors = loadPriorFindings(
             rootDir,
             resolved.ref,
             sessionId,
-            singleAllSessions,
+            undefined,
+            resolved.files,
           );
           const singleLabeled = labelFindings(finalFindings, singlePriors);
-          const singlePriorSessions = listPriorSessions(
-            rootDir,
-            resolved.ref,
-            sessionId,
-            singleAllSessions,
-          );
           const singleConvergence = summarizeConvergence(
             singleLabeled,
             singlePriorSessions,
@@ -540,11 +569,25 @@ export const reviewCommand = new Command("review")
           );
         }
 
+        // Pre-compute prior sessions for both round escalation and convergence.
+        // Safe to reuse after saveSessionSafe: listPriorSessions excludes
+        // the current sessionId, so the saved session won't appear.
+        const personaPriorSessions = listPriorSessions(
+          rootDir,
+          resolved.ref,
+          sessionId,
+          undefined,
+          resolved.files,
+        );
+        const personaRound = personaPriorSessions.length + 1;
+
         const rawFindingCount = verifyResult.findings.length;
         const filterResult = applyFilters(
           verifyResult.findings,
           dismissedFindings,
           dynamicNoisePatterns,
+          personaRound,
+          themeResult.conclusions,
         );
 
         const judged = await applyJudgeFilter(
@@ -593,27 +636,21 @@ export const reviewCommand = new Command("review")
 
         saveSessionSafe(rootDir, session, finalFindings);
 
-        // Convergence detection
-        const allSessions = listReviewSessions(rootDir);
+        // Convergence detection — reuses personaPriorSessions from above
         const convergencePriors = loadPriorFindings(
           rootDir,
           resolved.ref,
           sessionId,
-          allSessions,
+          undefined,
+          resolved.files,
         );
         const convergenceLabeled = labelFindings(
           finalFindings,
           convergencePriors,
         );
-        const convergencePriorSessions = listPriorSessions(
-          rootDir,
-          resolved.ref,
-          sessionId,
-          allSessions,
-        );
         const convergence = summarizeConvergence(
           convergenceLabeled,
-          convergencePriorSessions,
+          personaPriorSessions,
         );
 
         const personaCost = deriveCostFromSession(session, rootDir);
@@ -683,13 +720,20 @@ const displayFindings = (
         ),
       );
     } else {
-      const { dismissalFilteredCount, noiseFilteredCount } = extra.filterStats;
+      const {
+        dismissalFilteredCount,
+        noiseFilteredCount,
+        antiPatternFilteredCount,
+      } = extra.filterStats;
       const parts: string[] = [];
       if (dismissalFilteredCount > 0) {
         parts.push(`${dismissalFilteredCount} dismissed re-raises`);
       }
       if (noiseFilteredCount > 0) {
         parts.push(`${noiseFilteredCount} noise`);
+      }
+      if (antiPatternFilteredCount > 0) {
+        parts.push(`${antiPatternFilteredCount} anti-pattern`);
       }
       const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
       console.log(

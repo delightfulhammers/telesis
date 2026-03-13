@@ -273,6 +273,67 @@ describe("filterNoise", () => {
     expect(result.findings).toHaveLength(1);
   });
 
+  // --- Improvement-not-bug ---
+
+  it("filters improvement-not-bug — 'works but could be'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The error handling works but could be simplified using a utility function",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["improvement-not-bug"]).toBe(1);
+  });
+
+  it("filters improvement-not-bug — 'functional but'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The parsing logic is functional but would benefit from cleaner structure",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["improvement-not-bug"]).toBe(1);
+  });
+
+  it("filters improvement-not-bug — 'works as intended but'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The retry logic works as intended but could use exponential backoff",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["improvement-not-bug"]).toBe(1);
+  });
+
+  it("filters improvement-not-bug — 'acceptable but'", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The current approach is acceptable but a more idiomatic pattern would be...",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(0);
+    expect(result.filteredReasons["improvement-not-bug"]).toBe(1);
+  });
+
+  it("keeps findings that describe actual bugs even with 'but' phrasing", () => {
+    const findings = [
+      makeFinding({
+        description:
+          "The function returns undefined but the caller expects a string, causing a runtime crash",
+      }),
+    ];
+    const result = filterNoise(findings);
+    expect(result.findings).toHaveLength(1);
+  });
+
   // --- Uncited architecture findings ---
 
   it("filters architecture findings citing vague authority", () => {

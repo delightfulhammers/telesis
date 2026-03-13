@@ -163,5 +163,6 @@ export interface VerificationResult {
 export interface FilterStats {
   readonly dismissalFilteredCount: number;
   readonly noiseFilteredCount: number;
+  readonly antiPatternFilteredCount: number;
   readonly totalFilteredCount: number;
 }
