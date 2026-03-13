@@ -955,38 +955,96 @@ approval, interactive TUI, webhook-driven sync.
 
 ---
 
-## v1.0.0 — Full Loop
+## v0.16.0 — Planner Agent
 
-**Goal:** Complete the intake → understand → plan → dispatch → monitor → validate →
-correct → complete cycle. Telesis operates as a fully autonomous development companion
-within human-defined boundaries.
+**Goal:** Decompose work items into sequenced, dispatchable tasks. A planning agent
+analyzes a work item and produces a task dependency graph that the dispatch pipeline
+can execute in order.
 
 **Status:** Planned
 
-### What Changes
+### Acceptance Criteria
 
-All pieces connect: work arrives via intake, context is assembled, a plan is formed, coding
-agents are dispatched, oversight agents monitor execution, validation confirms correctness,
-and the loop self-corrects on failure. The human sets boundaries (milestones, autonomy
-level, approval gates) and Telesis operates within them.
+1. A planning agent decomposes a work item into an ordered list of tasks
+2. Tasks have dependency relationships (A must complete before B)
+3. `telesis plan <work-item-id>` produces and stores a task plan
+4. `telesis intake approve` can optionally plan before dispatch
+5. Plans are stored as structured data in `.telesis/plans/`
+6. All new business logic has colocated unit tests
+7. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Types and plan store:** Task, Plan types, per-plan JSON persistence
+2. **Phase 2 — Planner agent:** LLM-based work item decomposition
+3. **Phase 3 — CLI commands:** `telesis plan` subcommands
+4. **Phase 4 — Intake integration:** Plan-before-dispatch option on approve
+5. **Phase 5 — Drift, docs, version bump**
+
+---
+
+## v0.17.0 — Validation & Correction
+
+**Goal:** Verify dispatch output against acceptance criteria and automatically retry
+on failure with bounded retries and human escalation.
+
+**Status:** Planned
+
+### Acceptance Criteria
+
+1. A validation agent verifies dispatch output against acceptance criteria
+2. Failed validation triggers automatic correction (retry with feedback)
+3. The correction loop has bounded retries (configurable, default 3)
+4. Exhausted retries escalate to human review
+5. Milestone gates pause autonomous operation for human review
+6. All new business logic has colocated unit tests
+7. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Validation agent:** Verify dispatch output against criteria
+2. **Phase 2 — Correction loop:** Retry with feedback on validation failure
+3. **Phase 3 — Escalation:** Bounded retries with human escalation
+4. **Phase 4 — Milestone gates:** Pause at milestone boundaries
+5. **Phase 5 — Drift, docs, version bump**
+
+---
+
+## v0.18.0 — Full Loop & Self-Hosting
+
+**Goal:** Wire the complete intake → plan → dispatch → monitor → validate → correct
+cycle end-to-end and validate it by running on the Telesis repo itself.
+
+**Status:** Planned
 
 ### Acceptance Criteria
 
 1. End-to-end: an issue can flow from intake to merged code with human approval at gates
-2. The planning agent decomposes work items into dispatchable tasks
-3. Failed validation triggers automatic correction (retry with feedback)
-4. The correction loop has bounded retries with human escalation
-5. Milestone gates pause autonomous operation for human review
-6. The full loop operates on the Telesis repo itself (self-hosting)
-7. Comprehensive documentation covers the full orchestration model
-8. All business logic has colocated unit tests
-9. Running `telesis drift` produces zero errors
+2. The full loop operates on the Telesis repo itself (self-hosting)
+3. Comprehensive documentation covers the full orchestration model
+4. All new business logic has colocated unit tests
+5. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Planner agent:** Decompose work items into tasks
-2. **Phase 2 — Validation agent:** Verify dispatch output against acceptance criteria
-3. **Phase 3 — Correction loop:** Retry with feedback on validation failure
-4. **Phase 4 — End-to-end wiring:** Connect intake → plan → dispatch → monitor → validate → correct
-5. **Phase 5 — Self-hosting validation:** Run the full loop on Telesis itself
-6. **Phase 6 — Documentation and stabilization**
+1. **Phase 1 — End-to-end wiring:** Connect intake → plan → dispatch → monitor → validate → correct
+2. **Phase 2 — Self-hosting validation:** Run the full loop on Telesis itself
+3. **Phase 3 — Documentation and stabilization**
+
+---
+
+## v1.0.0 — Production Ready
+
+**Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,
+edge cases, and ergonomics discovered by running on real projects beyond the Telesis repo.
+
+**Status:** Planned
+
+### Acceptance Criteria
+
+1. Telesis has been used on at least 2 projects beyond itself
+2. All generalization gaps discovered during cross-project usage are resolved
+3. Configuration, defaults, and error messages are production-quality
+4. Comprehensive documentation covers setup, usage, and extension
+5. All business logic has colocated unit tests
+6. Running `telesis drift` produces zero errors
