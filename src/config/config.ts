@@ -261,6 +261,77 @@ export const parseOversightConfig = (rootDir: string): OversightConfig => {
   return result;
 };
 
+export interface IntakeGitHubConfig {
+  readonly labels?: readonly string[];
+  readonly excludeLabels?: readonly string[];
+  readonly assignee?: string;
+  readonly state?: string;
+}
+
+export interface IntakeConfig {
+  readonly github?: IntakeGitHubConfig;
+}
+
+/** Parse intake config from .telesis/config.yml, returning defaults if absent */
+export const parseIntakeConfig = (rootDir: string): IntakeConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.intake) return {};
+
+  const intake = raw.intake;
+  if (typeof intake !== "object" || intake === null) return {};
+
+  const i = intake as Record<string, unknown>;
+  const result: { github?: IntakeGitHubConfig } = {};
+
+  if (i.github && typeof i.github === "object" && !Array.isArray(i.github)) {
+    const g = i.github as Record<string, unknown>;
+    const ghConfig: {
+      labels?: readonly string[];
+      excludeLabels?: readonly string[];
+      assignee?: string;
+      state?: string;
+    } = {};
+
+    if (Array.isArray(g.labels)) {
+      const labels = g.labels.filter(
+        (v): v is string => typeof v === "string" && v.length > 0,
+      );
+      if (labels.length > 0) ghConfig.labels = labels;
+    }
+
+    if (Array.isArray(g.excludeLabels)) {
+      const excludeLabels = g.excludeLabels.filter(
+        (v): v is string => typeof v === "string" && v.length > 0,
+      );
+      if (excludeLabels.length > 0) ghConfig.excludeLabels = excludeLabels;
+    }
+
+    if (typeof g.assignee === "string" && g.assignee.length > 0) {
+      ghConfig.assignee = g.assignee;
+    }
+
+    if (typeof g.state === "string" && g.state.length > 0) {
+      ghConfig.state = g.state;
+    }
+
+    if (Object.keys(ghConfig).length > 0) {
+      result.github = ghConfig;
+    }
+  }
+
+  return result;
+};
+
 export interface DaemonConfig {
   readonly watch?: {
     readonly ignore?: readonly string[];

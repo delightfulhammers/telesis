@@ -4,7 +4,8 @@ export type EventSource =
   | "filesystem"
   | "socket"
   | "dispatch"
-  | "oversight";
+  | "oversight"
+  | "intake";
 
 /** All event type literals */
 export type EventType =
@@ -28,7 +29,15 @@ export type EventType =
   | "dispatch:agent:cancelled"
   | "oversight:finding"
   | "oversight:note"
-  | "oversight:intervention";
+  | "oversight:intervention"
+  | "intake:item:imported"
+  | "intake:item:approved"
+  | "intake:item:dispatched"
+  | "intake:item:completed"
+  | "intake:item:failed"
+  | "intake:item:skipped"
+  | "intake:sync:started"
+  | "intake:sync:completed";
 
 /** Base event shape — all events extend this */
 export interface BaseEvent<T extends EventType, P> {
@@ -102,6 +111,20 @@ export interface OversightInterventionPayload {
   readonly reason: string;
 }
 
+/** Intake payload types */
+export interface IntakeItemPayload {
+  readonly itemId: string;
+  readonly source: string;
+  readonly sourceId: string;
+  readonly title: string;
+}
+
+export interface IntakeSyncPayload {
+  readonly source: string;
+  readonly imported: number;
+  readonly skippedDuplicate: number;
+}
+
 /** Full discriminated union of all daemon events */
 export type TelesisDaemonEvent =
   | BaseEvent<"daemon:started", DaemonStartedPayload>
@@ -124,7 +147,15 @@ export type TelesisDaemonEvent =
   | BaseEvent<"dispatch:agent:cancelled", DispatchAgentEventPayload>
   | BaseEvent<"oversight:finding", OversightFindingPayload>
   | BaseEvent<"oversight:note", OversightNotePayload>
-  | BaseEvent<"oversight:intervention", OversightInterventionPayload>;
+  | BaseEvent<"oversight:intervention", OversightInterventionPayload>
+  | BaseEvent<"intake:item:imported", IntakeItemPayload>
+  | BaseEvent<"intake:item:approved", IntakeItemPayload>
+  | BaseEvent<"intake:item:dispatched", IntakeItemPayload>
+  | BaseEvent<"intake:item:completed", IntakeItemPayload>
+  | BaseEvent<"intake:item:failed", IntakeItemPayload>
+  | BaseEvent<"intake:item:skipped", IntakeItemPayload>
+  | BaseEvent<"intake:sync:started", IntakeSyncPayload>
+  | BaseEvent<"intake:sync:completed", IntakeSyncPayload>;
 
 /** Map from EventType to the event source it belongs to */
 const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
@@ -149,6 +180,14 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "oversight:finding": "oversight",
   "oversight:note": "oversight",
   "oversight:intervention": "oversight",
+  "intake:item:imported": "intake",
+  "intake:item:approved": "intake",
+  "intake:item:dispatched": "intake",
+  "intake:item:completed": "intake",
+  "intake:item:failed": "intake",
+  "intake:item:skipped": "intake",
+  "intake:sync:started": "intake",
+  "intake:sync:completed": "intake",
 };
 
 /** Factory for creating typed events with automatic timestamp and source */

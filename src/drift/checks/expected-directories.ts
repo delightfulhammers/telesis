@@ -20,6 +20,7 @@ export const EXPECTED_DIRS: readonly string[] = [
   "src/scaffold",
   "src/status",
   "src/tdd",
+  "src/intake",
   "src/templates",
   "docs",
   "docs/adr",

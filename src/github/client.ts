@@ -1,5 +1,6 @@
 import type {
   GitHubPRContext,
+  GitHubIssue,
   PRReviewComment,
   ReviewEvent,
   PostReviewResult,
@@ -7,6 +8,7 @@ import type {
 } from "./types.js";
 
 const API_BASE = "https://api.github.com";
+const SAFE_NAME_RE = /^[\w.-]+$/;
 const RETRY_DELAY_MS = 2000;
 
 export class GitHubApiError extends Error {
@@ -244,6 +246,82 @@ export const replyToReviewComment = async (
   )) as { id: number };
 
   return { id: data.id };
+};
+
+/** Parameters for listing repository issues */
+export interface ListRepoIssuesParams {
+  readonly labels?: string;
+  readonly assignee?: string;
+  readonly state?: string;
+  readonly perPage?: number;
+}
+
+const MAX_ISSUE_PAGES = 10;
+
+/**
+ * Lists issues for a repository with pagination. Filters out pull requests
+ * (items with a `pull_request` key). Paginates up to 10 pages.
+ */
+export const listRepoIssues = async (
+  owner: string,
+  repo: string,
+  token: string,
+  params?: ListRepoIssuesParams,
+): Promise<readonly GitHubIssue[]> => {
+  if (!SAFE_NAME_RE.test(owner) || !SAFE_NAME_RE.test(repo)) {
+    throw new GitHubApiError(
+      0,
+      "",
+      `Invalid owner or repo name: ${owner}/${repo}`,
+    );
+  }
+
+  const VALID_STATES = new Set(["open", "closed", "all"]);
+  const SAFE_LABEL_RE = /^[\w.\- ]+$/;
+
+  const perPage = params?.perPage ?? 100;
+  const state = VALID_STATES.has(params?.state ?? "open")
+    ? (params?.state ?? "open")
+    : "open";
+  const allIssues: GitHubIssue[] = [];
+
+  for (let page = 1; page <= MAX_ISSUE_PAGES; page++) {
+    const searchParams = new URLSearchParams({
+      state,
+      per_page: String(perPage),
+      page: String(page),
+    });
+
+    // User-controlled config inputs — validate before passing to API
+    if (params?.labels) {
+      const safeLabels = params.labels
+        .split(",")
+        .filter((l) => SAFE_LABEL_RE.test(l.trim()));
+      if (safeLabels.length) searchParams.set("labels", safeLabels.join(","));
+    }
+    if (params?.assignee && SAFE_NAME_RE.test(params.assignee)) {
+      searchParams.set("assignee", params.assignee);
+    }
+
+    const url = `${API_BASE}/repos/${owner}/${repo}/issues?${searchParams.toString()}`;
+
+    const data = await fetchWithRetry(
+      url,
+      { method: "GET", headers: headers(token) },
+      "list repo issues",
+    );
+
+    if (!Array.isArray(data)) break;
+
+    const issues = (data as readonly GitHubIssue[]).filter(
+      (item) => !item.pull_request,
+    );
+    allIssues.push(...issues);
+
+    if ((data as readonly unknown[]).length < perPage) break;
+  }
+
+  return allIssues;
 };
 
 /**

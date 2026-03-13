@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mkdirSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { save, load, exists } from "./config.js";
+import { save, load, exists, parseIntakeConfig } from "./config.js";
 import type { Config } from "./config.js";
 import { useTempDir } from "../test-utils.js";
 
@@ -141,6 +141,111 @@ describe("config", () => {
       save(rootDir, cfg);
       const loaded = load(rootDir);
       expect(loaded.review).toBeUndefined();
+    });
+  });
+
+  describe("parseIntakeConfig", () => {
+    it("returns empty object when config file is missing", () => {
+      const rootDir = makeTempDir();
+      expect(parseIntakeConfig(rootDir)).toEqual({});
+    });
+
+    it("returns empty object when no intake section", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "config.yml"),
+        ["project:", "  name: Test"].join("\n"),
+      );
+
+      expect(parseIntakeConfig(rootDir)).toEqual({});
+    });
+
+    it("parses GitHub labels and assignee", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "config.yml"),
+        [
+          "project:",
+          "  name: Test",
+          "intake:",
+          "  github:",
+          "    labels:",
+          '      - "telesis"',
+          '      - "ready"',
+          "    assignee: alice",
+          "    state: open",
+        ].join("\n"),
+      );
+
+      const config = parseIntakeConfig(rootDir);
+      expect(config.github?.labels).toEqual(["telesis", "ready"]);
+      expect(config.github?.assignee).toBe("alice");
+      expect(config.github?.state).toBe("open");
+    });
+
+    it("parses excludeLabels", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "config.yml"),
+        [
+          "project:",
+          "  name: Test",
+          "intake:",
+          "  github:",
+          "    excludeLabels:",
+          '      - "wontfix"',
+        ].join("\n"),
+      );
+
+      const config = parseIntakeConfig(rootDir);
+      expect(config.github?.excludeLabels).toEqual(["wontfix"]);
+    });
+
+    it("ignores invalid field types while preserving valid ones", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "config.yml"),
+        [
+          "project:",
+          "  name: Test",
+          "intake:",
+          "  github:",
+          "    labels: not-an-array",
+          "    assignee: alice",
+        ].join("\n"),
+      );
+
+      const config = parseIntakeConfig(rootDir);
+      // labels is invalid (not an array) so it's dropped, but assignee is valid
+      expect(config.github?.labels).toBeUndefined();
+      expect(config.github?.assignee).toBe("alice");
+    });
+
+    it("returns empty github when all fields invalid", () => {
+      const rootDir = makeTempDir();
+      const dir = join(rootDir, ".telesis");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "config.yml"),
+        [
+          "project:",
+          "  name: Test",
+          "intake:",
+          "  github:",
+          "    labels: not-an-array",
+        ].join("\n"),
+      );
+
+      const config = parseIntakeConfig(rootDir);
+      expect(config.github).toBeUndefined();
     });
   });
 

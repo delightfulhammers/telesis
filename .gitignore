@@ -41,6 +41,7 @@ review-output/
 .telesis/reviews/
 .telesis/dismissals.jsonl
 .telesis/sessions/
+.telesis/intake/
 .telesis/notes.jsonl
 .telesis/journal.jsonl
 

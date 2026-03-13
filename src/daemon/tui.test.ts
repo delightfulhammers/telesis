@@ -235,4 +235,83 @@ describe("formatEventLine", () => {
     // Green ANSI code
     expect(formatEventLine(event)).toContain("\x1b[32m");
   });
+
+  it("formats intake:item:imported with source and title", () => {
+    const event = createEvent("intake:item:imported", {
+      itemId: "uuid-1",
+      source: "github",
+      sourceId: "42",
+      title: "Fix login bug",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("intake:item:imported");
+    expect(line).toContain("github#42");
+    expect(line).toContain("Fix login bug");
+  });
+
+  it("formats intake:sync:completed with counts", () => {
+    const event = createEvent("intake:sync:completed", {
+      source: "github",
+      imported: 5,
+      skippedDuplicate: 3,
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("intake:sync:completed");
+    expect(line).toContain("source=github");
+    expect(line).toContain("imported=5");
+    expect(line).toContain("skipped=3");
+  });
+
+  it("formats intake:sync:started with source", () => {
+    const event = createEvent("intake:sync:started", {
+      source: "github",
+      imported: 0,
+      skippedDuplicate: 0,
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("intake:sync:started");
+    expect(line).toContain("source=github");
+  });
+
+  it("applies cyan color for intake events", () => {
+    const event = createEvent("intake:item:imported", {
+      itemId: "uuid-1",
+      source: "github",
+      sourceId: "42",
+      title: "Test",
+    });
+
+    // Cyan ANSI code
+    expect(formatEventLine(event)).toContain("\x1b[36m");
+  });
+
+  it("formats intake:item:approved with source and title", () => {
+    const event = createEvent("intake:item:approved", {
+      itemId: "uuid-1",
+      source: "github",
+      sourceId: "42",
+      title: "Add feature",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("intake:item:approved");
+    expect(line).toContain("github#42");
+    expect(line).toContain("Add feature");
+  });
+
+  it("formats intake:item:skipped", () => {
+    const event = createEvent("intake:item:skipped", {
+      itemId: "uuid-1",
+      source: "github",
+      sourceId: "99",
+      title: "Won't fix this",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("intake:item:skipped");
+    expect(line).toContain("github#99");
+  });
 });

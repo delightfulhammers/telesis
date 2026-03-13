@@ -73,6 +73,14 @@ telesis/
       context.ts          ← project context assembly for agent consumption
       dispatcher.ts       ← orchestration: context + adapter + store + events
       format.ts           ← CLI output formatting for list/show
+    intake/               ← work intake from external sources (v0.15.0)
+      types.ts            ← WorkItem, WorkItemStatus, IntakeSyncResult
+      source.ts           ← IntakeSource interface, RawIssue
+      store.ts            ← per-item JSON persistence in .telesis/intake/
+      github-source.ts    ← GitHub IntakeSource adapter
+      sync.ts             ← source → normalize → dedupe → store
+      approve.ts          ← approval + dispatch bridge
+      format.ts           ← CLI list/show formatting
     oversight/            ← active oversight observers for dispatch sessions (v0.14.0)
       types.ts            ← Observer, PolicyFile, OversightFinding, AutonomyLevel types
       policy.ts           ← parse .telesis/agents/<name>.md (YAML frontmatter + body)

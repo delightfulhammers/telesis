@@ -901,40 +901,57 @@ actionable error messages suggesting alternative agents.
 
 ---
 
-## v0.15.0 — Work Intake
+## v0.15.0 — Work Intake (GitHub Issues)
 
-**Goal:** Enable Telesis to ingest work from external sources (issue trackers, human
-commands via TUI) and route it through the dispatch pipeline, closing the gap between
-"work exists" and "work is being done."
+**Goal:** Bridge GitHub Issues to the dispatch pipeline. Issues are imported, normalized
+into a common format, presented for human approval, and dispatched to coding agents
+automatically — closing the gap between "work exists" and "work is being done."
 
-**Status:** Planned
+**Status:** Complete
+
+**Reference:** TDD-011 (Work Intake)
 
 ### What Changes
 
-Work intake adapters connect Telesis to external sources of work: GitHub Issues, Linear,
-Jira, and direct human commands via the TUI. Incoming work items are normalized into a
-common format, prioritized, and routed to the dispatcher. The human approves work
-assignment at configurable gates.
+An `IntakeSource` adapter interface establishes the pattern for pluggable work sources.
+The GitHub adapter imports open issues from the configured repo, normalizes them into
+`WorkItem` records persisted in `.telesis/intake/`, and presents them for human approval.
+Approved items are dispatched to coding agents via the existing dispatch pipeline.
+
+The intake config lives in `.telesis/config.yml` under an `intake` key, supporting
+label filtering, assignee filtering, and exclude labels.
+
+Linear, Jira, and other sources can be added in future milestones by implementing the
+same `IntakeSource` interface.
 
 ### Acceptance Criteria
 
 1. `telesis intake github` imports open issues from the configured GitHub repo
-2. `telesis intake linear` imports issues from a configured Linear project
-3. Work items are normalized into a common internal format
-4. The TUI displays pending work items for human review and approval
-5. Approved work items are dispatched to coding agents automatically
-6. Work item status is tracked end-to-end (intake → dispatch → completion)
-7. Configurable filters control which issues are eligible for intake
-8. All new business logic has colocated unit tests
-9. Running `telesis drift` produces zero errors
+2. Work items are normalized into a common internal format with status tracking
+3. Duplicate imports are detected and skipped (dedup by source + sourceId)
+4. `telesis intake list` displays pending work items for human review
+5. `telesis intake approve <id>` dispatches the item to a coding agent
+6. `telesis intake skip <id>` marks an item as skipped
+7. Work item status is tracked end-to-end (intake → dispatch → completion)
+8. Configurable filters control which issues are eligible for intake
+9. Intake events flow through the daemon event backbone
+10. All new business logic has colocated unit tests
+11. Running `telesis drift` produces zero errors
+
+**Future work (not in scope):** Linear adapter, Jira adapter, daemon-driven automatic
+approval, interactive TUI, webhook-driven sync.
 
 ### Build Sequence
 
-1. **Phase 1 — Work item types:** Common format for normalized work items
-2. **Phase 2 — GitHub adapter:** Import issues via `gh` CLI / GitHub API
-3. **Phase 3 — Linear adapter:** Import issues via Linear API
-4. **Phase 4 — Intake CLI and TUI:** Display, filter, approve work items
-5. **Phase 5 — Dispatch integration:** Route approved items to the dispatcher
+1. **Phase 1 — Types and IntakeSource interface:** WorkItem, RawIssue, IntakeSource
+2. **Phase 2 — Work item store:** Per-item JSON persistence in `.telesis/intake/`
+3. **Phase 3 — Config parsing:** `parseIntakeConfig()` for intake section
+4. **Phase 4 — GitHub source adapter:** Issue fetching, PR filtering, normalization
+5. **Phase 5 — Sync orchestrator:** Fetch → dedup → normalize → store
+6. **Phase 6 — Approval and dispatch bridge:** Approve → dispatch → track completion
+7. **Phase 7 — Event types and TUI:** Intake daemon events, TUI formatting
+8. **Phase 8 — CLI commands and formatting:** `telesis intake` subcommands
+9. **Phase 9 — Drift, docs, version bump:** Validation and documentation
 
 ---
 

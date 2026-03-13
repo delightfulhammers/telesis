@@ -57,36 +57,57 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.14.2 — Dispatch Compatibility
+## v0.15.0 — Work Intake (GitHub Issues)
 
-**Goal:** Fix compatibility with acpx 0.3.0 and improve robustness of the oversight
-analysis pipeline for real-world sessions.
+**Goal:** Bridge GitHub Issues to the dispatch pipeline. Issues are imported, normalized
+into a common format, presented for human approval, and dispatched to coding agents
+automatically — closing the gap between "work exists" and "work is being done."
 
 **Status:** Complete
 
+**Reference:** TDD-011 (Work Intake)
+
 ### What Changes
 
-The acpx adapter is updated to match the acpx 0.3.0 CLI argument layout: top-level flags
-(`--cwd`, `--format`, `--approve-all`) go before the agent subcommand, and `prompt`/`cancel`
-use `--session` instead of `--name`. The adapter now translates JSON-RPC `session/update`
-messages from acpx into `AgentEvent` objects, supporting text output, tool calls, tool
-results, and thinking events.
+An `IntakeSource` adapter interface establishes the pattern for pluggable work sources.
+The GitHub adapter imports open issues from the configured repo, normalizes them into
+`WorkItem` records persisted in `.telesis/intake/`, and presents them for human approval.
+Approved items are dispatched to coding agents via the existing dispatch pipeline.
 
-The JSON response parser (`parseJsonResponse`) gains bracket-matching extraction for
-finding JSON arrays or objects embedded in model prose — handling models that wrap
-structured output in natural language.
+The intake config lives in `.telesis/config.yml` under an `intake` key, supporting
+label filtering, assignee filtering, and exclude labels.
 
-Agent session creation failures (e.g., Claude ACP's upstream "Internal error") now produce
-actionable error messages suggesting alternative agents.
+Linear, Jira, and other sources can be added in future milestones by implementing the
+same `IntakeSource` interface.
 
 ### Acceptance Criteria
 
-1. `telesis dispatch run --agent codex` streams events from acpx 0.3.0 successfully
-2. JSON-RPC session/update messages are translated to AgentEvent objects
-3. Oversight reviewer can parse findings from model responses with surrounding prose
-4. Agent session creation failures include actionable suggestions
-5. All new business logic has colocated unit tests
-6. Running `telesis drift` produces zero errors
+1. `telesis intake github` imports open issues from the configured GitHub repo
+2. Work items are normalized into a common internal format with status tracking
+3. Duplicate imports are detected and skipped (dedup by source + sourceId)
+4. `telesis intake list` displays pending work items for human review
+5. `telesis intake approve <id>` dispatches the item to a coding agent
+6. `telesis intake skip <id>` marks an item as skipped
+7. Work item status is tracked end-to-end (intake → dispatch → completion)
+8. Configurable filters control which issues are eligible for intake
+9. Intake events flow through the daemon event backbone
+10. All new business logic has colocated unit tests
+11. Running `telesis drift` produces zero errors
+
+**Future work (not in scope):** Linear adapter, Jira adapter, daemon-driven automatic
+approval, interactive TUI, webhook-driven sync.
+
+### Build Sequence
+
+1. **Phase 1 — Types and IntakeSource interface:** WorkItem, RawIssue, IntakeSource
+2. **Phase 2 — Work item store:** Per-item JSON persistence in `.telesis/intake/`
+3. **Phase 3 — Config parsing:** `parseIntakeConfig()` for intake section
+4. **Phase 4 — GitHub source adapter:** Issue fetching, PR filtering, normalization
+5. **Phase 5 — Sync orchestrator:** Fetch → dedup → normalize → store
+6. **Phase 6 — Approval and dispatch bridge:** Approve → dispatch → track completion
+7. **Phase 7 — Event types and TUI:** Intake daemon events, TUI formatting
+8. **Phase 8 — CLI commands and formatting:** `telesis intake` subcommands
+9. **Phase 9 — Drift, docs, version bump:** Validation and documentation
 
 ---
 
@@ -103,7 +124,7 @@ actionable error messages suggesting alternative agents.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (10 component designs)
+- TDDs: `docs/tdd/` (11 component designs)
 
 ---
 

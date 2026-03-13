@@ -22,6 +22,7 @@ const colorForType = (type: EventType): string => {
   if (type === "oversight:intervention") return COLORS.boldRed;
   if (type === "oversight:finding") return COLORS.red;
   if (type === "oversight:note") return COLORS.green;
+  if (type.startsWith("intake:")) return COLORS.cyan;
   return COLORS.reset;
 };
 
@@ -82,6 +83,20 @@ const formatPayload = (event: TelesisDaemonEvent): string => {
 
     case "oversight:intervention":
       return `observer=${event.payload.observer} reason="${truncate(event.payload.reason, 60)}"`;
+
+    case "intake:item:imported":
+    case "intake:item:approved":
+    case "intake:item:dispatched":
+    case "intake:item:completed":
+    case "intake:item:failed":
+    case "intake:item:skipped":
+      return `${event.payload.source}#${event.payload.sourceId} "${truncate(event.payload.title, 50)}"`;
+
+    case "intake:sync:started":
+      return `source=${event.payload.source}`;
+
+    case "intake:sync:completed":
+      return `source=${event.payload.source} imported=${event.payload.imported} skipped=${event.payload.skippedDuplicate}`;
 
     default:
       return "";

@@ -1,0 +1,160 @@
+import { Command } from "commander";
+import { projectRoot } from "./project-root.js";
+import { handleAction } from "./handle-action.js";
+import { parseDispatchConfig, parseIntakeConfig } from "../config/config.js";
+import { extractRepoContext } from "../github/environment.js";
+import { createGitHubSource } from "../intake/github-source.js";
+import { syncFromSource } from "../intake/sync.js";
+import { listWorkItems, loadWorkItem } from "../intake/store.js";
+import type { WorkItemStatus } from "../intake/types.js";
+import { approveWorkItem, skipWorkItem } from "../intake/approve.js";
+import { formatWorkItemList, formatWorkItemDetail } from "../intake/format.js";
+import { createAcpxAdapter } from "../dispatch/acpx-adapter.js";
+import { createEventRenderer } from "../daemon/tui.js";
+
+const githubCommand = new Command("github")
+  .description("Import issues from GitHub")
+  .action(
+    handleAction(async () => {
+      const rootDir = projectRoot();
+      const intakeConfig = parseIntakeConfig(rootDir);
+
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) {
+        throw new Error(
+          "GITHUB_TOKEN environment variable is required for GitHub intake",
+        );
+      }
+
+      const repoCtx = extractRepoContext();
+      if (!repoCtx) {
+        throw new Error(
+          "Could not detect GitHub repo. Set GITHUB_REPOSITORY or ensure a GitHub remote exists.",
+        );
+      }
+
+      const source = createGitHubSource(
+        intakeConfig.github,
+        repoCtx.owner,
+        repoCtx.repo,
+        token,
+      );
+
+      const renderer = createEventRenderer();
+      const result = await syncFromSource(rootDir, source, renderer);
+
+      console.log(
+        `Imported ${result.imported} issue(s), ${result.skippedDuplicate} duplicate(s) skipped`,
+      );
+
+      if (result.errors.length > 0) {
+        for (const err of result.errors) {
+          console.error(`  ${err}`);
+        }
+        process.exitCode = 1;
+      }
+    }),
+  );
+
+const listCommand = new Command("list")
+  .description("List work items")
+  .option("--all", "Show all statuses (default: active only)")
+  .option("--json", "Output as JSON")
+  .action(
+    handleAction((opts: { all?: boolean; json?: boolean }) => {
+      const rootDir = projectRoot();
+      const filter = opts.all
+        ? undefined
+        : {
+            status: ["pending", "approved", "dispatching"] as WorkItemStatus[],
+          };
+      const items = listWorkItems(rootDir, filter);
+
+      if (opts.json) {
+        console.log(JSON.stringify(items, null, 2));
+        return;
+      }
+
+      console.log(formatWorkItemList(items));
+    }),
+  );
+
+const showCommand = new Command("show")
+  .description("Show work item details")
+  .argument("<id>", "Work item ID or prefix")
+  .action(
+    handleAction((id: string) => {
+      const rootDir = projectRoot();
+      const item = loadWorkItem(rootDir, id);
+
+      if (!item) {
+        console.error(`No work item matching "${id}"`);
+        process.exitCode = 1;
+        return;
+      }
+
+      console.log(formatWorkItemDetail(item));
+    }),
+  );
+
+const approveCommand = new Command("approve")
+  .description("Approve a work item and dispatch to a coding agent")
+  .argument("<id>", "Work item ID or prefix")
+  .option("--agent <name>", "Agent to use (claude, codex, gemini, etc.)")
+  .action(
+    handleAction(async (id: string, opts: { agent?: string }) => {
+      const rootDir = projectRoot();
+      const config = parseDispatchConfig(rootDir);
+
+      const agent = opts.agent ?? config.defaultAgent ?? "claude";
+      const adapter = createAcpxAdapter({
+        acpxPath: config.acpxPath,
+      });
+
+      const renderer = createEventRenderer();
+
+      const result = await approveWorkItem(
+        rootDir,
+        id,
+        {
+          rootDir,
+          adapter,
+          onEvent: renderer,
+          maxConcurrent: config.maxConcurrent,
+        },
+        agent,
+        renderer,
+      );
+
+      console.log("");
+      if (result.status === "completed") {
+        console.log(
+          `Work item ${result.id.slice(0, 8)} completed — session ${result.sessionId?.slice(0, 8)}`,
+        );
+      } else {
+        console.log(
+          `Work item ${result.id.slice(0, 8)} failed — ${result.error ?? "unknown error"}`,
+        );
+        process.exitCode = 1;
+      }
+    }),
+  );
+
+const skipCommand = new Command("skip")
+  .description("Skip a work item")
+  .argument("<id>", "Work item ID or prefix")
+  .action(
+    handleAction((id: string) => {
+      const rootDir = projectRoot();
+      const result = skipWorkItem(rootDir, id);
+      console.log(`Work item ${result.id.slice(0, 8)} marked as skipped`);
+    }),
+  );
+
+export const intakeCommand = new Command("intake")
+  .description("Import and manage work items from external sources")
+  .addCommand(githubCommand)
+  .addCommand(listCommand)
+  .addCommand(showCommand)
+  .addCommand(approveCommand)
+  .addCommand(skipCommand);
