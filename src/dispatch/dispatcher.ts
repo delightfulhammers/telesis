@@ -145,6 +145,12 @@ export const dispatch = async (
 
     return { sessionId, status: "failed", eventCount, durationMs };
   } finally {
+    // Best-effort session cleanup — close the adapter session regardless of outcome
+    try {
+      await deps.adapter.closeSession(agent, sessionId, deps.rootDir);
+    } catch {
+      /* adapter cleanup is best-effort */
+    }
     activeSessions.delete(sessionId);
   }
 };

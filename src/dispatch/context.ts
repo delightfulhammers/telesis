@@ -61,14 +61,13 @@ const extractActiveMilestone = (rootDir: string): string => {
   let capturing = false;
   const result: string[] = [];
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     const trimmed = line.trim();
 
     // Start capturing at a ## heading that isn't followed by "Complete"
     if (trimmed.startsWith("## ") && !capturing) {
-      // Check if the next few lines contain "Complete"
-      const idx = lines.indexOf(line);
-      const lookahead = lines.slice(idx, idx + 5).join("\n");
+      const lookahead = lines.slice(i, i + 5).join("\n");
       if (lookahead.includes("**Status:** Complete")) continue;
       capturing = true;
       result.push(line);
@@ -105,7 +104,12 @@ const extractActiveADRs = (rootDir: string): string => {
   const summaries: string[] = [];
 
   for (const entry of adrs) {
-    const content = readFileSync(join(adrDir, entry.name), "utf-8");
+    let content: string;
+    try {
+      content = readFileSync(join(adrDir, entry.name), "utf-8");
+    } catch {
+      continue; // File may have been removed between readdir and read
+    }
     const lines = content.split("\n");
     const statusLine = lines.find((l) => ADR_STATUS_RE.test(l.trim()));
     if (!statusLine) continue;

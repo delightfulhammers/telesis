@@ -127,6 +127,12 @@ describe("session store", () => {
     expect(loadSessionMeta(root, "nonexistent")).toBeNull();
   });
 
+  it("returns null for empty string prefix", () => {
+    const root = makeTempDir();
+    createSession(root, makeMeta());
+    expect(loadSessionMeta(root, "")).toBeNull();
+  });
+
   it("supports ID prefix matching for loadSessionMeta", () => {
     const root = makeTempDir();
     createSession(root, makeMeta({ id: "abc-123-def-456" }));

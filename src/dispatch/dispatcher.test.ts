@@ -212,6 +212,47 @@ describe("dispatch", () => {
     expect(getActiveSessionCount()).toBe(0);
   });
 
+  it("calls closeSession on adapter after completion", async () => {
+    const root = makeTempDir();
+    setupProject(root);
+
+    let closedWith: { agent: string; name: string } | null = null;
+    const adapter: AgentAdapter = {
+      createSession: async () => "s",
+      prompt: async (_a, _n, _t, _c, onEvent) => onEvent(makeEvent(1)),
+      cancel: async () => {},
+      closeSession: async (agent, name) => {
+        closedWith = { agent, name };
+      },
+    };
+
+    const result = await dispatch({ rootDir: root, adapter }, "claude", "task");
+
+    expect(closedWith).not.toBeNull();
+    expect(closedWith!.agent).toBe("claude");
+    expect(closedWith!.name).toBe(result.sessionId);
+  });
+
+  it("calls closeSession on adapter after failure", async () => {
+    const root = makeTempDir();
+    setupProject(root);
+
+    let closeSessionCalled = false;
+    const adapter: AgentAdapter = {
+      createSession: async () => "s",
+      prompt: async () => {
+        throw new Error("boom");
+      },
+      cancel: async () => {},
+      closeSession: async () => {
+        closeSessionCalled = true;
+      },
+    };
+
+    await dispatch({ rootDir: root, adapter }, "claude", "task");
+    expect(closeSessionCalled).toBe(true);
+  });
+
   it("shows sessions in list after dispatch", async () => {
     const root = makeTempDir();
     setupProject(root);

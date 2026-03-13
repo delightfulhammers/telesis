@@ -31,19 +31,15 @@ const runCommand = new Command("run")
       let onEvent: ((event: TelesisDaemonEvent) => void) | undefined;
       let disconnectDaemon: (() => void) | undefined;
 
+      const renderer = createEventRenderer();
       try {
         const { connect } = await import("../daemon/client.js");
         const client = await connect(rootDir);
-        const renderer = createEventRenderer();
-        client.onEvent(renderer);
-        onEvent = (event) => {
-          // Also render locally since daemon may not echo back
-          renderer(event);
-        };
+        // Daemon connected — render locally (daemon receives events separately)
+        onEvent = renderer;
         disconnectDaemon = () => client.disconnect();
       } catch {
         // Daemon not running — stream events to stdout directly
-        const renderer = createEventRenderer();
         onEvent = renderer;
       }
 

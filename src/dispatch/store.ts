@@ -172,6 +172,7 @@ const resolveSessionId = (
   rootDir: string,
   idOrPrefix: string,
 ): string | null => {
+  if (idOrPrefix.length === 0) return null;
   const dir = sessionsDir(rootDir);
   let entries: string[];
   try {

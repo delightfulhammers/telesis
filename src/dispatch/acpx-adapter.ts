@@ -29,11 +29,14 @@ const runAcpx = async (
     stderr: "pipe",
   });
 
-  const stdout = await new Response(proc.stdout).text();
-  const exitCode = await proc.exited;
+  // Drain both streams concurrently to avoid pipe deadlock
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
 
   if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text();
     throw new Error(
       `acpx exited with code ${exitCode}: ${stderr.trim() || stdout.trim()}`,
     );
@@ -52,7 +55,17 @@ const checkAcpxAvailable = async (
       stdout: "pipe",
       stderr: "pipe",
     });
-    await proc.exited;
+    // Drain streams to avoid deadlock, then check exit code
+    const [, , exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    if (exitCode !== 0) {
+      throw new Error(
+        `acpx at "${acpxPath}" exited with code ${exitCode}. Ensure it is properly installed: npm install -g acpx`,
+      );
+    }
   } catch (err) {
     if (
       err instanceof Error &&
@@ -126,6 +139,8 @@ const streamNdjson = async (
 
 export interface AcpxAdapterOptions {
   readonly acpxPath?: string;
+  /** Auto-approve all agent tool calls (default: true) */
+  readonly approveAll?: boolean;
   /** Override spawn function (for testing) */
   readonly spawn?: SpawnFn;
 }
@@ -135,6 +150,7 @@ export const createAcpxAdapter = (
   options: AcpxAdapterOptions = {},
 ): AgentAdapter => {
   const acpxPath = options.acpxPath ?? "acpx";
+  const approveAll = options.approveAll ?? true;
   const spawn = options.spawn ?? defaultSpawn;
   let availabilityChecked = false;
 
@@ -162,31 +178,40 @@ export const createAcpxAdapter = (
     prompt: async (agent, sessionName, text, cwd, onEvent) => {
       await ensureAvailable();
 
-      const proc = spawn(
-        [
-          acpxPath,
-          agent,
-          "prompt",
-          text,
-          "--name",
-          sessionName,
-          "--cwd",
-          cwd,
-          "--format",
-          "json",
-          "--approve-all",
-        ],
-        { stdout: "pipe", stderr: "pipe" },
-      );
+      const args = [
+        acpxPath,
+        agent,
+        "prompt",
+        text,
+        "--name",
+        sessionName,
+        "--cwd",
+        cwd,
+        "--format",
+        "json",
+      ];
+      if (approveAll) args.push("--approve-all");
 
-      await streamNdjson(proc, onEvent);
-      const exitCode = await proc.exited;
+      const proc = spawn(args, { stdout: "pipe", stderr: "pipe" });
 
-      if (exitCode !== 0) {
-        const stderr = await new Response(proc.stderr).text();
-        throw new Error(
-          `acpx prompt exited with code ${exitCode}: ${stderr.trim()}`,
-        );
+      try {
+        // Drain stderr concurrently to avoid pipe deadlock
+        const stderrPromise = new Response(proc.stderr).text();
+        await streamNdjson(proc, onEvent);
+        const [stderr, exitCode] = await Promise.all([
+          stderrPromise,
+          proc.exited,
+        ]);
+
+        if (exitCode !== 0) {
+          throw new Error(
+            `acpx prompt exited with code ${exitCode}: ${stderr.trim()}`,
+          );
+        }
+      } catch (err) {
+        // Ensure subprocess is awaited to prevent zombies
+        await proc.exited.catch(() => {});
+        throw err;
       }
     },
 
