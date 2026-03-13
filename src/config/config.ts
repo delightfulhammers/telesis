@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import * as yaml from "js-yaml";
+import type { ValidationConfig } from "../validation/types.js";
 
 const TELESIS_DIR = ".telesis";
 const CONFIG_FILE = "config.yml";
@@ -377,6 +378,46 @@ export const parseDaemonConfig = (rootDir: string): DaemonConfig => {
         result.watch = { ignore };
       }
     }
+  }
+
+  return result;
+};
+
+export type { ValidationConfig };
+
+/** Parse validation config from .telesis/config.yml, returning defaults if absent */
+export const parseValidationConfig = (rootDir: string): ValidationConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.validation) return {};
+
+  const validation = raw.validation;
+  if (typeof validation !== "object" || validation === null) return {};
+
+  const v = validation as Record<string, unknown>;
+  const result: {
+    model?: string;
+    maxRetries?: number;
+    enableGates?: boolean;
+  } = {};
+
+  if (typeof v.model === "string" && v.model.length > 0) {
+    result.model = v.model;
+  }
+  if (typeof v.maxRetries === "number" && v.maxRetries >= 0) {
+    result.maxRetries = v.maxRetries;
+  }
+  if (typeof v.enableGates === "boolean") {
+    result.enableGates = v.enableGates;
   }
 
   return result;

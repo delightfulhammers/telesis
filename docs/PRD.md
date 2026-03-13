@@ -230,14 +230,22 @@ Decomposes work items into sequenced, dispatchable task plans.
 - `telesis plan list --json` outputs plans as JSON
 - `telesis plan show <plan-id>` shows plan detail with task dependency graph (supports ID prefix)
 - `telesis plan approve <plan-id>` transitions a plan from draft to approved
-- `telesis plan execute <plan-id>` dispatches tasks sequentially in dependency order
+- `telesis plan execute <plan-id>` dispatches tasks with validation (default)
 - `telesis plan execute <plan-id> --agent <name>` executes with a specific agent
+- `telesis plan execute <plan-id> --no-validate` skips the validation loop
+- `telesis plan retry <plan-id>` re-executes from escalated/failed task
+- `telesis plan skip-task <plan-id> <task-id>` skips an escalated task, resumes plan
+- `telesis plan gate-approve <plan-id>` transitions awaiting_gate → completed
 - Plans are persisted in `.telesis/plans/` as per-plan JSON files
 - Tasks have dependency relationships validated by topological sort (Kahn's algorithm)
-- Plan lifecycle: `draft` → `approved` → `executing` → `completed`/`failed`
-- Crash recovery: re-executing a failed plan skips completed tasks and resumes
-- Plan events flow through the daemon event backbone as `plan:*` events
-- Configurable via `planner` in `.telesis/config.yml` (model, maxTasks)
+- Plan lifecycle: `draft` → `approved` → `executing` → `completed`/`failed`/`escalated`/`awaiting_gate`
+- Crash recovery: re-executing a failed/escalated plan skips completed tasks and resumes
+- After dispatch, a validation agent checks task output against acceptance criteria
+- Failed validation triggers automatic correction retries (configurable, default 3)
+- Exhausted retries escalate the task for human review
+- Milestone gates (`enableGates: true`) pause for human approval after all tasks complete
+- Plan and validation events flow through the daemon event backbone
+- Configurable via `planner` and `validation` in `.telesis/config.yml`
 
 ### `telesis milestone`
 

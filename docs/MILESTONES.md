@@ -1005,7 +1005,9 @@ Plan configuration lives in `.telesis/config.yml` under a `planner` key.
 **Goal:** Verify dispatch output against acceptance criteria and automatically retry
 on failure with bounded retries and human escalation.
 
-**Status:** Planned
+**Status:** Complete
+
+**Reference:** TDD-013 (Validation & Correction)
 
 ### Acceptance Criteria
 
@@ -1019,11 +1021,14 @@ on failure with bounded retries and human escalation.
 
 ### Build Sequence
 
-1. **Phase 1 — Validation agent:** Verify dispatch output against criteria
-2. **Phase 2 — Correction loop:** Retry with feedback on validation failure
-3. **Phase 3 — Escalation:** Bounded retries with human escalation
-4. **Phase 4 — Milestone gates:** Pause at milestone boundaries
-5. **Phase 5 — Drift, docs, version bump**
+1. **Phase 1 — Types, Config, Events:** Extended statuses, validation types, config parser, event types
+2. **Phase 2 — Diff Capture:** Git ref capture, ref-to-HEAD diff, session event summarization
+3. **Phase 3 — Validation Agent:** LLM-based prompts and validator
+4. **Phase 4 — Correction Prompt:** Feedback-driven correction prompt builder
+5. **Phase 5 — Executor Integration:** Validate-correct loop in plan executor
+6. **Phase 6 — Milestone Gates:** awaiting_gate status with human approval
+7. **Phase 7 — CLI Commands:** --no-validate, retry, skip-task, gate-approve
+8. **Phase 8 — Drift, docs, version bump**
 
 ---
 

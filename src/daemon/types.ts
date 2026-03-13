@@ -6,7 +6,8 @@ export type EventSource =
   | "dispatch"
   | "oversight"
   | "intake"
-  | "plan";
+  | "plan"
+  | "validation";
 
 /** All event type literals */
 export type EventType =
@@ -46,7 +47,13 @@ export type EventType =
   | "plan:failed"
   | "plan:task:started"
   | "plan:task:completed"
-  | "plan:task:failed";
+  | "plan:task:failed"
+  | "plan:awaiting_gate"
+  | "validation:started"
+  | "validation:passed"
+  | "validation:failed"
+  | "validation:correction:started"
+  | "validation:escalated";
 
 /** Base event shape — all events extend this */
 export interface BaseEvent<T extends EventType, P> {
@@ -147,6 +154,13 @@ export interface PlanTaskEventPayload {
   readonly title: string;
 }
 
+/** Validation payload types */
+export interface ValidationEventPayload {
+  readonly planId: string;
+  readonly taskId: string;
+  readonly attempt: number;
+}
+
 /** Full discriminated union of all daemon events */
 export type TelesisDaemonEvent =
   | BaseEvent<"daemon:started", DaemonStartedPayload>
@@ -185,7 +199,13 @@ export type TelesisDaemonEvent =
   | BaseEvent<"plan:failed", PlanEventPayload>
   | BaseEvent<"plan:task:started", PlanTaskEventPayload>
   | BaseEvent<"plan:task:completed", PlanTaskEventPayload>
-  | BaseEvent<"plan:task:failed", PlanTaskEventPayload>;
+  | BaseEvent<"plan:task:failed", PlanTaskEventPayload>
+  | BaseEvent<"plan:awaiting_gate", PlanEventPayload>
+  | BaseEvent<"validation:started", ValidationEventPayload>
+  | BaseEvent<"validation:passed", ValidationEventPayload>
+  | BaseEvent<"validation:failed", ValidationEventPayload>
+  | BaseEvent<"validation:correction:started", ValidationEventPayload>
+  | BaseEvent<"validation:escalated", ValidationEventPayload>;
 
 /** Map from EventType to the event source it belongs to */
 const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
@@ -226,6 +246,12 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "plan:task:started": "plan",
   "plan:task:completed": "plan",
   "plan:task:failed": "plan",
+  "plan:awaiting_gate": "plan",
+  "validation:started": "validation",
+  "validation:passed": "validation",
+  "validation:failed": "validation",
+  "validation:correction:started": "validation",
+  "validation:escalated": "validation",
 };
 
 /** Factory for creating typed events with automatic timestamp and source */

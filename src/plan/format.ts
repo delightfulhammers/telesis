@@ -17,6 +17,12 @@ const taskStatusIcon = (status: string): string => {
       return "[!]";
     case "skipped":
       return "[-]";
+    case "validating":
+      return "[?]";
+    case "correcting":
+      return "[~]";
+    case "escalated":
+      return "[!!]";
     default:
       return "[ ]";
   }

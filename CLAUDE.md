@@ -57,48 +57,35 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.16.0 — Planner Agent
+## v0.17.0 — Validation & Correction
 
-**Goal:** Decompose work items into sequenced, dispatchable tasks. A planning agent
-analyzes a work item and produces a task dependency graph that the dispatch pipeline
-can execute in order.
+**Goal:** Verify dispatch output against acceptance criteria and automatically retry
+on failure with bounded retries and human escalation.
 
 **Status:** Complete
 
-**Reference:** TDD-012 (Planner Agent)
-
-### What Changes
-
-A planner agent decomposes work items into ordered task lists with dependency relationships.
-Plans are created as `draft`, approved by humans, then executed sequentially via the existing
-dispatch pipeline. Each task gets its own dispatch session. Plan state is persisted after
-every task, enabling crash recovery.
-
-The `--plan` flag on `telesis intake approve` creates a plan instead of dispatching directly.
-Plan configuration lives in `.telesis/config.yml` under a `planner` key.
+**Reference:** TDD-013 (Validation & Correction)
 
 ### Acceptance Criteria
 
-1. `telesis plan create <work-item-id>` decomposes a work item into tasks via LLM
-2. Tasks have dependency relationships validated by topological sort (Kahn's algorithm)
-3. `telesis plan list` and `telesis plan show <id>` display plan state
-4. `telesis plan approve <id>` transitions a plan from draft to approved
-5. `telesis plan execute <id>` dispatches tasks sequentially in dependency order
-6. `telesis intake approve <id> --plan` creates a plan instead of dispatching directly
-7. Plans are stored as structured JSON in `.telesis/plans/`
-8. Plan events (`plan:*`) flow through the daemon event backbone
-9. Crash recovery: re-executing a failed plan skips completed tasks
-10. Configurable planner model and max tasks via `.telesis/config.yml`
-11. All new business logic has colocated unit tests
-12. Running `telesis drift` produces zero errors
+1. A validation agent verifies dispatch output against acceptance criteria
+2. Failed validation triggers automatic correction (retry with feedback)
+3. The correction loop has bounded retries (configurable, default 3)
+4. Exhausted retries escalate to human review
+5. Milestone gates pause autonomous operation for human review
+6. All new business logic has colocated unit tests
+7. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Types, store, validation:** Plan/PlanTask types, atomic JSON store, topological sort
-2. **Phase 2 — Planner agent:** LLM-based decomposition with project context and prompt injection defense
-3. **Phase 3 — CLI commands and formatting:** `telesis plan` subcommands, list/detail formatters
-4. **Phase 4 — Executor and intake integration:** Sequential task dispatch, `--plan` flag
-5. **Phase 5 — Events, config, drift, docs:** Plan events, planner config, drift checks, documentation
+1. **Phase 1 — Types, Config, Events:** Extended statuses, validation types, config parser, event types
+2. **Phase 2 — Diff Capture:** Git ref capture, ref-to-HEAD diff, session event summarization
+3. **Phase 3 — Validation Agent:** LLM-based prompts and validator
+4. **Phase 4 — Correction Prompt:** Feedback-driven correction prompt builder
+5. **Phase 5 — Executor Integration:** Validate-correct loop in plan executor
+6. **Phase 6 — Milestone Gates:** awaiting_gate status with human approval
+7. **Phase 7 — CLI Commands:** --no-validate, retry, skip-task, gate-approve
+8. **Phase 8 — Drift, docs, version bump**
 
 ---
 
@@ -115,7 +102,7 @@ Plan configuration lives in `.telesis/config.yml` under a `planner` key.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (12 component designs)
+- TDDs: `docs/tdd/` (13 component designs)
 
 ---
 

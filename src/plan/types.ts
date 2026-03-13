@@ -5,6 +5,8 @@ export const PLAN_STATUSES = [
   "executing",
   "completed",
   "failed",
+  "escalated",
+  "awaiting_gate",
 ] as const;
 
 /** Status lifecycle for a plan */
@@ -17,6 +19,9 @@ export const PLAN_TASK_STATUSES = [
   "completed",
   "failed",
   "skipped",
+  "validating",
+  "correcting",
+  "escalated",
 ] as const;
 
 /** Status lifecycle for a task within a plan */
@@ -32,6 +37,9 @@ export interface PlanTask {
   readonly sessionId?: string;
   readonly completedAt?: string;
   readonly error?: string;
+  readonly validationAttempts?: number;
+  readonly validationErrors?: readonly string[];
+  readonly correctionSessionIds?: readonly string[];
 }
 
 /** A decomposition of a work item into ordered tasks */

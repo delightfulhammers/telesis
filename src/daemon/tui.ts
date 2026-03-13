@@ -24,6 +24,7 @@ const colorForType = (type: EventType): string => {
   if (type === "oversight:note") return COLORS.green;
   if (type.startsWith("intake:")) return COLORS.cyan;
   if (type.startsWith("plan:")) return COLORS.magenta;
+  if (type.startsWith("validation:")) return COLORS.yellow;
   return COLORS.reset;
 };
 
@@ -110,6 +111,16 @@ const formatPayload = (event: TelesisDaemonEvent): string => {
     case "plan:task:completed":
     case "plan:task:failed":
       return `plan=${event.payload.planId.slice(0, 8)} task=${event.payload.taskId} "${truncate(event.payload.title, 50)}"`;
+
+    case "plan:awaiting_gate":
+      return `plan=${event.payload.planId.slice(0, 8)} "${truncate(event.payload.title, 50)}"`;
+
+    case "validation:started":
+    case "validation:passed":
+    case "validation:failed":
+    case "validation:correction:started":
+    case "validation:escalated":
+      return `plan=${event.payload.planId.slice(0, 8)} task=${event.payload.taskId} attempt=${event.payload.attempt}`;
 
     default:
       return "";

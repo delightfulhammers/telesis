@@ -89,8 +89,14 @@ telesis/
       validate.ts         ← topological sort (Kahn's), cycle detection, task validation
       prompts.ts          ← system/user prompts for planner agent
       planner.ts          ← LLM-based work item decomposition
-      executor.ts         ← sequential task execution via dispatch pipeline
+      executor.ts         ← sequential task execution with validation loop (v0.17.0)
       format.ts           ← CLI list/show formatting
+    validation/           ← task output validation and correction (v0.17.0)
+      types.ts            ← CriterionResult, ValidationVerdict, ValidationResult, ValidationConfig
+      diff-capture.ts     ← git ref capture, ref-to-HEAD diff, session event summarization
+      prompts.ts          ← system/user prompts for validation agent
+      validator.ts        ← LLM-based task output verification
+      correction.ts       ← correction prompt builder (original task + feedback)
     oversight/            ← active oversight observers for dispatch sessions (v0.14.0)
       types.ts            ← Observer, PolicyFile, OversightFinding, AutonomyLevel types
       policy.ts           ← parse .telesis/agents/<name>.md (YAML frontmatter + body)
