@@ -57,48 +57,50 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.12.0 — Daemon Foundation
+## v0.13.0 — ACP Dispatcher
 
-**Goal:** Transform Telesis from a stateless CLI into a long-running daemon with an RxJS
-event backbone, filesystem watching, and OS-level lifecycle management. The daemon becomes
-the substrate on which all future agent orchestration runs.
+**Goal:** Enable Telesis to spawn and manage coding agents (Claude, Codex, Gemini) via the
+Agent Client Protocol (ACP), turning it from a passive observer into an active work executor.
 
 **Status:** Complete
 
-**Reference:** TDD-008 (Daemon Foundation)
+**Reference:** TDD-009 (ACP Dispatcher)
 
 ### What Changes
 
-A daemon process is introduced with `telesis daemon start|stop|status|install` commands.
-The daemon watches the project filesystem for changes and emits typed events through an
-RxJS event backbone. A local Unix socket provides the control interface. OS supervision
-is handled via LaunchAgent (macOS) or systemd (Linux). A minimal TUI client connects to
-the daemon for real-time event monitoring.
+A dispatch subsystem is introduced under `src/dispatch/` that spawns coding agents via
+`acpx` (a headless ACP CLI client), manages their sessions, supplies them with project
+context from `.telesis/` and `docs/`, and streams their events back through the daemon's
+event backbone. The dispatcher handles agent lifecycle, session persistence via separate
+meta JSON and event JSONL files, and bounded concurrency.
+
+Dispatch runs in the CLI process. If the daemon is running, the CLI publishes dispatch
+events to it for TUI streaming and future specialist agent observation.
 
 ### Acceptance Criteria
 
-1. `telesis daemon start` starts a background daemon process
-2. `telesis daemon stop` gracefully shuts down the daemon
-3. `telesis daemon status` reports whether the daemon is running and basic health info
-4. `telesis daemon install` configures OS-level supervision (LaunchAgent or systemd)
-5. The daemon watches the project directory for file changes and emits typed events
-6. Events follow a discriminated union format: `{ type, timestamp, source, payload }`
-7. The event backbone uses RxJS Observables with backpressure support
-8. A local Unix socket serves as the control interface (start, stop, subscribe)
-9. A minimal TUI client connects to the daemon and displays real-time events
-10. The daemon survives terminal close when installed via OS supervision
-11. PID file management prevents duplicate daemon instances
-12. All new business logic has colocated unit tests
-13. Running `telesis drift` produces zero errors
+1. `telesis dispatch run <task>` spawns a coding agent with the given task description
+2. `telesis dispatch run --agent <name>` selects a specific agent (claude, codex, gemini)
+3. The dispatcher supplies the agent with project context (spec, architecture, conventions)
+4. Agent sessions are persisted in `.telesis/sessions/` (meta.json + events.jsonl per session)
+5. Agent events stream through the daemon event backbone in real time
+6. The TUI displays live agent activity (events, tool calls, output)
+7. Bounded concurrency limits the number of simultaneous agents (configurable, default 3)
+8. Agent crashes are detected and reported, not silently swallowed
+9. `telesis dispatch list` shows active and completed agent sessions
+10. `telesis dispatch show <session-id>` replays a session's event log (supports ID prefix)
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Event types and backbone:** Discriminated union event types, RxJS bus
-2. **Phase 2 — Filesystem watcher:** chokidar-based watcher emitting events to the bus
-3. **Phase 3 — Daemon lifecycle:** start/stop/status, PID file, Unix socket
-4. **Phase 4 — OS supervision:** LaunchAgent plist generation, systemd unit generation
-5. **Phase 5 — TUI client:** Minimal terminal UI connecting over the socket
-6. **Phase 6 — Validation:** End-to-end daemon lifecycle testing
+1. **Phase 1 — Types and adapter:** AgentEvent, SessionMeta types, AgentAdapter interface, acpx subprocess implementation
+2. **Phase 2 — Session store:** JSONL persistence for session meta and events
+3. **Phase 3 — Context assembly:** Package project context for agent consumption
+4. **Phase 4 — Dispatch orchestrator:** Core orchestration: context + adapter + store + events
+5. **Phase 5 — Event types and daemon integration:** Extend daemon event union, TUI rendering
+6. **Phase 6 — CLI commands:** dispatch run, list, show subcommands
+7. **Phase 7 — Drift checks and validation:** acpx containment check, doc updates, version bump
 
 ---
 
@@ -115,7 +117,7 @@ the daemon for real-time event monitoring.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (8 component designs)
+- TDDs: `docs/tdd/` (9 component designs)
 
 ---
 

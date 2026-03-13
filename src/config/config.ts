@@ -178,6 +178,50 @@ export const exists = (rootDir: string): boolean => {
   return existsSync(configPath(rootDir));
 };
 
+export interface DispatchConfig {
+  readonly defaultAgent?: string;
+  readonly maxConcurrent?: number;
+  readonly acpxPath?: string;
+}
+
+/** Parse dispatch config from .telesis/config.yml, returning defaults if absent */
+export const parseDispatchConfig = (rootDir: string): DispatchConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.dispatch) return {};
+
+  const dispatch = raw.dispatch;
+  if (typeof dispatch !== "object" || dispatch === null) return {};
+
+  const d = dispatch as Record<string, unknown>;
+  const result: {
+    defaultAgent?: string;
+    maxConcurrent?: number;
+    acpxPath?: string;
+  } = {};
+
+  if (typeof d.defaultAgent === "string" && d.defaultAgent.length > 0) {
+    result.defaultAgent = d.defaultAgent;
+  }
+  if (typeof d.maxConcurrent === "number" && d.maxConcurrent > 0) {
+    result.maxConcurrent = d.maxConcurrent;
+  }
+  if (typeof d.acpxPath === "string" && d.acpxPath.length > 0) {
+    result.acpxPath = d.acpxPath;
+  }
+
+  return result;
+};
+
 export interface DaemonConfig {
   readonly watch?: {
     readonly ignore?: readonly string[];

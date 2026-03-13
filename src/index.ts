@@ -15,6 +15,7 @@ import { reviewCommand } from "./cli/review.js";
 import { milestoneCommand } from "./cli/milestone.js";
 import { journalCommand } from "./cli/journal.js";
 import { daemonCommand } from "./cli/daemon.js";
+import { dispatchCommand } from "./cli/dispatch.js";
 
 const readVersion = (): string => {
   try {
@@ -43,6 +44,7 @@ const program = new Command("telesis")
   .addCommand(reviewCommand)
   .addCommand(milestoneCommand)
   .addCommand(journalCommand)
-  .addCommand(daemonCommand);
+  .addCommand(daemonCommand)
+  .addCommand(dispatchCommand);
 
 program.parse();

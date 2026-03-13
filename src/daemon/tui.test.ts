@@ -82,4 +82,82 @@ describe("formatEventLine", () => {
     // Green for daemon events
     expect(formatEventLine(daemonEvent)).toContain("\x1b[32m");
   });
+
+  it("formats dispatch:session:started with agent and task", () => {
+    const event = createEvent("dispatch:session:started", {
+      sessionId: "abc-123",
+      agent: "claude",
+      task: "implement login",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("dispatch:session:started");
+    expect(line).toContain("agent=claude");
+    expect(line).toContain('task="implement login"');
+  });
+
+  it("formats dispatch:session:completed with duration and events", () => {
+    const event = createEvent("dispatch:session:completed", {
+      sessionId: "abc-123",
+      agent: "claude",
+      task: "implement login",
+      durationMs: 16000,
+      eventCount: 42,
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("dispatch:session:completed");
+    expect(line).toContain("duration=16s");
+    expect(line).toContain("events=42");
+  });
+
+  it("formats dispatch:session:failed with error", () => {
+    const event = createEvent("dispatch:session:failed", {
+      sessionId: "abc-123",
+      agent: "claude",
+      task: "implement login",
+      error: "agent crashed",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("dispatch:session:failed");
+    expect(line).toContain('error="agent crashed"');
+  });
+
+  it("formats dispatch:agent:tool_call with seq and tool name", () => {
+    const event = createEvent("dispatch:agent:tool_call", {
+      sessionId: "abc-123",
+      agent: "claude",
+      seq: 3,
+      data: { tool: "edit_file" },
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("dispatch:agent:tool_call");
+    expect(line).toContain("seq=3");
+    expect(line).toContain("tool=edit_file");
+  });
+
+  it("applies magenta color for dispatch:session:* events", () => {
+    const event = createEvent("dispatch:session:started", {
+      sessionId: "abc",
+      agent: "claude",
+      task: "test",
+    });
+
+    // Magenta ANSI code
+    expect(formatEventLine(event)).toContain("\x1b[35m");
+  });
+
+  it("applies yellow color for dispatch:agent:* events", () => {
+    const event = createEvent("dispatch:agent:thinking", {
+      sessionId: "abc",
+      agent: "claude",
+      seq: 1,
+      data: {},
+    });
+
+    // Yellow ANSI code
+    expect(formatEventLine(event)).toContain("\x1b[33m");
+  });
 });

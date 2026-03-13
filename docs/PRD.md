@@ -178,6 +178,21 @@ filesystem and maintains a reactive event backbone for future agent orchestratio
 - PID file (`.telesis/daemon.pid`) prevents duplicate instances
 - The daemon survives terminal close when installed via OS supervision
 
+### `telesis dispatch`
+
+Dispatches coding agents via ACP (Agent Client Protocol) to execute development tasks.
+
+- `telesis dispatch run <task>` dispatches a coding agent with the given task description
+- `telesis dispatch run --agent <name>` selects a specific agent (claude, codex, gemini, etc.)
+- `telesis dispatch list` lists all dispatch sessions (active and completed)
+- `telesis dispatch list --json` outputs sessions as JSON
+- `telesis dispatch show <session-id>` replays a session's event log (supports ID prefix)
+- The dispatcher supplies the agent with project context (spec, architecture, conventions)
+- Agent sessions are persisted in `.telesis/sessions/` (meta.json + events.jsonl per session)
+- Agent events stream through the daemon event backbone when the daemon is running
+- Bounded concurrency limits simultaneous agents (configurable via `dispatch.maxConcurrent`, default 3)
+- Agent crashes are detected and reported, not silently swallowed
+
 ### `telesis milestone`
 
 Milestone validation and completion.

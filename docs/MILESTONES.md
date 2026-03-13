@@ -736,39 +736,45 @@ the daemon for real-time event monitoring.
 **Goal:** Enable Telesis to spawn and manage coding agents (Claude, Codex, Gemini) via the
 Agent Client Protocol (ACP), turning it from a passive observer into an active work executor.
 
-**Status:** Planned
+**Status:** Complete
+
+**Reference:** TDD-009 (ACP Dispatcher)
 
 ### What Changes
 
-A dispatcher agent is introduced that can spawn coding agents via ACP (JSON-RPC over stdio),
-manage their sessions, supply them with project context from `.telesis/`, and stream their
-events back through the daemon's event backbone. The dispatcher handles agent lifecycle
-(spawn, monitor, terminate), session persistence via JSONL event logs, and bounded
-concurrency.
+A dispatch subsystem is introduced under `src/dispatch/` that spawns coding agents via
+`acpx` (a headless ACP CLI client), manages their sessions, supplies them with project
+context from `.telesis/` and `docs/`, and streams their events back through the daemon's
+event backbone. The dispatcher handles agent lifecycle, session persistence via separate
+meta JSON and event JSONL files, and bounded concurrency.
+
+Dispatch runs in the CLI process. If the daemon is running, the CLI publishes dispatch
+events to it for TUI streaming and future specialist agent observation.
 
 ### Acceptance Criteria
 
-1. `telesis dispatch <task>` spawns a coding agent with the given task description
-2. `telesis dispatch --agent <name>` selects a specific agent (claude, codex, gemini)
+1. `telesis dispatch run <task>` spawns a coding agent with the given task description
+2. `telesis dispatch run --agent <name>` selects a specific agent (claude, codex, gemini)
 3. The dispatcher supplies the agent with project context (spec, architecture, conventions)
-4. Agent sessions are persisted as JSONL event logs in `.telesis/sessions/`
+4. Agent sessions are persisted in `.telesis/sessions/` (meta.json + events.jsonl per session)
 5. Agent events stream through the daemon event backbone in real time
 6. The TUI displays live agent activity (events, tool calls, output)
-7. Bounded concurrency limits the number of simultaneous agents (configurable)
+7. Bounded concurrency limits the number of simultaneous agents (configurable, default 3)
 8. Agent crashes are detected and reported, not silently swallowed
 9. `telesis dispatch list` shows active and completed agent sessions
-10. `telesis dispatch show <session-id>` replays a session's event log
+10. `telesis dispatch show <session-id>` replays a session's event log (supports ID prefix)
 11. All new business logic has colocated unit tests
 12. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — ACP client:** JSON-RPC over stdio, session management, based on acpx patterns
-2. **Phase 2 — Context assembly:** Package project context for agent consumption
-3. **Phase 3 — Session persistence:** JSONL event logs with segment rotation
-4. **Phase 4 — Daemon integration:** Stream agent events through RxJS backbone
-5. **Phase 5 — Dispatcher CLI:** `dispatch`, `dispatch list`, `dispatch show` commands
-6. **Phase 6 — Concurrency and lifecycle:** Bounded parallelism, crash detection, cleanup
+1. **Phase 1 — Types and adapter:** AgentEvent, SessionMeta types, AgentAdapter interface, acpx subprocess implementation
+2. **Phase 2 — Session store:** JSONL persistence for session meta and events
+3. **Phase 3 — Context assembly:** Package project context for agent consumption
+4. **Phase 4 — Dispatch orchestrator:** Core orchestration: context + adapter + store + events
+5. **Phase 5 — Event types and daemon integration:** Extend daemon event union, TUI rendering
+6. **Phase 6 — CLI commands:** dispatch run, list, show subcommands
+7. **Phase 7 — Drift checks and validation:** acpx containment check, doc updates, version bump
 
 ---
 

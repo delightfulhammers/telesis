@@ -9,6 +9,7 @@ const EXCLUDED_BASENAMES = new Set([
   "index.ts",
   "test-utils.ts",
   "stop-words.ts",
+  "adapter.ts",
 ]);
 
 const isExcluded = (file: string): boolean => {

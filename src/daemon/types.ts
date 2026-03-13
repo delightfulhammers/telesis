@@ -1,5 +1,5 @@
 /** Event source categories */
-export type EventSource = "daemon" | "filesystem" | "socket";
+export type EventSource = "daemon" | "filesystem" | "socket" | "dispatch";
 
 /** All event type literals */
 export type EventType =
@@ -13,7 +13,14 @@ export type EventType =
   | "fs:dir:created"
   | "fs:dir:deleted"
   | "socket:client:connected"
-  | "socket:client:disconnected";
+  | "socket:client:disconnected"
+  | "dispatch:session:started"
+  | "dispatch:session:completed"
+  | "dispatch:session:failed"
+  | "dispatch:agent:thinking"
+  | "dispatch:agent:tool_call"
+  | "dispatch:agent:output"
+  | "dispatch:agent:cancelled";
 
 /** Base event shape — all events extend this */
 export interface BaseEvent<T extends EventType, P> {
@@ -44,6 +51,29 @@ export interface SocketClientPayload {
   readonly clientId: string;
 }
 
+/** Dispatch payload types */
+export interface DispatchSessionPayload {
+  readonly sessionId: string;
+  readonly agent: string;
+  readonly task: string;
+}
+
+export interface DispatchSessionCompletedPayload extends DispatchSessionPayload {
+  readonly durationMs: number;
+  readonly eventCount: number;
+}
+
+export interface DispatchSessionFailedPayload extends DispatchSessionPayload {
+  readonly error: string;
+}
+
+export interface DispatchAgentEventPayload {
+  readonly sessionId: string;
+  readonly agent: string;
+  readonly seq: number;
+  readonly data: Record<string, unknown>;
+}
+
 /** Full discriminated union of all daemon events */
 export type TelesisDaemonEvent =
   | BaseEvent<"daemon:started", DaemonStartedPayload>
@@ -56,7 +86,14 @@ export type TelesisDaemonEvent =
   | BaseEvent<"fs:dir:created", FsChangePayload>
   | BaseEvent<"fs:dir:deleted", FsChangePayload>
   | BaseEvent<"socket:client:connected", SocketClientPayload>
-  | BaseEvent<"socket:client:disconnected", SocketClientPayload>;
+  | BaseEvent<"socket:client:disconnected", SocketClientPayload>
+  | BaseEvent<"dispatch:session:started", DispatchSessionPayload>
+  | BaseEvent<"dispatch:session:completed", DispatchSessionCompletedPayload>
+  | BaseEvent<"dispatch:session:failed", DispatchSessionFailedPayload>
+  | BaseEvent<"dispatch:agent:thinking", DispatchAgentEventPayload>
+  | BaseEvent<"dispatch:agent:tool_call", DispatchAgentEventPayload>
+  | BaseEvent<"dispatch:agent:output", DispatchAgentEventPayload>
+  | BaseEvent<"dispatch:agent:cancelled", DispatchAgentEventPayload>;
 
 /** Map from EventType to the event source it belongs to */
 const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
@@ -71,6 +108,13 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "fs:dir:deleted": "filesystem",
   "socket:client:connected": "socket",
   "socket:client:disconnected": "socket",
+  "dispatch:session:started": "dispatch",
+  "dispatch:session:completed": "dispatch",
+  "dispatch:session:failed": "dispatch",
+  "dispatch:agent:thinking": "dispatch",
+  "dispatch:agent:tool_call": "dispatch",
+  "dispatch:agent:output": "dispatch",
+  "dispatch:agent:cancelled": "dispatch",
 };
 
 /** Factory for creating typed events with automatic timestamp and source */
