@@ -37,9 +37,8 @@ const runAcpx = async (
   ]);
 
   if (exitCode !== 0) {
-    throw new Error(
-      `acpx exited with code ${exitCode}: ${stderr.trim() || stdout.trim()}`,
-    );
+    const detail = [stderr.trim(), stdout.trim()].filter(Boolean).join("\n");
+    throw new Error(`acpx exited with code ${exitCode}: ${detail}`);
   }
 
   return stdout.trim();
@@ -79,18 +78,122 @@ const checkAcpxAvailable = async (
   }
 };
 
+/** Synthesize an AgentEvent from JSON-RPC session/update messages */
+const parseJsonRpcUpdate = (
+  obj: Record<string, unknown>,
+  nextSeq: () => number,
+): AgentEvent | null => {
+  if (obj.jsonrpc !== "2.0") return null;
+
+  // Handle session/update notifications (agent activity)
+  if (obj.method === "session/update") {
+    const params = obj.params as Record<string, unknown> | undefined;
+    if (!params) return null;
+    const update = params.update as Record<string, unknown> | undefined;
+    if (!update) return null;
+
+    const sessionId =
+      typeof params.sessionId === "string" ? params.sessionId : "unknown";
+    const updateType = update.sessionUpdate as string | undefined;
+
+    if (updateType === "agent_message_chunk") {
+      const content = update.content as Record<string, unknown> | undefined;
+      if (!content) return null;
+      const contentType = content.type as string | undefined;
+
+      if (contentType === "text") {
+        return {
+          eventVersion: 1,
+          sessionId,
+          requestId: "jsonrpc",
+          seq: nextSeq(),
+          stream: "main",
+          type: "output",
+          text: typeof content.text === "string" ? content.text : "",
+        };
+      }
+
+      if (contentType === "tool_call") {
+        return {
+          eventVersion: 1,
+          sessionId,
+          requestId: "jsonrpc",
+          seq: nextSeq(),
+          stream: "main",
+          type: "tool_call",
+          tool: typeof content.name === "string" ? content.name : "unknown",
+          input: typeof content.input === "string" ? content.input : "",
+        };
+      }
+
+      if (contentType === "tool_result") {
+        return {
+          eventVersion: 1,
+          sessionId,
+          requestId: "jsonrpc",
+          seq: nextSeq(),
+          stream: "main",
+          type: "output",
+          text:
+            typeof content.output === "string"
+              ? content.output
+              : JSON.stringify(
+                  typeof content.output !== "undefined" ? content.output : "",
+                ),
+        };
+      }
+
+      // Thinking/reasoning content
+      if (contentType === "thinking" || contentType === "reasoning") {
+        return {
+          eventVersion: 1,
+          sessionId,
+          requestId: "jsonrpc",
+          seq: nextSeq(),
+          stream: "main",
+          type: "thinking",
+        };
+      }
+    }
+
+    // Usage updates are informational — skip
+    if (updateType === "usage_update") return null;
+
+    // Available commands updates — skip
+    if (updateType === "available_commands_update") return null;
+  }
+
+  // Prompt completion results — skip
+  if (typeof obj.id !== "undefined" && obj.result !== undefined) return null;
+
+  return null;
+};
+
 /**
  * Parse a single NDJSON line into an AgentEvent.
+ * Supports both legacy NDJSON events (seq+type) and JSON-RPC session/update messages.
  * Returns null for lines that aren't valid agent events.
  */
-const parseAgentEvent = (line: string): AgentEvent | null => {
+const parseAgentEvent = (
+  line: string,
+  nextSeq: () => number,
+): AgentEvent | null => {
   try {
     const parsed: unknown = JSON.parse(line);
     if (!parsed || typeof parsed !== "object") return null;
     const obj = parsed as Record<string, unknown>;
-    if (typeof obj.seq !== "number" || typeof obj.type !== "string")
-      return null;
-    return parsed as AgentEvent;
+
+    // Legacy NDJSON format (seq + type)
+    if (typeof obj.seq === "number" && typeof obj.type === "string") {
+      return parsed as AgentEvent;
+    }
+
+    // JSON-RPC format (acpx 0.3+)
+    if (obj.jsonrpc === "2.0") {
+      return parseJsonRpcUpdate(obj, nextSeq);
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -103,6 +206,7 @@ const parseAgentEvent = (line: string): AgentEvent | null => {
 const streamNdjson = async (
   proc: SpawnResult,
   onEvent: (event: AgentEvent) => void,
+  nextSeq: () => number,
 ): Promise<void> => {
   const reader = proc.stdout.getReader();
   const decoder = new TextDecoder();
@@ -121,7 +225,7 @@ const streamNdjson = async (
         buffer = buffer.slice(newlineIdx + 1);
         if (line.length === 0) continue;
 
-        const event = parseAgentEvent(line);
+        const event = parseAgentEvent(line, nextSeq);
         if (event) onEvent(event);
       }
     }
@@ -129,7 +233,7 @@ const streamNdjson = async (
     // Process any remaining buffer content
     const remaining = buffer.trim();
     if (remaining.length > 0) {
-      const event = parseAgentEvent(remaining);
+      const event = parseAgentEvent(remaining, nextSeq);
       if (event) onEvent(event);
     }
   } finally {
@@ -163,41 +267,49 @@ export const createAcpxAdapter = (
   return {
     createSession: async (agent, name, cwd) => {
       await ensureAvailable();
-      await runAcpx(spawn, acpxPath, [
-        agent,
-        "sessions",
-        "ensure",
-        "--name",
-        name,
-        "--cwd",
-        cwd,
-      ]);
+      try {
+        // Top-level --cwd, then agent subcommand
+        await runAcpx(spawn, acpxPath, [
+          "--cwd",
+          cwd,
+          agent,
+          "sessions",
+          "ensure",
+          "--name",
+          name,
+        ]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("Internal error") || msg.includes("Query closed")) {
+          throw new Error(
+            `Failed to create ${agent} session. The ${agent} ACP agent could not initialize. ` +
+              `This is typically an issue with the agent server, not Telesis. ` +
+              `Try a different agent (e.g., --agent codex) or check that the ${agent} agent is properly configured.`,
+          );
+        }
+        throw err;
+      }
       return name;
     },
 
     prompt: async (agent, sessionName, text, cwd, onEvent) => {
       await ensureAvailable();
 
-      const args = [
-        acpxPath,
-        agent,
-        "prompt",
-        text,
-        "--name",
-        sessionName,
-        "--cwd",
-        cwd,
-        "--format",
-        "json",
-      ];
+      /** Monotonically increasing sequence counter for this prompt call */
+      let seqCounter = 0;
+      const nextSeq = (): number => ++seqCounter;
+
+      // Top-level flags (--cwd, --format, --approve-all) go before agent subcommand
+      const args = [acpxPath, "--cwd", cwd, "--format", "json"];
       if (approveAll) args.push("--approve-all");
+      args.push(agent, "prompt", text, "--session", sessionName);
 
       const proc = spawn(args, { stdout: "pipe", stderr: "pipe" });
 
       try {
         // Drain stderr concurrently to avoid pipe deadlock
         const stderrPromise = new Response(proc.stderr).text();
-        await streamNdjson(proc, onEvent);
+        await streamNdjson(proc, onEvent, nextSeq);
         const [stderr, exitCode] = await Promise.all([
           stderrPromise,
           proc.exited,
@@ -218,24 +330,24 @@ export const createAcpxAdapter = (
     cancel: async (agent, sessionName, cwd) => {
       await ensureAvailable();
       await runAcpx(spawn, acpxPath, [
-        agent,
-        "cancel",
-        "--name",
-        sessionName,
         "--cwd",
         cwd,
+        agent,
+        "cancel",
+        "--session",
+        sessionName,
       ]);
     },
 
     closeSession: async (agent, name, cwd) => {
       await ensureAvailable();
       await runAcpx(spawn, acpxPath, [
+        "--cwd",
+        cwd,
         agent,
         "sessions",
         "close",
         name,
-        "--cwd",
-        cwd,
       ]);
     },
   };

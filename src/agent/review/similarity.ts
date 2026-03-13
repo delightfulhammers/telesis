@@ -118,10 +118,11 @@ export const findSimilarFinding = (
 
   // Strategy 2: Positional match
   if (finding.startLine !== undefined) {
+    const startLine = finding.startLine;
     const positional = candidates.find(
       (c) =>
         c.startLine !== undefined &&
-        Math.abs(finding.startLine! - c.startLine) <= LINE_OVERLAP_THRESHOLD,
+        Math.abs(startLine - c.startLine) <= LINE_OVERLAP_THRESHOLD,
     );
     if (positional) {
       return { finding: positional, strategy: "positional", score: 0.8 };

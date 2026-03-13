@@ -56,13 +56,13 @@ describe("createAcpxAdapter", () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]).toEqual([
       "acpx",
+      "--cwd",
+      "/tmp/project",
       "claude",
       "sessions",
       "ensure",
       "--name",
       "test-session",
-      "--cwd",
-      "/tmp/project",
     ]);
   });
 
@@ -113,6 +113,58 @@ describe("createAcpxAdapter", () => {
     expect(events[2]!.type).toBe("output");
   });
 
+  it("parses JSON-RPC session/update messages", async () => {
+    const events: AgentEvent[] = [];
+    const ndjson = [
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: "Hello world" },
+          },
+        },
+      }),
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+          sessionId: "s1",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "tool_call", name: "read_file", input: "foo.ts" },
+          },
+        },
+      }),
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+          sessionId: "s1",
+          update: { sessionUpdate: "usage_update", used: 100, size: 1000 },
+        },
+      }),
+    ].join("\n");
+
+    const { spawn } = makeVersionAwareSpawn(() =>
+      makeMockProc(ndjson + "\n", 0),
+    );
+
+    const adapter = createAcpxAdapter({ spawn });
+    await adapter.prompt("codex", "s1", "do something", "/tmp", (e) =>
+      events.push(e),
+    );
+
+    // Should parse text and tool_call, skip usage_update
+    expect(events).toHaveLength(2);
+    expect(events[0]!.type).toBe("output");
+    expect((events[0] as Record<string, unknown>).text).toBe("Hello world");
+    expect(events[1]!.type).toBe("tool_call");
+    expect((events[1] as Record<string, unknown>).tool).toBe("read_file");
+  });
+
   it("skips malformed NDJSON lines without crashing", async () => {
     const events: AgentEvent[] = [];
     const ndjson = [
@@ -148,6 +200,17 @@ describe("createAcpxAdapter", () => {
     const adapter = createAcpxAdapter({ spawn });
     await expect(adapter.createSession("claude", "s1", "/tmp")).rejects.toThrow(
       "acpx not found",
+    );
+  });
+
+  it("provides actionable error when agent session creation fails with internal error", async () => {
+    const { spawn } = makeVersionAwareSpawn(() =>
+      makeMockProc("", 1, "Internal error"),
+    );
+
+    const adapter = createAcpxAdapter({ spawn });
+    await expect(adapter.createSession("claude", "s1", "/tmp")).rejects.toThrow(
+      "Try a different agent",
     );
   });
 
@@ -197,12 +260,12 @@ describe("createAcpxAdapter", () => {
     const closeCall = calls[1]!;
     expect(closeCall).toEqual([
       "acpx",
+      "--cwd",
+      "/tmp/project",
       "claude",
       "sessions",
       "close",
       "my-session",
-      "--cwd",
-      "/tmp/project",
     ]);
   });
 
@@ -215,12 +278,12 @@ describe("createAcpxAdapter", () => {
     const cancelCall = calls[1]!;
     expect(cancelCall).toEqual([
       "acpx",
-      "claude",
-      "cancel",
-      "--name",
-      "my-session",
       "--cwd",
       "/tmp/project",
+      "claude",
+      "cancel",
+      "--session",
+      "my-session",
     ]);
   });
 });

@@ -435,16 +435,19 @@ export const reviewCommand = new Command("review")
           saveSessionSafe(rootDir, session, finalFindings);
 
           // Convergence detection
+          const singleAllSessions = listReviewSessions(rootDir);
           const singlePriors = loadPriorFindings(
             rootDir,
             resolved.ref,
             sessionId,
+            singleAllSessions,
           );
           const singleLabeled = labelFindings(finalFindings, singlePriors);
           const singlePriorSessions = listPriorSessions(
             rootDir,
             resolved.ref,
             sessionId,
+            singleAllSessions,
           );
           const singleConvergence = summarizeConvergence(
             singleLabeled,
@@ -591,10 +594,12 @@ export const reviewCommand = new Command("review")
         saveSessionSafe(rootDir, session, finalFindings);
 
         // Convergence detection
+        const allSessions = listReviewSessions(rootDir);
         const convergencePriors = loadPriorFindings(
           rootDir,
           resolved.ref,
           sessionId,
+          allSessions,
         );
         const convergenceLabeled = labelFindings(
           finalFindings,
@@ -604,6 +609,7 @@ export const reviewCommand = new Command("review")
           rootDir,
           resolved.ref,
           sessionId,
+          allSessions,
         );
         const convergence = summarizeConvergence(
           convergenceLabeled,

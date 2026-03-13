@@ -27,18 +27,21 @@ export interface ConvergenceSummary {
 // --- Cross-round Matching ---
 
 /**
- * Load findings from the most recent prior review session for the same git ref.
+ * Load findings from the single most recent prior session for the same ref.
+ * Only the immediately preceding round is compared — 'persistent' means
+ * 'present in the immediately preceding round', not across all history.
  * Returns empty array if no prior session exists.
  */
 export const loadPriorFindings = (
   rootDir: string,
   ref: string,
   currentSessionId: string,
+  sessions?: readonly ReviewSession[],
 ): readonly ReviewFinding[] => {
-  const sessions = listReviewSessions(rootDir);
+  const allSessions = sessions ?? listReviewSessions(rootDir);
 
   // Find the most recent session with the same ref, excluding the current one
-  const priorSession = sessions.find(
+  const priorSession = allSessions.find(
     (s) => s.ref === ref && s.id !== currentSessionId,
   );
 
@@ -60,6 +63,9 @@ export const loadPriorFindings = (
  * - "persistent" — matched a prior finding (survived a fix attempt)
  * - "resolved" — a prior finding not matched by any current finding
  *
+ * If multiple current findings match the same prior, only the first is
+ * labeled persistent; subsequent matches are labeled new.
+ *
  * Returns labeled current findings plus resolved prior findings.
  */
 export const labelFindings = (
@@ -76,7 +82,7 @@ export const labelFindings = (
   // Label current findings
   for (const finding of current) {
     const match = findSimilarFinding(finding, priors);
-    if (match) {
+    if (match && !matchedPriorIds.has(match.finding.id)) {
       matchedPriorIds.add(match.finding.id);
       labeled.push({ finding, label: "persistent", priorMatch: match });
     } else {
@@ -127,9 +133,10 @@ export const listPriorSessions = (
   rootDir: string,
   ref: string,
   currentSessionId: string,
+  sessions?: readonly ReviewSession[],
 ): readonly ReviewSession[] => {
-  const sessions = listReviewSessions(rootDir);
-  return sessions.filter((s) => s.ref === ref && s.id !== currentSessionId);
+  const allSessions = sessions ?? listReviewSessions(rootDir);
+  return allSessions.filter((s) => s.ref === ref && s.id !== currentSessionId);
 };
 
 /**

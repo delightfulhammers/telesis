@@ -57,45 +57,36 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.14.1 — Review Convergence
+## v0.14.2 — Dispatch Compatibility
 
-**Goal:** Improve the multi-round review experience by detecting cross-round finding
-recurrence, tracking convergence, and preventing resolved themes from polluting
-subsequent rounds.
+**Goal:** Fix compatibility with acpx 0.3.0 and improve robustness of the oversight
+analysis pipeline for real-world sessions.
 
 **Status:** Complete
 
 ### What Changes
 
-The review subsystem gains convergence awareness. When the same git ref is reviewed
-multiple times, findings are labeled as "new", "persistent", or "resolved" by matching
-against prior sessions using Jaccard similarity, positional proximity, and exact ID match.
-A convergence summary is displayed after each round showing progress.
+The acpx adapter is updated to match the acpx 0.3.0 CLI argument layout: top-level flags
+(`--cwd`, `--format`, `--approve-all`) go before the agent subcommand, and `prompt`/`cancel`
+use `--session` instead of `--name`. The adapter now translates JSON-RPC `session/update`
+messages from acpx into `AgentEvent` objects, supporting text output, tool calls, tool
+results, and thinking events.
 
-Theme extraction is improved to deduplicate sessions by ref — only the most recent
-session for a given ref contributes findings to theme analysis, preventing resolved
-findings from generating stale themes.
+The JSON response parser (`parseJsonResponse`) gains bracket-matching extraction for
+finding JSON arrays or objects embedded in model prose — handling models that wrap
+structured output in natural language.
 
-Similarity utilities (`wordBag`, `jaccardSimilarity`) are extracted from the dismissal
-matcher into a shared module, enabling reuse for both dismissal matching and cross-round
-comparison.
+Agent session creation failures (e.g., Claude ACP's upstream "Internal error") now produce
+actionable error messages suggesting alternative agents.
 
 ### Acceptance Criteria
 
-1. Findings are labeled as new, persistent, or resolved across review rounds
-2. A convergence summary is displayed showing round number and label counts
-3. Theme extraction deduplicates sessions by ref (only latest per ref)
-4. Similarity utilities are shared between dismissal matcher and convergence detector
+1. `telesis dispatch run --agent codex` streams events from acpx 0.3.0 successfully
+2. JSON-RPC session/update messages are translated to AgentEvent objects
+3. Oversight reviewer can parse findings from model responses with surrounding prose
+4. Agent session creation failures include actionable suggestions
 5. All new business logic has colocated unit tests
 6. Running `telesis drift` produces zero errors
-
-### Build Sequence
-
-1. **Phase 1 — Similarity extraction:** Shared `similarity.ts` module
-2. **Phase 2 — Cross-round matcher:** `convergence.ts` with `labelFindings`, `summarizeConvergence`
-3. **Phase 3 — CLI integration:** Wire convergence into review display
-4. **Phase 4 — Theme dedup:** Filter resolved sessions in `loadRecentFindings`
-5. **Phase 5 — Docs and version bump**
 
 ---
 

@@ -40,6 +40,9 @@ review-output/
 .telesis/telemetry.jsonl
 .telesis/reviews/
 .telesis/dismissals.jsonl
+.telesis/sessions/
+.telesis/notes.jsonl
+.telesis/journal.jsonl
 
 # Temp
 tmp/

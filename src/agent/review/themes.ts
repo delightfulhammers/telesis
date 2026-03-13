@@ -16,10 +16,10 @@ export interface ThemeResult {
 }
 
 /**
- * Loads findings from the N most recent review sessions.
- * When multiple sessions share the same ref, only findings from the most recent
- * session for that ref are included — earlier rounds' findings that weren't
- * reproduced are considered resolved and excluded from theme extraction.
+ * Loads findings from the N most recent sessions, deduplicated by ref
+ * (only the latest session per ref is included). Earlier rounds' findings
+ * that weren't reproduced are considered resolved and excluded from
+ * theme extraction.
  */
 export const loadRecentFindings = (
   rootDir: string,

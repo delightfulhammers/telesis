@@ -868,6 +868,39 @@ comparison.
 
 ---
 
+## v0.14.2 — Dispatch Compatibility
+
+**Goal:** Fix compatibility with acpx 0.3.0 and improve robustness of the oversight
+analysis pipeline for real-world sessions.
+
+**Status:** Complete
+
+### What Changes
+
+The acpx adapter is updated to match the acpx 0.3.0 CLI argument layout: top-level flags
+(`--cwd`, `--format`, `--approve-all`) go before the agent subcommand, and `prompt`/`cancel`
+use `--session` instead of `--name`. The adapter now translates JSON-RPC `session/update`
+messages from acpx into `AgentEvent` objects, supporting text output, tool calls, tool
+results, and thinking events.
+
+The JSON response parser (`parseJsonResponse`) gains bracket-matching extraction for
+finding JSON arrays or objects embedded in model prose — handling models that wrap
+structured output in natural language.
+
+Agent session creation failures (e.g., Claude ACP's upstream "Internal error") now produce
+actionable error messages suggesting alternative agents.
+
+### Acceptance Criteria
+
+1. `telesis dispatch run --agent codex` streams events from acpx 0.3.0 successfully
+2. JSON-RPC session/update messages are translated to AgentEvent objects
+3. Oversight reviewer can parse findings from model responses with surrounding prose
+4. Agent session creation failures include actionable suggestions
+5. All new business logic has colocated unit tests
+6. Running `telesis drift` produces zero errors
+
+---
+
 ## v0.15.0 — Work Intake
 
 **Goal:** Enable Telesis to ingest work from external sources (issue trackers, human
