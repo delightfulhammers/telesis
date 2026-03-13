@@ -57,51 +57,45 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.14.0 — Active Oversight & Chronicler
+## v0.14.1 — Review Convergence
 
-**Goal:** Specialist agents observe the coding agent event stream in real time, providing
-continuous oversight rather than post-hoc review. The chronicler captures development
-insights automatically from session transcripts.
+**Goal:** Improve the multi-round review experience by detecting cross-round finding
+recurrence, tracking convergence, and preventing resolved themes from polluting
+subsequent rounds.
 
 **Status:** Complete
 
-**Reference:** TDD-010 (Active Oversight & Chronicler)
-
 ### What Changes
 
-The agent roster gains active oversight capabilities. The Reviewer, Architect, and a new
-Chronicler agent observe the event stream from dispatched coding agents and intervene
-when they detect drift, spec violations, or notable decisions.
+The review subsystem gains convergence awareness. When the same git ref is reviewed
+multiple times, findings are labeled as "new", "persistent", or "resolved" by matching
+against prior sessions using Jaccard similarity, positional proximity, and exact ID match.
+A convergence summary is displayed after each round showing progress.
 
-The Chronicler replaces manual `telesis note` for routine insight capture — it watches
-coding sessions, extracts observations about patterns, decisions, and gotchas, and persists
-them as structured notes. The human remains in the loop for architectural decisions and
-milestone gates.
+Theme extraction is improved to deduplicate sessions by ref — only the most recent
+session for a given ref contributes findings to theme analysis, preventing resolved
+findings from generating stale themes.
+
+Similarity utilities (`wordBag`, `jaccardSimilarity`) are extracted from the dismissal
+matcher into a shared module, enabling reuse for both dismissal matching and cross-round
+comparison.
 
 ### Acceptance Criteria
 
-1. The Reviewer agent monitors coding agent output for issues in real time
-2. The Architect agent detects drift from spec during coding agent sessions
-3. The Chronicler automatically extracts development insights from completed sessions
-4. Chronicler-generated notes are distinguishable from human-authored notes
-5. Oversight agents operate on the event stream (not polling)
-6. Oversight findings surface in the TUI as they occur
-7. Agents use versioned policy files (`.telesis/agents/<name>.md`) for configuration
-8. Autonomy configuration controls when agents intervene vs. observe silently
-9. All new business logic has colocated unit tests
-10. Running `telesis drift` produces zero errors
+1. Findings are labeled as new, persistent, or resolved across review rounds
+2. A convergence summary is displayed showing round number and label counts
+3. Theme extraction deduplicates sessions by ref (only latest per ref)
+4. Similarity utilities are shared between dismissal matcher and convergence detector
+5. All new business logic has colocated unit tests
+6. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Types and policy parsing:** Observer types, policy file format (.telesis/agents/*.md)
-2. **Phase 2 — Event types and TUI rendering:** oversight:* daemon events, TUI formatting
-3. **Phase 3 — Observer core:** Generic observer factory with buffering, periodic analysis, drain
-4. **Phase 4 — Prompts:** System prompts for reviewer, architect, chronicler
-5. **Phase 5 — Reviewer observer:** Code quality monitoring via ModelClient
-6. **Phase 6 — Architect observer:** Spec drift detection via ModelClient
-7. **Phase 7 — Chronicler:** Post-session note extraction, writes to notes store
-8. **Phase 8 — Orchestrator + CLI integration:** Wire observers to dispatch, --no-oversight flag
-9. **Phase 9 — Drift, config, docs:** OversightConfig, version bump, doc updates
+1. **Phase 1 — Similarity extraction:** Shared `similarity.ts` module
+2. **Phase 2 — Cross-round matcher:** `convergence.ts` with `labelFindings`, `summarizeConvergence`
+3. **Phase 3 — CLI integration:** Wire convergence into review display
+4. **Phase 4 — Theme dedup:** Filter resolved sessions in `loadRecentFindings`
+5. **Phase 5 — Docs and version bump**
 
 ---
 

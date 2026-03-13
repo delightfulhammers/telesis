@@ -826,6 +826,48 @@ milestone gates.
 
 ---
 
+## v0.14.1 — Review Convergence
+
+**Goal:** Improve the multi-round review experience by detecting cross-round finding
+recurrence, tracking convergence, and preventing resolved themes from polluting
+subsequent rounds.
+
+**Status:** Complete
+
+### What Changes
+
+The review subsystem gains convergence awareness. When the same git ref is reviewed
+multiple times, findings are labeled as "new", "persistent", or "resolved" by matching
+against prior sessions using Jaccard similarity, positional proximity, and exact ID match.
+A convergence summary is displayed after each round showing progress.
+
+Theme extraction is improved to deduplicate sessions by ref — only the most recent
+session for a given ref contributes findings to theme analysis, preventing resolved
+findings from generating stale themes.
+
+Similarity utilities (`wordBag`, `jaccardSimilarity`) are extracted from the dismissal
+matcher into a shared module, enabling reuse for both dismissal matching and cross-round
+comparison.
+
+### Acceptance Criteria
+
+1. Findings are labeled as new, persistent, or resolved across review rounds
+2. A convergence summary is displayed showing round number and label counts
+3. Theme extraction deduplicates sessions by ref (only latest per ref)
+4. Similarity utilities are shared between dismissal matcher and convergence detector
+5. All new business logic has colocated unit tests
+6. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Similarity extraction:** Shared `similarity.ts` module
+2. **Phase 2 — Cross-round matcher:** `convergence.ts` with `labelFindings`, `summarizeConvergence`
+3. **Phase 3 — CLI integration:** Wire convergence into review display
+4. **Phase 4 — Theme dedup:** Filter resolved sessions in `loadRecentFindings`
+5. **Phase 5 — Docs and version bump**
+
+---
+
 ## v0.15.0 — Work Intake
 
 **Goal:** Enable Telesis to ingest work from external sources (issue trackers, human

@@ -184,14 +184,17 @@ describe("extractThemes", () => {
     expect(result.conclusions).toEqual([]);
   });
 
-  it("limits to N most recent sessions", async () => {
+  it("limits to N most recent sessions (distinct refs)", async () => {
     const dir = makeTempDir();
     mkdirSync(join(dir, ".telesis", "reviews"), { recursive: true });
 
-    // Create 4 sessions, only 2 most recent should be read
+    // Create 4 sessions with different refs, only 2 most recent should be read
     for (let i = 0; i < 4; i++) {
       const id = `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee${i}`;
-      const session = makeSession(id, `2026-03-1${i}T12:00:00Z`);
+      const session = {
+        ...makeSession(id, `2026-03-1${i}T12:00:00Z`),
+        ref: `HEAD~${i}`,
+      };
       const findings = [
         makeFinding(`f${i}a`, id, `Finding ${i}a`),
         makeFinding(`f${i}b`, id, `Finding ${i}b`),
@@ -222,5 +225,66 @@ describe("extractThemes", () => {
     expect(capturedPrompt).toContain("Finding 3a");
     expect(capturedPrompt).toContain("Finding 2a");
     expect(capturedPrompt).not.toContain("Finding 0a");
+  });
+
+  it("deduplicates sessions by ref, keeping only the most recent", async () => {
+    const dir = makeTempDir();
+    mkdirSync(join(dir, ".telesis", "reviews"), { recursive: true });
+
+    // Two sessions for the same ref — only the latest should contribute findings
+    const oldId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee0";
+    const newId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee1";
+
+    const oldSession = {
+      ...makeSession(oldId, "2026-03-10T12:00:00Z"),
+      ref: "HEAD~1",
+    };
+    const newSession = {
+      ...makeSession(newId, "2026-03-11T12:00:00Z"),
+      ref: "HEAD~1",
+    };
+
+    saveReviewSession(dir, { ...oldSession, findingCount: 2 }, [
+      makeFinding("old-1", oldId, "Old resolved finding"),
+      makeFinding("old-2", oldId, "Another old finding"),
+    ]);
+    saveReviewSession(dir, { ...newSession, findingCount: 1 }, [
+      makeFinding("new-1", newId, "Still active finding"),
+    ]);
+
+    // Add a third session with a different ref to meet MIN_FINDINGS_FOR_THEMES
+    const otherId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2";
+    const otherSession = {
+      ...makeSession(otherId, "2026-03-12T12:00:00Z"),
+      ref: "HEAD~2",
+    };
+    saveReviewSession(dir, { ...otherSession, findingCount: 2 }, [
+      makeFinding("other-1", otherId, "Other finding one"),
+      makeFinding("other-2", otherId, "Other finding two"),
+    ]);
+
+    let capturedPrompt = "";
+    const client: ModelClient = {
+      complete: async (req: CompletionRequest): Promise<CompletionResponse> => {
+        capturedPrompt = req.messages[0].content;
+        return {
+          content: JSON.stringify({ themes: [], conclusions: [] }),
+          usage: { inputTokens: 50, outputTokens: 30 },
+          durationMs: 200,
+        };
+      },
+      completeStream: () => {
+        throw new Error("not implemented");
+      },
+    };
+
+    await extractThemes(dir, client, "model");
+
+    // Should include the latest session for HEAD~1 (new-1) but NOT old sessions
+    expect(capturedPrompt).toContain("Still active finding");
+    expect(capturedPrompt).not.toContain("Old resolved finding");
+    expect(capturedPrompt).not.toContain("Another old finding");
+    // Other ref's findings should be included
+    expect(capturedPrompt).toContain("Other finding one");
   });
 });

@@ -127,6 +127,8 @@ telesis/
         verify.ts         ← full-file verification pass to filter false positives (v0.8.1)
         prompts.ts        ← single-pass, persona, dedup, theme, verification, and prior findings prompts
         json-parse.ts     ← shared JSON response parser (fence extraction)
+        similarity.ts     ← shared word bag + Jaccard similarity utilities (v0.14.1)
+        convergence.ts    ← cross-round finding matcher, convergence detection (v0.14.1)
         store.ts          ← per-session JSONL storage in .telesis/reviews/
         format.ts         ← terminal report formatting (flat + persona-grouped)
         dismissal/        ← review triage feedback loop (v0.10.0, v0.10.1)

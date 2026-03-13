@@ -78,6 +78,14 @@ import {
 import { FINDING_MARKER_RE } from "../github/format.js";
 import type { FilterStats } from "../agent/review/types.js";
 import {
+  labelFindings,
+  loadPriorFindings,
+  listPriorSessions,
+  summarizeConvergence,
+  formatConvergenceSummary,
+} from "../agent/review/convergence.js";
+import type { ConvergenceSummary } from "../agent/review/convergence.js";
+import {
   replyToReviewComment,
   listPullRequestReviewComments,
 } from "../github/client.js";
@@ -425,11 +433,30 @@ export const reviewCommand = new Command("review")
           };
 
           saveSessionSafe(rootDir, session, finalFindings);
+
+          // Convergence detection
+          const singlePriors = loadPriorFindings(
+            rootDir,
+            resolved.ref,
+            sessionId,
+          );
+          const singleLabeled = labelFindings(finalFindings, singlePriors);
+          const singlePriorSessions = listPriorSessions(
+            rootDir,
+            resolved.ref,
+            sessionId,
+          );
+          const singleConvergence = summarizeConvergence(
+            singleLabeled,
+            singlePriorSessions,
+          );
+
           const singleCost = deriveCostFromSession(session, rootDir);
           displayFindings(session, finalFindings, opts, {
             rawFindingCount,
             filterStats: combinedFilterStats,
             cost: singleCost,
+            convergence: singleConvergence,
           });
           if (opts.githubPr) {
             await postToGitHubSafe(session, finalFindings, {
@@ -562,12 +589,34 @@ export const reviewCommand = new Command("review")
         };
 
         saveSessionSafe(rootDir, session, finalFindings);
+
+        // Convergence detection
+        const convergencePriors = loadPriorFindings(
+          rootDir,
+          resolved.ref,
+          sessionId,
+        );
+        const convergenceLabeled = labelFindings(
+          finalFindings,
+          convergencePriors,
+        );
+        const convergencePriorSessions = listPriorSessions(
+          rootDir,
+          resolved.ref,
+          sessionId,
+        );
+        const convergence = summarizeConvergence(
+          convergenceLabeled,
+          convergencePriorSessions,
+        );
+
         const personaCost = deriveCostFromSession(session, rootDir);
         displayFindings(session, finalFindings, opts, {
           mergedCount: dedupResult.mergedCount,
           rawFindingCount,
           filterStats: combinedFilterStats,
           cost: personaCost,
+          convergence,
         });
         if (opts.githubPr) {
           await postToGitHubSafe(session, finalFindings, {
@@ -607,6 +656,7 @@ const displayFindings = (
     rawFindingCount?: number;
     filterStats?: FilterStats;
     cost?: number | null;
+    convergence?: ConvergenceSummary;
   },
 ): void => {
   // "No new findings" message when all findings were filtered.
@@ -639,6 +689,9 @@ const displayFindings = (
       console.log(
         `No new findings. ${extra.filterStats.totalFilteredCount} finding(s) filtered${detail}.`,
       );
+      if (extra.convergence && extra.convergence.round > 1) {
+        console.log(`\n${formatConvergenceSummary(extra.convergence)}`);
+      }
     }
     return;
   }
@@ -658,6 +711,11 @@ const displayFindings = (
     );
   } else {
     console.log(formatReviewReport(session, filtered, { cost: extra?.cost }));
+  }
+
+  // Show convergence summary when there are prior rounds
+  if (extra?.convergence && extra.convergence.round > 1) {
+    console.log(`\n${formatConvergenceSummary(extra.convergence)}`);
   }
 
   // Exit 1 if any critical or high findings (based on full results, not display filter)

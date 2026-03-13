@@ -1,6 +1,6 @@
 import type { ModelClient } from "../model/client.js";
 import type { TokenUsage } from "../model/types.js";
-import type { ReviewFinding, ThemeConclusion } from "./types.js";
+import type { ReviewFinding, ReviewSession, ThemeConclusion } from "./types.js";
 import { listReviewSessions, loadReviewSession } from "./store.js";
 import { buildThemeExtractionPrompt } from "./prompts.js";
 import { parseJsonResponse } from "./json-parse.js";
@@ -17,13 +17,28 @@ export interface ThemeResult {
 
 /**
  * Loads findings from the N most recent review sessions.
+ * When multiple sessions share the same ref, only findings from the most recent
+ * session for that ref are included — earlier rounds' findings that weren't
+ * reproduced are considered resolved and excluded from theme extraction.
  */
 export const loadRecentFindings = (
   rootDir: string,
   maxSessions: number,
 ): readonly ReviewFinding[] => {
-  const sessions = listReviewSessions(rootDir);
-  const recent = sessions.slice(0, maxSessions);
+  const sessions = listReviewSessions(rootDir); // newest first
+
+  // Track which refs we've already seen — only include the latest session per ref
+  const seenRefs = new Set<string>();
+  const deduped: ReviewSession[] = [];
+
+  for (const session of sessions) {
+    if (!seenRefs.has(session.ref)) {
+      seenRefs.add(session.ref);
+      deduped.push(session);
+    }
+  }
+
+  const recent = deduped.slice(0, maxSessions);
 
   const findings: ReviewFinding[] = [];
   for (const session of recent) {

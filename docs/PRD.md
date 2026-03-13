@@ -133,6 +133,9 @@ Reviews code changes against project conventions, architecture rules, and design
 - Findings include model-assessed confidence (0-100); low-confidence findings are filtered by severity-specific thresholds
 - Full-file verification pass reads source files to filter false positives (`--no-verify` to skip)
 - Deterministic noise filter removes hedging, self-dismissing, and speculative findings
+- Cross-round convergence detection: findings labeled as new, persistent, or resolved across review rounds
+- Convergence summary displayed after each round when prior sessions for the same ref exist
+- Theme extraction deduplicates sessions by ref to exclude resolved findings
 - Review sessions stored in `.telesis/reviews/`
 - Personas configurable via `.telesis/config.yml` `review.personas` section
 - Exits with code 1 when critical or high severity findings are present

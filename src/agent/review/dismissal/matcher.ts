@@ -1,5 +1,6 @@
 import type { ReviewFinding } from "../types.js";
 import type { Dismissal } from "./types.js";
+import { wordBag, jaccardSimilarity } from "../similarity.js";
 
 export interface MatcherResult {
   readonly findings: readonly ReviewFinding[];
@@ -9,87 +10,6 @@ export interface MatcherResult {
 
 const LINE_OVERLAP_THRESHOLD = 5;
 const JACCARD_THRESHOLD = 0.5;
-
-/**
- * Extracts a word bag (set of lowercase tokens) from text for Jaccard comparison.
- * Strips punctuation and common stop words to focus on content-bearing terms.
- */
-const STOP_WORDS = new Set([
-  "a",
-  "an",
-  "the",
-  "is",
-  "are",
-  "was",
-  "were",
-  "be",
-  "been",
-  "being",
-  "to",
-  "of",
-  "in",
-  "for",
-  "on",
-  "with",
-  "at",
-  "by",
-  "from",
-  "and",
-  "or",
-  "but",
-  "not",
-  "it",
-  "its",
-  "this",
-  "that",
-  "which",
-  "as",
-  "if",
-  "could",
-  "should",
-  "would",
-  "can",
-  "may",
-  "might",
-  "has",
-  "have",
-  "had",
-  "do",
-  "does",
-  "did",
-]);
-
-const wordBag = (text: string): ReadonlySet<string> => {
-  const words = text
-    .toLowerCase()
-    .replace(/[^\w\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 1 && !STOP_WORDS.has(w));
-
-  return new Set(words);
-};
-
-/**
- * Computes Jaccard similarity between two word bags: |A ∩ B| / |A ∪ B|.
- */
-const jaccardSimilarity = (
-  a: ReadonlySet<string>,
-  b: ReadonlySet<string>,
-): number => {
-  if (a.size === 0 && b.size === 0) return 1;
-  if (a.size === 0 || b.size === 0) return 0;
-
-  let intersection = 0;
-  const smaller = a.size <= b.size ? a : b;
-  const larger = a.size <= b.size ? b : a;
-
-  for (const word of smaller) {
-    if (larger.has(word)) intersection++;
-  }
-
-  const union = a.size + b.size - intersection;
-  return union === 0 ? 0 : intersection / union;
-};
 
 /**
  * Checks if a finding's startLine is within ±threshold of a dismissal's
