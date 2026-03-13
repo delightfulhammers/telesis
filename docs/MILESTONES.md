@@ -961,25 +961,42 @@ approval, interactive TUI, webhook-driven sync.
 analyzes a work item and produces a task dependency graph that the dispatch pipeline
 can execute in order.
 
-**Status:** Planned
+**Status:** Complete
+
+**Reference:** TDD-012 (Planner Agent)
+
+### What Changes
+
+A planner agent decomposes work items into ordered task lists with dependency relationships.
+Plans are created as `draft`, approved by humans, then executed sequentially via the existing
+dispatch pipeline. Each task gets its own dispatch session. Plan state is persisted after
+every task, enabling crash recovery.
+
+The `--plan` flag on `telesis intake approve` creates a plan instead of dispatching directly.
+Plan configuration lives in `.telesis/config.yml` under a `planner` key.
 
 ### Acceptance Criteria
 
-1. A planning agent decomposes a work item into an ordered list of tasks
-2. Tasks have dependency relationships (A must complete before B)
-3. `telesis plan <work-item-id>` produces and stores a task plan
-4. `telesis intake approve` can optionally plan before dispatch
-5. Plans are stored as structured data in `.telesis/plans/`
-6. All new business logic has colocated unit tests
-7. Running `telesis drift` produces zero errors
+1. `telesis plan create <work-item-id>` decomposes a work item into tasks via LLM
+2. Tasks have dependency relationships validated by topological sort (Kahn's algorithm)
+3. `telesis plan list` and `telesis plan show <id>` display plan state
+4. `telesis plan approve <id>` transitions a plan from draft to approved
+5. `telesis plan execute <id>` dispatches tasks sequentially in dependency order
+6. `telesis intake approve <id> --plan` creates a plan instead of dispatching directly
+7. Plans are stored as structured JSON in `.telesis/plans/`
+8. Plan events (`plan:*`) flow through the daemon event backbone
+9. Crash recovery: re-executing a failed plan skips completed tasks
+10. Configurable planner model and max tasks via `.telesis/config.yml`
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Types and plan store:** Task, Plan types, per-plan JSON persistence
-2. **Phase 2 — Planner agent:** LLM-based work item decomposition
-3. **Phase 3 — CLI commands:** `telesis plan` subcommands
-4. **Phase 4 — Intake integration:** Plan-before-dispatch option on approve
-5. **Phase 5 — Drift, docs, version bump**
+1. **Phase 1 — Types, store, validation:** Plan/PlanTask types, atomic JSON store, topological sort
+2. **Phase 2 — Planner agent:** LLM-based decomposition with project context and prompt injection defense
+3. **Phase 3 — CLI commands and formatting:** `telesis plan` subcommands, list/detail formatters
+4. **Phase 4 — Executor and intake integration:** Sequential task dispatch, `--plan` flag
+5. **Phase 5 — Events, config, drift, docs:** Plan events, planner config, drift checks, documentation
 
 ---
 

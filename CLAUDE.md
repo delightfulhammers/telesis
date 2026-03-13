@@ -57,57 +57,48 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.15.0 — Work Intake (GitHub Issues)
+## v0.16.0 — Planner Agent
 
-**Goal:** Bridge GitHub Issues to the dispatch pipeline. Issues are imported, normalized
-into a common format, presented for human approval, and dispatched to coding agents
-automatically — closing the gap between "work exists" and "work is being done."
+**Goal:** Decompose work items into sequenced, dispatchable tasks. A planning agent
+analyzes a work item and produces a task dependency graph that the dispatch pipeline
+can execute in order.
 
 **Status:** Complete
 
-**Reference:** TDD-011 (Work Intake)
+**Reference:** TDD-012 (Planner Agent)
 
 ### What Changes
 
-An `IntakeSource` adapter interface establishes the pattern for pluggable work sources.
-The GitHub adapter imports open issues from the configured repo, normalizes them into
-`WorkItem` records persisted in `.telesis/intake/`, and presents them for human approval.
-Approved items are dispatched to coding agents via the existing dispatch pipeline.
+A planner agent decomposes work items into ordered task lists with dependency relationships.
+Plans are created as `draft`, approved by humans, then executed sequentially via the existing
+dispatch pipeline. Each task gets its own dispatch session. Plan state is persisted after
+every task, enabling crash recovery.
 
-The intake config lives in `.telesis/config.yml` under an `intake` key, supporting
-label filtering, assignee filtering, and exclude labels.
-
-Linear, Jira, and other sources can be added in future milestones by implementing the
-same `IntakeSource` interface.
+The `--plan` flag on `telesis intake approve` creates a plan instead of dispatching directly.
+Plan configuration lives in `.telesis/config.yml` under a `planner` key.
 
 ### Acceptance Criteria
 
-1. `telesis intake github` imports open issues from the configured GitHub repo
-2. Work items are normalized into a common internal format with status tracking
-3. Duplicate imports are detected and skipped (dedup by source + sourceId)
-4. `telesis intake list` displays pending work items for human review
-5. `telesis intake approve <id>` dispatches the item to a coding agent
-6. `telesis intake skip <id>` marks an item as skipped
-7. Work item status is tracked end-to-end (intake → dispatch → completion)
-8. Configurable filters control which issues are eligible for intake
-9. Intake events flow through the daemon event backbone
-10. All new business logic has colocated unit tests
-11. Running `telesis drift` produces zero errors
-
-**Future work (not in scope):** Linear adapter, Jira adapter, daemon-driven automatic
-approval, interactive TUI, webhook-driven sync.
+1. `telesis plan create <work-item-id>` decomposes a work item into tasks via LLM
+2. Tasks have dependency relationships validated by topological sort (Kahn's algorithm)
+3. `telesis plan list` and `telesis plan show <id>` display plan state
+4. `telesis plan approve <id>` transitions a plan from draft to approved
+5. `telesis plan execute <id>` dispatches tasks sequentially in dependency order
+6. `telesis intake approve <id> --plan` creates a plan instead of dispatching directly
+7. Plans are stored as structured JSON in `.telesis/plans/`
+8. Plan events (`plan:*`) flow through the daemon event backbone
+9. Crash recovery: re-executing a failed plan skips completed tasks
+10. Configurable planner model and max tasks via `.telesis/config.yml`
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Types and IntakeSource interface:** WorkItem, RawIssue, IntakeSource
-2. **Phase 2 — Work item store:** Per-item JSON persistence in `.telesis/intake/`
-3. **Phase 3 — Config parsing:** `parseIntakeConfig()` for intake section
-4. **Phase 4 — GitHub source adapter:** Issue fetching, PR filtering, normalization
-5. **Phase 5 — Sync orchestrator:** Fetch → dedup → normalize → store
-6. **Phase 6 — Approval and dispatch bridge:** Approve → dispatch → track completion
-7. **Phase 7 — Event types and TUI:** Intake daemon events, TUI formatting
-8. **Phase 8 — CLI commands and formatting:** `telesis intake` subcommands
-9. **Phase 9 — Drift, docs, version bump:** Validation and documentation
+1. **Phase 1 — Types, store, validation:** Plan/PlanTask types, atomic JSON store, topological sort
+2. **Phase 2 — Planner agent:** LLM-based decomposition with project context and prompt injection defense
+3. **Phase 3 — CLI commands and formatting:** `telesis plan` subcommands, list/detail formatters
+4. **Phase 4 — Executor and intake integration:** Sequential task dispatch, `--plan` flag
+5. **Phase 5 — Events, config, drift, docs:** Plan events, planner config, drift checks, documentation
 
 ---
 
@@ -124,7 +115,7 @@ approval, interactive TUI, webhook-driven sync.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (11 component designs)
+- TDDs: `docs/tdd/` (12 component designs)
 
 ---
 

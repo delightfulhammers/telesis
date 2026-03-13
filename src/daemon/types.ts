@@ -5,7 +5,8 @@ export type EventSource =
   | "socket"
   | "dispatch"
   | "oversight"
-  | "intake";
+  | "intake"
+  | "plan";
 
 /** All event type literals */
 export type EventType =
@@ -37,7 +38,15 @@ export type EventType =
   | "intake:item:failed"
   | "intake:item:skipped"
   | "intake:sync:started"
-  | "intake:sync:completed";
+  | "intake:sync:completed"
+  | "plan:created"
+  | "plan:approved"
+  | "plan:executing"
+  | "plan:completed"
+  | "plan:failed"
+  | "plan:task:started"
+  | "plan:task:completed"
+  | "plan:task:failed";
 
 /** Base event shape — all events extend this */
 export interface BaseEvent<T extends EventType, P> {
@@ -125,6 +134,19 @@ export interface IntakeSyncPayload {
   readonly skippedDuplicate: number;
 }
 
+/** Plan payload types */
+export interface PlanEventPayload {
+  readonly planId: string;
+  readonly workItemId: string;
+  readonly title: string;
+}
+
+export interface PlanTaskEventPayload {
+  readonly planId: string;
+  readonly taskId: string;
+  readonly title: string;
+}
+
 /** Full discriminated union of all daemon events */
 export type TelesisDaemonEvent =
   | BaseEvent<"daemon:started", DaemonStartedPayload>
@@ -155,7 +177,15 @@ export type TelesisDaemonEvent =
   | BaseEvent<"intake:item:failed", IntakeItemPayload>
   | BaseEvent<"intake:item:skipped", IntakeItemPayload>
   | BaseEvent<"intake:sync:started", IntakeSyncPayload>
-  | BaseEvent<"intake:sync:completed", IntakeSyncPayload>;
+  | BaseEvent<"intake:sync:completed", IntakeSyncPayload>
+  | BaseEvent<"plan:created", PlanEventPayload>
+  | BaseEvent<"plan:approved", PlanEventPayload>
+  | BaseEvent<"plan:executing", PlanEventPayload>
+  | BaseEvent<"plan:completed", PlanEventPayload>
+  | BaseEvent<"plan:failed", PlanEventPayload>
+  | BaseEvent<"plan:task:started", PlanTaskEventPayload>
+  | BaseEvent<"plan:task:completed", PlanTaskEventPayload>
+  | BaseEvent<"plan:task:failed", PlanTaskEventPayload>;
 
 /** Map from EventType to the event source it belongs to */
 const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
@@ -188,6 +218,14 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "intake:item:skipped": "intake",
   "intake:sync:started": "intake",
   "intake:sync:completed": "intake",
+  "plan:created": "plan",
+  "plan:approved": "plan",
+  "plan:executing": "plan",
+  "plan:completed": "plan",
+  "plan:failed": "plan",
+  "plan:task:started": "plan",
+  "plan:task:completed": "plan",
+  "plan:task:failed": "plan",
 };
 
 /** Factory for creating typed events with automatic timestamp and source */

@@ -1,16 +1,26 @@
 import { Command } from "commander";
+import { randomUUID } from "node:crypto";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
-import { parseDispatchConfig, parseIntakeConfig } from "../config/config.js";
+import {
+  parseDispatchConfig,
+  parseIntakeConfig,
+  parsePlannerConfig,
+} from "../config/config.js";
 import { extractRepoContext } from "../github/environment.js";
 import { createGitHubSource } from "../intake/github-source.js";
 import { syncFromSource } from "../intake/sync.js";
 import { listWorkItems, loadWorkItem } from "../intake/store.js";
+import { updateWorkItem } from "../intake/store.js";
 import type { WorkItemStatus } from "../intake/types.js";
 import { approveWorkItem, skipWorkItem } from "../intake/approve.js";
 import { formatWorkItemList, formatWorkItemDetail } from "../intake/format.js";
 import { createAcpxAdapter } from "../dispatch/acpx-adapter.js";
 import { createEventRenderer } from "../daemon/tui.js";
+import { createSdk, createModelClient } from "../agent/model/client.js";
+import { createTelemetryLogger } from "../agent/telemetry/logger.js";
+import { createPlanFromWorkItem } from "../plan/create.js";
+import { formatPlanDetail } from "../plan/format.js";
 
 const githubCommand = new Command("github")
   .description("Import issues from GitHub")
@@ -101,43 +111,121 @@ const approveCommand = new Command("approve")
   .description("Approve a work item and dispatch to a coding agent")
   .argument("<id>", "Work item ID or prefix")
   .option("--agent <name>", "Agent to use (claude, codex, gemini, etc.)")
+  .option("--plan", "Create a plan instead of dispatching directly")
   .action(
-    handleAction(async (id: string, opts: { agent?: string }) => {
-      const rootDir = projectRoot();
-      const config = parseDispatchConfig(rootDir);
+    handleAction(
+      async (id: string, opts: { agent?: string; plan?: boolean }) => {
+        const rootDir = projectRoot();
 
-      const agent = opts.agent ?? config.defaultAgent ?? "claude";
-      const adapter = createAcpxAdapter({
-        acpxPath: config.acpxPath,
-      });
+        if (opts.plan) {
+          // Plan mode: approve work item and create a draft plan
+          const workItem = loadWorkItem(rootDir, id);
+          if (!workItem) {
+            console.error(`No work item matching "${id}"`);
+            process.exitCode = 1;
+            return;
+          }
 
-      const renderer = createEventRenderer();
+          if (workItem.status !== "pending") {
+            console.error(
+              `Work item ${workItem.id.slice(0, 8)} has status "${workItem.status}", expected "pending"`,
+            );
+            process.exitCode = 1;
+            return;
+          }
 
-      const result = await approveWorkItem(
-        rootDir,
-        id,
-        {
+          // Transition to approved
+          const approved = {
+            ...workItem,
+            status: "approved" as const,
+            approvedAt: new Date().toISOString(),
+          };
+          updateWorkItem(rootDir, approved);
+
+          const plannerConfig = parsePlannerConfig(rootDir);
+          const sessionId = randomUUID();
+          const telemetry = createTelemetryLogger(rootDir);
+          const client = createModelClient({
+            sdk: createSdk(),
+            telemetry,
+            sessionId,
+            component: "planner",
+            defaultModel: plannerConfig.model,
+          });
+
+          console.log(
+            `Planning work item ${workItem.id.slice(0, 8)}: ${workItem.title}`,
+          );
+
+          let plan;
+          try {
+            plan = await createPlanFromWorkItem(
+              client,
+              rootDir,
+              workItem,
+              plannerConfig.model,
+              plannerConfig.maxTasks,
+            );
+          } catch (err) {
+            // Rollback: restore work item to pending so user can retry
+            try {
+              updateWorkItem(rootDir, {
+                ...workItem,
+                status: "pending" as const,
+              });
+            } catch (rollbackErr) {
+              process.stderr.write(
+                `[telesis] Warning: failed to rollback work item status: ${rollbackErr}\n`,
+              );
+            }
+            throw err;
+          }
+
+          console.log("");
+          console.log(formatPlanDetail(plan));
+          console.log("");
+          console.log(
+            `Plan ${plan.id.slice(0, 8)} created as draft. Use \`telesis plan approve ${plan.id.slice(0, 8)}\` to approve.`,
+          );
+          return;
+        }
+
+        // Standard mode: approve and dispatch directly
+        const config = parseDispatchConfig(rootDir);
+
+        const agent = opts.agent ?? config.defaultAgent ?? "claude";
+        const adapter = createAcpxAdapter({
+          acpxPath: config.acpxPath,
+        });
+
+        const renderer = createEventRenderer();
+
+        const result = await approveWorkItem(
           rootDir,
-          adapter,
-          onEvent: renderer,
-          maxConcurrent: config.maxConcurrent,
-        },
-        agent,
-        renderer,
-      );
+          id,
+          {
+            rootDir,
+            adapter,
+            onEvent: renderer,
+            maxConcurrent: config.maxConcurrent,
+          },
+          agent,
+          renderer,
+        );
 
-      console.log("");
-      if (result.status === "completed") {
-        console.log(
-          `Work item ${result.id.slice(0, 8)} completed — session ${result.sessionId?.slice(0, 8)}`,
-        );
-      } else {
-        console.log(
-          `Work item ${result.id.slice(0, 8)} failed — ${result.error ?? "unknown error"}`,
-        );
-        process.exitCode = 1;
-      }
-    }),
+        console.log("");
+        if (result.status === "completed") {
+          console.log(
+            `Work item ${result.id.slice(0, 8)} completed — session ${result.sessionId?.slice(0, 8)}`,
+          );
+        } else {
+          console.log(
+            `Work item ${result.id.slice(0, 8)} failed — ${result.error ?? "unknown error"}`,
+          );
+          process.exitCode = 1;
+        }
+      },
+    ),
   );
 
 const skipCommand = new Command("skip")

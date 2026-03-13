@@ -212,12 +212,32 @@ Imports work from external sources and routes it through the dispatch pipeline.
 - `telesis intake show <id>` shows detailed view of a work item (supports ID prefix)
 - `telesis intake approve <id>` approves a work item and dispatches it to a coding agent
 - `telesis intake approve <id> --agent <name>` dispatches with a specific agent
+- `telesis intake approve <id> --plan` creates a plan instead of dispatching directly
 - `telesis intake skip <id>` marks a work item as skipped
 - Work items are persisted in `.telesis/intake/` as per-item JSON files
 - Deduplication prevents re-importing issues already in the store
 - Configurable via `intake.github` in `.telesis/config.yml` (labels, excludeLabels, assignee, state)
 - Intake events flow through the daemon event backbone as `intake:*` events
 - The `IntakeSource` adapter interface enables future platform adapters (Linear, Jira)
+
+### `telesis plan`
+
+Decomposes work items into sequenced, dispatchable task plans.
+
+- `telesis plan create <work-item-id>` decomposes a work item into tasks via LLM
+- `telesis plan list` lists non-completed plans
+- `telesis plan list --all` lists all plans
+- `telesis plan list --json` outputs plans as JSON
+- `telesis plan show <plan-id>` shows plan detail with task dependency graph (supports ID prefix)
+- `telesis plan approve <plan-id>` transitions a plan from draft to approved
+- `telesis plan execute <plan-id>` dispatches tasks sequentially in dependency order
+- `telesis plan execute <plan-id> --agent <name>` executes with a specific agent
+- Plans are persisted in `.telesis/plans/` as per-plan JSON files
+- Tasks have dependency relationships validated by topological sort (Kahn's algorithm)
+- Plan lifecycle: `draft` → `approved` → `executing` → `completed`/`failed`
+- Crash recovery: re-executing a failed plan skips completed tasks and resumes
+- Plan events flow through the daemon event backbone as `plan:*` events
+- Configurable via `planner` in `.telesis/config.yml` (model, maxTasks)
 
 ### `telesis milestone`
 

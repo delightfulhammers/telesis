@@ -381,3 +381,42 @@ export const parseDaemonConfig = (rootDir: string): DaemonConfig => {
 
   return result;
 };
+
+export interface PlannerConfig {
+  readonly model?: string;
+  readonly maxTasks?: number;
+}
+
+/** Parse planner config from .telesis/config.yml, returning defaults if absent */
+export const parsePlannerConfig = (rootDir: string): PlannerConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.planner) return {};
+
+  const planner = raw.planner;
+  if (typeof planner !== "object" || planner === null) return {};
+
+  const p = planner as Record<string, unknown>;
+  const result: {
+    model?: string;
+    maxTasks?: number;
+  } = {};
+
+  if (typeof p.model === "string" && p.model.length > 0) {
+    result.model = p.model;
+  }
+  if (typeof p.maxTasks === "number" && p.maxTasks > 0) {
+    result.maxTasks = p.maxTasks;
+  }
+
+  return result;
+};

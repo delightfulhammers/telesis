@@ -39,6 +39,8 @@ telesis/
       milestone.ts        ← milestone check + complete commands (v0.9.0)
       daemon.ts           ← daemon start/stop/status/install/tui commands (v0.12.0)
       dispatch.ts         ← dispatch run/list/show commands (v0.13.0)
+      intake.ts           ← intake github/list/show/approve/skip commands (v0.15.0)
+      plan.ts             ← plan create/list/show/approve/execute commands (v0.16.0)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection
     config/               ← .telesis/config.yml read/write
@@ -80,6 +82,14 @@ telesis/
       github-source.ts    ← GitHub IntakeSource adapter
       sync.ts             ← source → normalize → dedupe → store
       approve.ts          ← approval + dispatch bridge
+      format.ts           ← CLI list/show formatting
+    plan/                 ← planner agent and task execution (v0.16.0)
+      types.ts            ← Plan, PlanTask, PlanStatus, PlanTaskStatus
+      store.ts            ← per-plan JSON persistence in .telesis/plans/
+      validate.ts         ← topological sort (Kahn's), cycle detection, task validation
+      prompts.ts          ← system/user prompts for planner agent
+      planner.ts          ← LLM-based work item decomposition
+      executor.ts         ← sequential task execution via dispatch pipeline
       format.ts           ← CLI list/show formatting
     oversight/            ← active oversight observers for dispatch sessions (v0.14.0)
       types.ts            ← Observer, PolicyFile, OversightFinding, AutonomyLevel types
