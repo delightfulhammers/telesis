@@ -12,6 +12,7 @@ export interface DispatchDeps {
   readonly adapter: AgentAdapter;
   readonly onEvent?: (event: TelesisDaemonEvent) => void;
   readonly maxConcurrent?: number;
+  readonly sessionId?: string;
 }
 
 /** Result of a completed dispatch */
@@ -41,7 +42,7 @@ export const dispatch = async (
     );
   }
 
-  const sessionId = randomUUID();
+  const sessionId = deps.sessionId ?? randomUUID();
   activeSessions.add(sessionId);
   const startTime = Date.now();
   let eventCount = 0;

@@ -784,7 +784,9 @@ events to it for TUI streaming and future specialist agent observation.
 continuous oversight rather than post-hoc review. The chronicler captures development
 insights automatically from session transcripts.
 
-**Status:** Planned
+**Status:** Complete
+
+**Reference:** TDD-010 (Active Oversight & Chronicler)
 
 ### What Changes
 
@@ -812,12 +814,15 @@ milestone gates.
 
 ### Build Sequence
 
-1. **Phase 1 — Agent policy files:** Versioned `.telesis/agents/` configuration
-2. **Phase 2 — Event stream observers:** Agent framework for subscribing to event streams
-3. **Phase 3 — Reviewer observer:** Real-time review during coding sessions
-4. **Phase 4 — Architect observer:** Drift detection during coding sessions
-5. **Phase 5 — Chronicler:** Session transcript analysis, automatic note extraction
-6. **Phase 6 — Autonomy configuration:** supervised/autonomous/gated modes
+1. **Phase 1 — Types and policy parsing:** Observer types, policy file format (.telesis/agents/*.md)
+2. **Phase 2 — Event types and TUI rendering:** oversight:* daemon events, TUI formatting
+3. **Phase 3 — Observer core:** Generic observer factory with buffering, periodic analysis, drain
+4. **Phase 4 — Prompts:** System prompts for reviewer, architect, chronicler
+5. **Phase 5 — Reviewer observer:** Code quality monitoring via ModelClient
+6. **Phase 6 — Architect observer:** Spec drift detection via ModelClient
+7. **Phase 7 — Chronicler:** Post-session note extraction, writes to notes store
+8. **Phase 8 — Orchestrator + CLI integration:** Wire observers to dispatch, --no-oversight flag
+9. **Phase 9 — Drift, config, docs:** OversightConfig, version bump, doc updates
 
 ---
 

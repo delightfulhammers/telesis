@@ -184,6 +184,7 @@ Dispatches coding agents via ACP (Agent Client Protocol) to execute development 
 
 - `telesis dispatch run <task>` dispatches a coding agent with the given task description
 - `telesis dispatch run --agent <name>` selects a specific agent (claude, codex, gemini, etc.)
+- `telesis dispatch run --no-oversight` disables oversight observers for this session
 - `telesis dispatch list` lists all dispatch sessions (active and completed)
 - `telesis dispatch list --json` outputs sessions as JSON
 - `telesis dispatch show <session-id>` replays a session's event log (supports ID prefix)
@@ -192,6 +193,10 @@ Dispatches coding agents via ACP (Agent Client Protocol) to execute development 
 - Agent events stream through the daemon event backbone when the daemon is running
 - Bounded concurrency limits simultaneous agents (configurable via `dispatch.maxConcurrent`, default 3)
 - Agent crashes are detected and reported, not silently swallowed
+- Oversight observers (reviewer, architect, chronicler) monitor sessions when policy files
+  exist in `.telesis/agents/`. Configure autonomy level (observe/alert/intervene) per observer.
+- The chronicler automatically extracts development insights from completed sessions as notes
+- Oversight findings appear as `oversight:*` events in the TUI and daemon event stream
 
 ### `telesis milestone`
 

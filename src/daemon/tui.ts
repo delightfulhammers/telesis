@@ -5,7 +5,9 @@ const COLORS = {
   cyan: "\x1b[36m",
   green: "\x1b[32m",
   yellow: "\x1b[33m",
+  red: "\x1b[31m",
   magenta: "\x1b[35m",
+  boldRed: "\x1b[1;31m",
   dim: "\x1b[2m",
   reset: "\x1b[0m",
 } as const;
@@ -17,6 +19,9 @@ const colorForType = (type: EventType): string => {
   if (type.startsWith("socket:")) return COLORS.dim;
   if (type.startsWith("dispatch:session:")) return COLORS.magenta;
   if (type.startsWith("dispatch:agent:")) return COLORS.yellow;
+  if (type === "oversight:intervention") return COLORS.boldRed;
+  if (type === "oversight:finding") return COLORS.red;
+  if (type === "oversight:note") return COLORS.green;
   return COLORS.reset;
 };
 
@@ -68,6 +73,15 @@ const formatPayload = (event: TelesisDaemonEvent): string => {
     case "dispatch:agent:output":
     case "dispatch:agent:cancelled":
       return `seq=${event.payload.seq}${formatAgentData(event.payload.data)}`;
+
+    case "oversight:finding":
+      return `observer=${event.payload.observer} severity=${event.payload.severity} summary="${truncate(event.payload.summary, 60)}"`;
+
+    case "oversight:note":
+      return `tags=${event.payload.tags.join(",")} text="${truncate(event.payload.text, 60)}"`;
+
+    case "oversight:intervention":
+      return `observer=${event.payload.observer} reason="${truncate(event.payload.reason, 60)}"`;
 
     default:
       return "";

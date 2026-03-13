@@ -1,5 +1,10 @@
 /** Event source categories */
-export type EventSource = "daemon" | "filesystem" | "socket" | "dispatch";
+export type EventSource =
+  | "daemon"
+  | "filesystem"
+  | "socket"
+  | "dispatch"
+  | "oversight";
 
 /** All event type literals */
 export type EventType =
@@ -20,7 +25,10 @@ export type EventType =
   | "dispatch:agent:thinking"
   | "dispatch:agent:tool_call"
   | "dispatch:agent:output"
-  | "dispatch:agent:cancelled";
+  | "dispatch:agent:cancelled"
+  | "oversight:finding"
+  | "oversight:note"
+  | "oversight:intervention";
 
 /** Base event shape — all events extend this */
 export interface BaseEvent<T extends EventType, P> {
@@ -74,6 +82,26 @@ export interface DispatchAgentEventPayload {
   readonly data: Record<string, unknown>;
 }
 
+/** Oversight payload types */
+export interface OversightFindingPayload {
+  readonly sessionId: string;
+  readonly observer: string;
+  readonly severity: string;
+  readonly summary: string;
+}
+
+export interface OversightNotePayload {
+  readonly sessionId: string;
+  readonly text: string;
+  readonly tags: readonly string[];
+}
+
+export interface OversightInterventionPayload {
+  readonly sessionId: string;
+  readonly observer: string;
+  readonly reason: string;
+}
+
 /** Full discriminated union of all daemon events */
 export type TelesisDaemonEvent =
   | BaseEvent<"daemon:started", DaemonStartedPayload>
@@ -93,7 +121,10 @@ export type TelesisDaemonEvent =
   | BaseEvent<"dispatch:agent:thinking", DispatchAgentEventPayload>
   | BaseEvent<"dispatch:agent:tool_call", DispatchAgentEventPayload>
   | BaseEvent<"dispatch:agent:output", DispatchAgentEventPayload>
-  | BaseEvent<"dispatch:agent:cancelled", DispatchAgentEventPayload>;
+  | BaseEvent<"dispatch:agent:cancelled", DispatchAgentEventPayload>
+  | BaseEvent<"oversight:finding", OversightFindingPayload>
+  | BaseEvent<"oversight:note", OversightNotePayload>
+  | BaseEvent<"oversight:intervention", OversightInterventionPayload>;
 
 /** Map from EventType to the event source it belongs to */
 const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
@@ -115,6 +146,9 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "dispatch:agent:tool_call": "dispatch",
   "dispatch:agent:output": "dispatch",
   "dispatch:agent:cancelled": "dispatch",
+  "oversight:finding": "oversight",
+  "oversight:note": "oversight",
+  "oversight:intervention": "oversight",
 };
 
 /** Factory for creating typed events with automatic timestamp and source */

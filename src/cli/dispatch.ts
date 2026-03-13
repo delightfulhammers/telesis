@@ -1,7 +1,8 @@
 import { Command } from "commander";
+import { randomUUID } from "node:crypto";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
-import { parseDispatchConfig } from "../config/config.js";
+import { parseDispatchConfig, parseOversightConfig } from "../config/config.js";
 import { createAcpxAdapter } from "../dispatch/acpx-adapter.js";
 import { dispatch } from "../dispatch/dispatcher.js";
 import {
@@ -12,64 +13,98 @@ import {
 import { formatSessionList, formatSessionDetail } from "../dispatch/format.js";
 import { createEventRenderer } from "../daemon/tui.js";
 import type { TelesisDaemonEvent } from "../daemon/types.js";
+import { setupOversight } from "../oversight/setup.js";
 
 const runCommand = new Command("run")
   .description("Dispatch a coding agent with a task")
   .argument("<task>", "Task description for the agent")
   .option("--agent <name>", "Agent to use (claude, codex, gemini, etc.)")
+  .option("--no-oversight", "Disable oversight observers")
   .action(
-    handleAction(async (task: string, opts: { agent?: string }) => {
-      const rootDir = projectRoot();
-      const config = parseDispatchConfig(rootDir);
+    handleAction(
+      async (task: string, opts: { agent?: string; oversight: boolean }) => {
+        const rootDir = projectRoot();
+        const config = parseDispatchConfig(rootDir);
+        const oversightConfig = parseOversightConfig(rootDir);
 
-      const agent = opts.agent ?? config.defaultAgent ?? "claude";
-      const adapter = createAcpxAdapter({
-        acpxPath: config.acpxPath,
-      });
+        const agent = opts.agent ?? config.defaultAgent ?? "claude";
+        const adapter = createAcpxAdapter({
+          acpxPath: config.acpxPath,
+        });
 
-      // Try to connect to daemon for event publishing
-      let onEvent: ((event: TelesisDaemonEvent) => void) | undefined;
-      let disconnectDaemon: (() => void) | undefined;
+        // Generate session ID upfront so oversight can reference it
+        const sessionId = randomUUID();
 
-      const renderer = createEventRenderer();
-      try {
-        const { connect } = await import("../daemon/client.js");
-        const client = await connect(rootDir);
-        // Daemon connected — render locally (daemon receives events separately)
-        onEvent = renderer;
-        disconnectDaemon = () => client.disconnect();
-      } catch {
-        // Daemon not running — stream events to stdout directly
-        onEvent = renderer;
-      }
+        // Try to connect to daemon for event publishing
+        let disconnectDaemon: (() => void) | undefined;
 
-      try {
-        const result = await dispatch(
-          {
-            rootDir,
-            adapter,
-            onEvent,
-            maxConcurrent: config.maxConcurrent,
-          },
-          agent,
-          task,
-        );
-
-        console.log("");
-        if (result.status === "completed") {
-          console.log(
-            `Session ${result.sessionId.slice(0, 8)} completed — ${result.eventCount} events in ${Math.floor(result.durationMs / 1000)}s`,
-          );
-        } else {
-          console.log(
-            `Session ${result.sessionId.slice(0, 8)} failed — see \`telesis dispatch show ${result.sessionId.slice(0, 8)}\` for details`,
-          );
-          process.exitCode = 1;
+        const renderer = createEventRenderer();
+        let onEvent: (event: TelesisDaemonEvent) => void = renderer;
+        try {
+          const { connect } = await import("../daemon/client.js");
+          const client = await connect(rootDir);
+          disconnectDaemon = () => client.disconnect();
+        } catch {
+          // Daemon unavailable — renderer-only mode
         }
-      } finally {
-        disconnectDaemon?.();
-      }
-    }),
+
+        // Set up oversight orchestrator if enabled
+        const oversight = setupOversight({
+          rootDir,
+          sessionId,
+          oversightConfig,
+          oversightEnabled: opts.oversight !== false,
+          onEvent,
+          adapter,
+          agent,
+        });
+
+        if (oversight) {
+          onEvent = oversight.onEvent;
+        }
+
+        try {
+          const result = await dispatch(
+            {
+              rootDir,
+              adapter,
+              onEvent,
+              maxConcurrent: config.maxConcurrent,
+              sessionId,
+            },
+            agent,
+            task,
+          );
+
+          // Drain oversight observers after dispatch completes
+          if (oversight) {
+            const summary = await oversight.orchestrator.drain();
+            if (summary.findingCount > 0 || summary.noteCount > 0) {
+              console.log(
+                `Oversight: ${summary.findingCount} finding(s), ${summary.noteCount} note(s) generated`,
+              );
+            }
+            if (summary.intervened) {
+              console.log("Oversight: session was cancelled by an observer");
+            }
+          }
+
+          console.log("");
+          if (result.status === "completed") {
+            console.log(
+              `Session ${result.sessionId.slice(0, 8)} completed — ${result.eventCount} events in ${Math.floor(result.durationMs / 1000)}s`,
+            );
+          } else {
+            console.log(
+              `Session ${result.sessionId.slice(0, 8)} failed — see \`telesis dispatch show ${result.sessionId.slice(0, 8)}\` for details`,
+            );
+            process.exitCode = 1;
+          }
+        } finally {
+          disconnectDaemon?.();
+        }
+      },
+    ),
   );
 
 const listCommand = new Command("list")

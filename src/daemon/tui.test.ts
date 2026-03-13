@@ -160,4 +160,79 @@ describe("formatEventLine", () => {
     // Yellow ANSI code
     expect(formatEventLine(event)).toContain("\x1b[33m");
   });
+
+  it("formats oversight:finding with observer, severity, summary", () => {
+    const event = createEvent("oversight:finding", {
+      sessionId: "abc-123",
+      observer: "reviewer",
+      severity: "warning",
+      summary: "Missing error handling in catch block",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("oversight:finding");
+    expect(line).toContain("observer=reviewer");
+    expect(line).toContain("severity=warning");
+    expect(line).toContain("Missing error handling");
+  });
+
+  it("formats oversight:note with tags and text", () => {
+    const event = createEvent("oversight:note", {
+      sessionId: "abc-123",
+      text: "Pattern: agent prefers functional style",
+      tags: ["agent:chronicler"],
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("oversight:note");
+    expect(line).toContain("tags=agent:chronicler");
+    expect(line).toContain("Pattern: agent prefers");
+  });
+
+  it("formats oversight:intervention with observer and reason", () => {
+    const event = createEvent("oversight:intervention", {
+      sessionId: "abc-123",
+      observer: "architect",
+      reason: "Spec drift detected in auth module",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("oversight:intervention");
+    expect(line).toContain("observer=architect");
+    expect(line).toContain("Spec drift detected");
+  });
+
+  it("applies red color for oversight:finding events", () => {
+    const event = createEvent("oversight:finding", {
+      sessionId: "abc",
+      observer: "reviewer",
+      severity: "warning",
+      summary: "test",
+    });
+
+    // Red ANSI code
+    expect(formatEventLine(event)).toContain("\x1b[31m");
+  });
+
+  it("applies bold red color for oversight:intervention events", () => {
+    const event = createEvent("oversight:intervention", {
+      sessionId: "abc",
+      observer: "architect",
+      reason: "drift",
+    });
+
+    // Bold red ANSI code
+    expect(formatEventLine(event)).toContain("\x1b[1;31m");
+  });
+
+  it("applies green color for oversight:note events", () => {
+    const event = createEvent("oversight:note", {
+      sessionId: "abc",
+      text: "note text",
+      tags: ["agent:chronicler"],
+    });
+
+    // Green ANSI code
+    expect(formatEventLine(event)).toContain("\x1b[32m");
+  });
 });

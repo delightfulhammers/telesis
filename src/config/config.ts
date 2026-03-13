@@ -222,6 +222,45 @@ export const parseDispatchConfig = (rootDir: string): DispatchConfig => {
   return result;
 };
 
+export interface OversightConfig {
+  readonly enabled?: boolean;
+  readonly defaultModel?: string;
+}
+
+/** Parse oversight config from .telesis/config.yml, returning defaults if absent */
+export const parseOversightConfig = (rootDir: string): OversightConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.oversight) return {};
+
+  const oversight = raw.oversight;
+  if (typeof oversight !== "object" || oversight === null) return {};
+
+  const o = oversight as Record<string, unknown>;
+  const result: {
+    enabled?: boolean;
+    defaultModel?: string;
+  } = {};
+
+  if (typeof o.enabled === "boolean") {
+    result.enabled = o.enabled;
+  }
+  if (typeof o.defaultModel === "string" && o.defaultModel.length > 0) {
+    result.defaultModel = o.defaultModel;
+  }
+
+  return result;
+};
+
 export interface DaemonConfig {
   readonly watch?: {
     readonly ignore?: readonly string[];
