@@ -41,6 +41,7 @@ telesis/
       dispatch.ts         ← dispatch run/list/show commands (v0.13.0)
       intake.ts           ← intake github/list/show/approve/skip commands (v0.15.0)
       plan.ts             ← plan create/list/show/approve/execute commands (v0.16.0)
+      run.ts              ← full pipeline run command (v0.18.0)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection
     config/               ← .telesis/config.yml read/write
@@ -97,6 +98,14 @@ telesis/
       prompts.ts          ← system/user prompts for validation agent
       validator.ts        ← LLM-based task output verification
       correction.ts       ← correction prompt builder (original task + feedback)
+    git/                  ← git write operations (v0.18.0)
+      types.ts            ← CommitResult, PushResult
+      operations.ts       ← branch, commit, push, hasChanges via execFileSync
+      commit-message.ts   ← deterministic commit message from plan + work item
+    pipeline/             ← full loop orchestrator (v0.18.0)
+      types.ts            ← RunDeps, RunStage, RunResult
+      run.ts              ← runPipeline — plan → execute → commit → push → PR
+      format.ts           ← run result formatting for CLI display
     oversight/            ← active oversight observers for dispatch sessions (v0.14.0)
       types.ts            ← Observer, PolicyFile, OversightFinding, AutonomyLevel types
       policy.ts           ← parse .telesis/agents/<name>.md (YAML frontmatter + body)
@@ -125,9 +134,11 @@ telesis/
     github/               ← GitHub CI integration (v0.8.0)
       types.ts            ← GitHubPRContext, PRReviewComment, PostReviewResult
       environment.ts      ← CI detection, PR context extraction from GITHUB_EVENT_PATH
+      http.ts             ← shared HTTP helpers: headers, fetchWithRetry, GitHubApiError (v0.18.0)
+      client.ts           ← Raw fetch wrappers for GitHub REST API (review operations)
+      pr.ts               ← PR creation, issue close, issue comment (v0.18.0)
       format.ts           ← Finding → markdown comment body, drift → markdown comment body
       adapter.ts          ← ReviewFinding[] → { event, body, comments[] } mapping
-      client.ts           ← Raw fetch wrappers for GitHub REST API (only file that calls fetch)
       dismissals.ts       ← GitHub DismissalSource adapter (v0.10.0)
     templates/            ← embedded document templates (.md.tmpl)
     agent/                ← AI agent layer (v0.2.0+)

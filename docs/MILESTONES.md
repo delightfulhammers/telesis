@@ -1034,24 +1034,35 @@ on failure with bounded retries and human escalation.
 
 ## v0.18.0 — Full Loop & Self-Hosting
 
-**Goal:** Wire the complete intake → plan → dispatch → monitor → validate → correct
-cycle end-to-end and validate it by running on the Telesis repo itself.
+**Goal:** Add a `telesis run` command that orchestrates the complete pipeline — from work
+item to committed code — with human gates at plan approval and milestone completion.
 
-**Status:** Planned
+**Status:** Complete
+
+**Reference:** TDD-014 (Full Loop Pipeline)
 
 ### Acceptance Criteria
 
-1. End-to-end: an issue can flow from intake to merged code with human approval at gates
-2. The full loop operates on the Telesis repo itself (self-hosting)
-3. Comprehensive documentation covers the full orchestration model
-4. All new business logic has colocated unit tests
-5. Running `telesis drift` produces zero errors
+1. `telesis run <work-item-id>` orchestrates the full pipeline (plan → execute → commit → push)
+2. Interactive plan approval gate (skippable with `--auto-approve`)
+3. Git operations module: branch, commit, push with typed results
+4. GitHub PR creation and issue close/comment operations
+5. Configurable git behavior (commitToMain, branchPrefix, pushAfterCommit, createPR)
+6. Configurable pipeline behavior (autoApprove, closeIssue)
+7. New daemon events for pipeline and git lifecycle
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — End-to-end wiring:** Connect intake → plan → dispatch → monitor → validate → correct
-2. **Phase 2 — Self-hosting validation:** Run the full loop on Telesis itself
-3. **Phase 3 — Documentation and stabilization**
+1. **Phase 1 — Git Operations Module:** `src/git/` — branch, commit, push, commit message generation
+2. **Phase 2 — GitHub PR & Issue Operations:** Extract `src/github/http.ts`, add `src/github/pr.ts`
+3. **Phase 3 — Config Additions:** `GitConfig` and `PipelineConfig` parsers
+4. **Phase 4 — Pipeline Orchestrator:** `src/pipeline/` — full loop sequencing
+5. **Phase 5 — CLI Command:** `telesis run` command with flags
+6. **Phase 6 — Events, Drift, TUI:** New event types, formatting, drift directories
+7. **Phase 7 — Self-Hosting Validation:** Run on Telesis itself (deferred to post-release)
+8. **Phase 8 — Documentation & Version Bump**
 
 ---
 

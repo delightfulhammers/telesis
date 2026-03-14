@@ -247,6 +247,29 @@ Decomposes work items into sequenced, dispatchable task plans.
 - Plan and validation events flow through the daemon event backbone
 - Configurable via `planner` and `validation` in `.telesis/config.yml`
 
+### `telesis run`
+
+Full pipeline orchestration from work item to committed code.
+
+- `telesis run <work-item-id>` runs the full pipeline: plan → execute → validate → commit → push
+- `telesis run <work-item-id> --agent <name>` selects a specific agent
+- `telesis run <work-item-id> --auto-approve` skips interactive plan confirmation
+- `telesis run <work-item-id> --no-push` skips push after commit
+- `telesis run <work-item-id> --no-validate` skips the validation loop
+- `telesis run <work-item-id> --branch <name>` overrides the auto-generated branch name
+- Pipeline stages: planning → approval → executing → committing → pushing → creating_pr → closing_issue → completed
+- Interactive plan approval gate (unless `--auto-approve` or `pipeline.autoApprove` config)
+- Configurable git behavior via `git` section in `.telesis/config.yml`:
+  - `branchPrefix` (default: `telesis/`) — prefix for auto-created branches
+  - `commitToMain` (default: false) — skip branching, commit directly to current branch
+  - `pushAfterCommit` (default: true) — auto-push after commit
+  - `createPR` (default: false) — create PR after push (requires `GITHUB_TOKEN`)
+- Configurable pipeline behavior via `pipeline` section in `.telesis/config.yml`:
+  - `autoApprove` (default: false) — skip plan confirmation prompt
+  - `closeIssue` (default: false) — close source GitHub issue on completion
+- Pipeline events flow through the daemon event backbone
+- One commit per plan — all task changes are committed together after plan completion
+
 ### `telesis milestone`
 
 Milestone validation and completion.

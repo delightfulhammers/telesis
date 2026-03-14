@@ -18,6 +18,7 @@ import { daemonCommand } from "./cli/daemon.js";
 import { dispatchCommand } from "./cli/dispatch.js";
 import { intakeCommand } from "./cli/intake.js";
 import { planCommand } from "./cli/plan.js";
+import { runCommand } from "./cli/run.js";
 
 const readVersion = (): string => {
   try {
@@ -49,6 +50,7 @@ const program = new Command("telesis")
   .addCommand(daemonCommand)
   .addCommand(dispatchCommand)
   .addCommand(intakeCommand)
-  .addCommand(planCommand);
+  .addCommand(planCommand)
+  .addCommand(runCommand);
 
 program.parse();

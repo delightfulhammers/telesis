@@ -461,3 +461,91 @@ export const parsePlannerConfig = (rootDir: string): PlannerConfig => {
 
   return result;
 };
+
+export interface GitConfig {
+  readonly branchPrefix?: string;
+  readonly commitToMain?: boolean;
+  readonly pushAfterCommit?: boolean;
+  readonly createPR?: boolean;
+}
+
+/** Parse git config from .telesis/config.yml, returning defaults if absent */
+export const parseGitConfig = (rootDir: string): GitConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.git) return {};
+
+  const git = raw.git;
+  if (typeof git !== "object" || git === null) return {};
+
+  const g = git as Record<string, unknown>;
+  const result: {
+    branchPrefix?: string;
+    commitToMain?: boolean;
+    pushAfterCommit?: boolean;
+    createPR?: boolean;
+  } = {};
+
+  if (typeof g.branchPrefix === "string" && g.branchPrefix.length > 0) {
+    result.branchPrefix = g.branchPrefix;
+  }
+  if (typeof g.commitToMain === "boolean") {
+    result.commitToMain = g.commitToMain;
+  }
+  if (typeof g.pushAfterCommit === "boolean") {
+    result.pushAfterCommit = g.pushAfterCommit;
+  }
+  if (typeof g.createPR === "boolean") {
+    result.createPR = g.createPR;
+  }
+
+  return result;
+};
+
+export interface PipelineConfig {
+  readonly autoApprove?: boolean;
+  readonly closeIssue?: boolean;
+}
+
+/** Parse pipeline config from .telesis/config.yml, returning defaults if absent */
+export const parsePipelineConfig = (rootDir: string): PipelineConfig => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch {
+    return {};
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
+    | Record<string, unknown>
+    | undefined;
+  if (!raw || typeof raw !== "object" || !raw.pipeline) return {};
+
+  const pipeline = raw.pipeline;
+  if (typeof pipeline !== "object" || pipeline === null) return {};
+
+  const p = pipeline as Record<string, unknown>;
+  const result: {
+    autoApprove?: boolean;
+    closeIssue?: boolean;
+  } = {};
+
+  if (typeof p.autoApprove === "boolean") {
+    result.autoApprove = p.autoApprove;
+  }
+  if (typeof p.closeIssue === "boolean") {
+    result.closeIssue = p.closeIssue;
+  }
+
+  return result;
+};

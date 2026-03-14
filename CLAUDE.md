@@ -57,35 +57,37 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.17.0 — Validation & Correction
+## v0.18.0 — Full Loop & Self-Hosting
 
-**Goal:** Verify dispatch output against acceptance criteria and automatically retry
-on failure with bounded retries and human escalation.
+**Goal:** Add a `telesis run` command that orchestrates the complete pipeline — from work
+item to committed code — with human gates at plan approval and milestone completion.
 
 **Status:** Complete
 
-**Reference:** TDD-013 (Validation & Correction)
+**Reference:** TDD-014 (Full Loop Pipeline)
 
 ### Acceptance Criteria
 
-1. A validation agent verifies dispatch output against acceptance criteria
-2. Failed validation triggers automatic correction (retry with feedback)
-3. The correction loop has bounded retries (configurable, default 3)
-4. Exhausted retries escalate to human review
-5. Milestone gates pause autonomous operation for human review
-6. All new business logic has colocated unit tests
-7. Running `telesis drift` produces zero errors
+1. `telesis run <work-item-id>` orchestrates the full pipeline (plan → execute → commit → push)
+2. Interactive plan approval gate (skippable with `--auto-approve`)
+3. Git operations module: branch, commit, push with typed results
+4. GitHub PR creation and issue close/comment operations
+5. Configurable git behavior (commitToMain, branchPrefix, pushAfterCommit, createPR)
+6. Configurable pipeline behavior (autoApprove, closeIssue)
+7. New daemon events for pipeline and git lifecycle
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
 
 ### Build Sequence
 
-1. **Phase 1 — Types, Config, Events:** Extended statuses, validation types, config parser, event types
-2. **Phase 2 — Diff Capture:** Git ref capture, ref-to-HEAD diff, session event summarization
-3. **Phase 3 — Validation Agent:** LLM-based prompts and validator
-4. **Phase 4 — Correction Prompt:** Feedback-driven correction prompt builder
-5. **Phase 5 — Executor Integration:** Validate-correct loop in plan executor
-6. **Phase 6 — Milestone Gates:** awaiting_gate status with human approval
-7. **Phase 7 — CLI Commands:** --no-validate, retry, skip-task, gate-approve
-8. **Phase 8 — Drift, docs, version bump**
+1. **Phase 1 — Git Operations Module:** `src/git/` — branch, commit, push, commit message generation
+2. **Phase 2 — GitHub PR & Issue Operations:** Extract `src/github/http.ts`, add `src/github/pr.ts`
+3. **Phase 3 — Config Additions:** `GitConfig` and `PipelineConfig` parsers
+4. **Phase 4 — Pipeline Orchestrator:** `src/pipeline/` — full loop sequencing
+5. **Phase 5 — CLI Command:** `telesis run` command with flags
+6. **Phase 6 — Events, Drift, TUI:** New event types, formatting, drift directories
+7. **Phase 7 — Self-Hosting Validation:** Run on Telesis itself (deferred to post-release)
+8. **Phase 8 — Documentation & Version Bump**
 
 ---
 
@@ -102,7 +104,7 @@ on failure with bounded retries and human escalation.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (13 component designs)
+- TDDs: `docs/tdd/` (14 component designs)
 
 ---
 
@@ -280,9 +282,9 @@ If any of those questions can't be answered from the docs, the docs need updatin
 
 ## Recent Journal Entries
 
-- 2026-03-12 — ACP as the Dispatcher Protocol
 - 2026-03-12 — The Full Loop: Telesis as Work Executor
 - 2026-03-12 — OpenClaw Ecosystem Analysis
+- 2026-03-12 — Orchestrator Shape, Events, and Agent Roster
 
 ---
 

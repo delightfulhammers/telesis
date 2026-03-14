@@ -7,7 +7,10 @@ export type EventSource =
   | "oversight"
   | "intake"
   | "plan"
-  | "validation";
+  | "validation"
+  | "pipeline"
+  | "git"
+  | "github";
 
 /** All event type literals */
 export type EventType =
@@ -53,7 +56,15 @@ export type EventType =
   | "validation:passed"
   | "validation:failed"
   | "validation:correction:started"
-  | "validation:escalated";
+  | "validation:escalated"
+  | "pipeline:started"
+  | "pipeline:stage_changed"
+  | "pipeline:completed"
+  | "pipeline:failed"
+  | "git:committed"
+  | "git:pushed"
+  | "github:pr_created"
+  | "github:issue_closed";
 
 /** Base event shape — all events extend this */
 export interface BaseEvent<T extends EventType, P> {
@@ -161,6 +172,42 @@ export interface ValidationEventPayload {
   readonly attempt: number;
 }
 
+/** Pipeline payload types */
+export interface PipelineEventPayload {
+  readonly workItemId: string;
+  readonly title: string;
+}
+
+export interface PipelineStagePayload {
+  readonly workItemId: string;
+  readonly stage: string;
+}
+
+/** Git payload types */
+export interface GitCommitPayload {
+  readonly sha: string;
+  readonly branch: string;
+  readonly filesChanged: number;
+}
+
+export interface GitPushPayload {
+  readonly branch: string;
+  readonly remote: string;
+}
+
+/** GitHub payload types */
+export interface GitHubPRCreatedPayload {
+  readonly prNumber: number;
+  readonly url: string;
+  readonly branch: string;
+}
+
+export interface GitHubIssueClosedPayload {
+  readonly issueNumber: number;
+  readonly owner: string;
+  readonly repo: string;
+}
+
 /** Full discriminated union of all daemon events */
 export type TelesisDaemonEvent =
   | BaseEvent<"daemon:started", DaemonStartedPayload>
@@ -205,7 +252,15 @@ export type TelesisDaemonEvent =
   | BaseEvent<"validation:passed", ValidationEventPayload>
   | BaseEvent<"validation:failed", ValidationEventPayload>
   | BaseEvent<"validation:correction:started", ValidationEventPayload>
-  | BaseEvent<"validation:escalated", ValidationEventPayload>;
+  | BaseEvent<"validation:escalated", ValidationEventPayload>
+  | BaseEvent<"pipeline:started", PipelineEventPayload>
+  | BaseEvent<"pipeline:stage_changed", PipelineStagePayload>
+  | BaseEvent<"pipeline:completed", PipelineEventPayload>
+  | BaseEvent<"pipeline:failed", PipelineEventPayload>
+  | BaseEvent<"git:committed", GitCommitPayload>
+  | BaseEvent<"git:pushed", GitPushPayload>
+  | BaseEvent<"github:pr_created", GitHubPRCreatedPayload>
+  | BaseEvent<"github:issue_closed", GitHubIssueClosedPayload>;
 
 /** Map from EventType to the event source it belongs to */
 const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
@@ -252,6 +307,14 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "validation:failed": "validation",
   "validation:correction:started": "validation",
   "validation:escalated": "validation",
+  "pipeline:started": "pipeline",
+  "pipeline:stage_changed": "pipeline",
+  "pipeline:completed": "pipeline",
+  "pipeline:failed": "pipeline",
+  "git:committed": "git",
+  "git:pushed": "git",
+  "github:pr_created": "github",
+  "github:issue_closed": "github",
 };
 
 /** Factory for creating typed events with automatic timestamp and source */

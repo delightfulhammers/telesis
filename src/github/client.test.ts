@@ -115,7 +115,7 @@ describe("postPullRequestReview", () => {
 
     await expect(
       postPullRequestReview(mockCtx, "COMMENT", "body", []),
-    ).rejects.toThrow("pull-requests: write");
+    ).rejects.toThrow("permission denied");
   });
 });
 

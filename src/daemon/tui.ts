@@ -25,6 +25,9 @@ const colorForType = (type: EventType): string => {
   if (type.startsWith("intake:")) return COLORS.cyan;
   if (type.startsWith("plan:")) return COLORS.magenta;
   if (type.startsWith("validation:")) return COLORS.yellow;
+  if (type.startsWith("pipeline:")) return COLORS.green;
+  if (type.startsWith("git:")) return COLORS.cyan;
+  if (type.startsWith("github:")) return COLORS.magenta;
   return COLORS.reset;
 };
 
@@ -121,6 +124,26 @@ const formatPayload = (event: TelesisDaemonEvent): string => {
     case "validation:correction:started":
     case "validation:escalated":
       return `plan=${event.payload.planId.slice(0, 8)} task=${event.payload.taskId} attempt=${event.payload.attempt}`;
+
+    case "pipeline:started":
+    case "pipeline:completed":
+    case "pipeline:failed":
+      return `work-item=${event.payload.workItemId.slice(0, 8)} "${truncate(event.payload.title, 50)}"`;
+
+    case "pipeline:stage_changed":
+      return `work-item=${event.payload.workItemId.slice(0, 8)} stage=${event.payload.stage}`;
+
+    case "git:committed":
+      return `sha=${event.payload.sha.slice(0, 8)} branch=${event.payload.branch} files=${event.payload.filesChanged}`;
+
+    case "git:pushed":
+      return `branch=${event.payload.branch} remote=${event.payload.remote}`;
+
+    case "github:pr_created":
+      return `#${event.payload.prNumber} branch=${event.payload.branch} ${event.payload.url}`;
+
+    case "github:issue_closed":
+      return `#${event.payload.issueNumber} ${event.payload.owner}/${event.payload.repo}`;
 
     default:
       return "";
