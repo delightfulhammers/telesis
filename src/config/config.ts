@@ -433,6 +433,8 @@ export interface GitConfig {
   readonly commitToMain?: boolean;
   readonly pushAfterCommit?: boolean;
   readonly createPR?: boolean;
+  readonly llmCommitMessages?: boolean;
+  readonly llmPRBody?: boolean;
 }
 
 /** Parse git config from .telesis/config.yml, returning defaults if absent */
@@ -448,6 +450,8 @@ export const parseGitConfig = (raw: RawConfig | null): GitConfig => {
     commitToMain?: boolean;
     pushAfterCommit?: boolean;
     createPR?: boolean;
+    llmCommitMessages?: boolean;
+    llmPRBody?: boolean;
   } = {};
 
   if (typeof g.branchPrefix === "string" && g.branchPrefix.length > 0) {
@@ -461,6 +465,12 @@ export const parseGitConfig = (raw: RawConfig | null): GitConfig => {
   }
   if (typeof g.createPR === "boolean") {
     result.createPR = g.createPR;
+  }
+  if (typeof g.llmCommitMessages === "boolean") {
+    result.llmCommitMessages = g.llmCommitMessages;
+  }
+  if (typeof g.llmPRBody === "boolean") {
+    result.llmPRBody = g.llmPRBody;
   }
 
   return result;

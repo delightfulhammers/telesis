@@ -17,8 +17,12 @@ import {
   remoteBranchExists,
 } from "../git/operations.js";
 import { runQualityGates, defaultExecCommand } from "./quality-gates.js";
-import { generateCommitMessage } from "../git/commit-message.js";
+import {
+  generateCommitMessage,
+  generateLLMCommitMessage,
+} from "../git/commit-message.js";
 import { createPullRequest, closeIssue } from "../github/pr.js";
+import { generatePRBody, generateLLMPRBody } from "../github/pr-body.js";
 import { extractRepoContext } from "../github/environment.js";
 import { randomUUID } from "node:crypto";
 import { createEvent } from "../daemon/types.js";
@@ -372,7 +376,21 @@ export const runPipeline = async (
     // 10. Stage all + commit
     emitStage("committing");
     stageAll(deps.rootDir);
-    const commitMessage = generateCommitMessage(plan, workItem);
+
+    let commitMessage: string;
+    if (deps.gitConfig.llmCommitMessages && accumulated.preExecutionSha) {
+      // No ref arg → --cached → diffs staged changes against HEAD
+      const stagedDiff = resolveDiff(deps.rootDir);
+      commitMessage = await generateLLMCommitMessage(
+        deps.modelClient,
+        stagedDiff.diff,
+        plan,
+        workItem,
+      );
+    } else {
+      commitMessage = generateCommitMessage(plan, workItem);
+    }
+
     const commitResult = commit(deps.rootDir, commitMessage);
     accumulated.branch = branch;
     accumulated.commitResult = commitResult;
@@ -609,18 +627,36 @@ export const runPipeline = async (
     const repoCtx = extractRepoContext();
 
     if (token && repoCtx) {
+      const partialResult: RunResult = {
+        workItemId: workItem.id,
+        planId: plan.id,
+        stage: "creating_pr",
+        commitResult,
+        qualityGateSummary,
+        reviewSummary,
+        durationMs: Date.now() - startTime,
+      };
+
+      let prBody: string;
+      if (deps.gitConfig.llmPRBody && preExecutionSha) {
+        const prDiff = resolveDiff(deps.rootDir, `${preExecutionSha}..HEAD`);
+        prBody = await generateLLMPRBody(
+          deps.modelClient,
+          prDiff.diff,
+          plan,
+          workItem,
+          partialResult,
+        );
+      } else {
+        prBody = generatePRBody(plan, workItem, partialResult);
+      }
+
       const prResult = await createPullRequest({
         owner: repoCtx.owner,
         repo: repoCtx.repo,
         token,
         title: workItem.title,
-        body: [
-          `Resolves #${workItem.sourceId}`,
-          "",
-          `Plan: ${plan.title}`,
-          `Tasks: ${plan.tasks.length}`,
-          `Work item: ${workItem.id.slice(0, 8)}`,
-        ].join("\n"),
+        body: prBody,
         head: branch,
         base: "main",
       });
