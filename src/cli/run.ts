@@ -17,6 +17,8 @@ import { createSdk, createModelClient } from "../agent/model/client.js";
 import { createTelemetryLogger } from "../agent/telemetry/logger.js";
 import { runPipeline } from "../pipeline/run.js";
 import { formatRunResult } from "../pipeline/format.js";
+import { runChecks } from "../drift/runner.js";
+import { allChecks } from "../drift/checks/index.js";
 
 /** Interactive confirmation via readline */
 const createConfirm = (): {
@@ -51,6 +53,7 @@ export const runCommand = new Command("run")
     "--no-review",
     "Skip the review stage even if reviewBeforePush is enabled in config",
   )
+  .option("--no-quality-check", "Skip quality gates")
   .option("--branch <name>", "Override branch name")
   .action(
     handleAction(
@@ -62,6 +65,7 @@ export const runCommand = new Command("run")
           push?: boolean;
           validate?: boolean;
           review?: boolean;
+          qualityCheck?: boolean;
           branch?: string;
         },
       ) => {
@@ -104,6 +108,7 @@ export const runCommand = new Command("run")
           ...pipelineConfig,
           ...(opts.autoApprove ? { autoApprove: true } : {}),
           ...(opts.review === false ? { reviewBeforePush: false } : {}),
+          ...(opts.qualityCheck === false ? { qualityGates: undefined } : {}),
         };
 
         // Set up interactive confirm (or auto-approve)
@@ -125,6 +130,7 @@ export const runCommand = new Command("run")
               plannerConfig,
               dispatchConfig,
               confirm,
+              runDriftChecks: (rootDir) => runChecks(allChecks, rootDir),
             },
             workItemId,
             opts.branch,
@@ -133,7 +139,10 @@ export const runCommand = new Command("run")
           console.log("");
           console.log(formatRunResult(result));
 
-          if (result.stage === "failed") {
+          if (
+            result.stage === "failed" ||
+            result.stage === "quality_check_failed"
+          ) {
             process.exitCode = 1;
           }
         } finally {

@@ -79,6 +79,15 @@ vi.mock("../agent/review/agent.js", () => ({
   reviewDiff: vi.fn(),
 }));
 
+vi.mock("./quality-gates.js", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./quality-gates.js")>();
+  return {
+    ...original,
+    runQualityGates: vi.fn(original.runQualityGates),
+    defaultExecCommand: vi.fn(),
+  };
+});
+
 import { createPlanFromWorkItem } from "../plan/create.js";
 import { executePlan } from "../plan/executor.js";
 import { reviewDiff } from "../agent/review/agent.js";
@@ -352,6 +361,109 @@ describe("runPipeline", () => {
     expect(eventTypes).toContain("pipeline:started");
     expect(eventTypes).toContain("pipeline:stage_changed");
     expect(eventTypes).toContain("pipeline:completed");
+  });
+
+  describe("quality gates stage", () => {
+    it("runs quality gates when configured and passes", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      const plan = makeMockPlan();
+      mockCreatePlan.mockResolvedValueOnce(plan);
+      mockExecutePlan.mockImplementationOnce(async () => {
+        writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+        return {
+          planId: plan.id,
+          status: "completed" as const,
+          completedTasks: 1,
+          totalTasks: 1,
+          durationMs: 1000,
+        };
+      });
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: {
+          qualityGates: { lint: "echo ok" },
+        },
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("completed");
+      expect(result.qualityGateSummary).toBeDefined();
+      expect(result.qualityGateSummary!.ran).toBe(true);
+      expect(result.qualityGateSummary!.passed).toBe(true);
+    });
+
+    it("stops pipeline when quality gate fails", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      const plan = makeMockPlan();
+      mockCreatePlan.mockResolvedValueOnce(plan);
+      mockExecutePlan.mockImplementationOnce(async () => {
+        writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+        return {
+          planId: plan.id,
+          status: "completed" as const,
+          completedTasks: 1,
+          totalTasks: 1,
+          durationMs: 1000,
+        };
+      });
+
+      // Mock the defaultExecCommand to throw for lint
+      const { defaultExecCommand } = await import("./quality-gates.js");
+      const mockExec = vi.mocked(defaultExecCommand);
+      mockExec.mockImplementation(() => {
+        throw new Error("Lint errors");
+      });
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: {
+          qualityGates: { lint: "pnpm run lint" },
+        },
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("quality_check_failed");
+      expect(result.error).toContain("Quality gate failed: lint");
+      expect(result.commitResult).toBeDefined();
+      expect(result.pushResult).toBeUndefined();
+
+      mockExec.mockReset();
+    });
+
+    it("skips quality gates when not configured", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      const plan = makeMockPlan();
+      mockCreatePlan.mockResolvedValueOnce(plan);
+      mockExecutePlan.mockImplementationOnce(async () => {
+        writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+        return {
+          planId: plan.id,
+          status: "completed" as const,
+          completedTasks: 1,
+          totalTasks: 1,
+          durationMs: 1000,
+        };
+      });
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: {},
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("completed");
+      expect(result.qualityGateSummary).toBeUndefined();
+    });
   });
 
   describe("review stage", () => {

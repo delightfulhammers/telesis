@@ -12,6 +12,23 @@ import type {
 import type { CommitResult, PushResult } from "../git/types.js";
 import type { ReviewFinding } from "../agent/review/types.js";
 
+/** Quality gate types */
+export type QualityGateName = "format" | "lint" | "test" | "build" | "drift";
+
+export interface QualityGateResult {
+  readonly gate: QualityGateName;
+  readonly passed: boolean;
+  readonly durationMs: number;
+  readonly error?: string;
+  readonly amended?: boolean;
+}
+
+export interface QualityGateSummary {
+  readonly ran: boolean;
+  readonly passed: boolean;
+  readonly results: readonly QualityGateResult[];
+}
+
 /** Dependencies injected into the pipeline orchestrator */
 export interface RunDeps {
   readonly rootDir: string;
@@ -25,6 +42,8 @@ export interface RunDeps {
   readonly plannerConfig: PlannerConfig;
   readonly dispatchConfig: DispatchConfig;
   readonly confirm: (message: string) => Promise<boolean>;
+  readonly runDriftChecks?: (rootDir: string) => { passed: boolean };
+  readonly execCommand?: (command: string, cwd: string) => void;
 }
 
 /** Pipeline execution stages */
@@ -33,6 +52,8 @@ export type RunStage =
   | "awaiting_approval"
   | "executing"
   | "awaiting_gate"
+  | "quality_check"
+  | "quality_check_failed"
   | "reviewing"
   | "review_failed"
   | "committing"
@@ -61,6 +82,7 @@ export interface RunResult {
   readonly pushResult?: PushResult;
   readonly prUrl?: string;
   readonly reviewSummary?: ReviewSummary;
+  readonly qualityGateSummary?: QualityGateSummary;
   readonly error?: string;
   readonly durationMs: number;
 }

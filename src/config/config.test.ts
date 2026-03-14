@@ -393,6 +393,100 @@ describe("config", () => {
       const result = parsePipelineConfig(raw);
       expect(result.reviewModel).toBeUndefined();
     });
+
+    it("parses qualityGates with all gates", () => {
+      const raw = {
+        pipeline: {
+          qualityGates: {
+            format: "pnpm run format",
+            lint: "pnpm run lint",
+            test: "pnpm test",
+            build: "pnpm run build",
+            drift: true,
+          },
+        },
+      };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toEqual({
+        format: "pnpm run format",
+        lint: "pnpm run lint",
+        test: "pnpm test",
+        build: "pnpm run build",
+        drift: true,
+      });
+    });
+
+    it("parses qualityGates with partial gates", () => {
+      const raw = {
+        pipeline: {
+          qualityGates: {
+            lint: "pnpm run lint",
+            drift: true,
+          },
+        },
+      };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toEqual({
+        lint: "pnpm run lint",
+        drift: true,
+      });
+    });
+
+    it("omits qualityGates when absent", () => {
+      const raw = { pipeline: { autoApprove: true } };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toBeUndefined();
+    });
+
+    it("handles null gate values (explicitly disabled)", () => {
+      const raw = {
+        pipeline: {
+          qualityGates: {
+            format: "pnpm run format",
+            lint: null,
+          },
+        },
+      };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toEqual({
+        format: "pnpm run format",
+        lint: null,
+      });
+    });
+
+    it("omits qualityGates when empty object", () => {
+      const raw = { pipeline: { qualityGates: {} } };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toBeUndefined();
+    });
+
+    it("ignores invalid qualityGates types", () => {
+      const raw = { pipeline: { qualityGates: "invalid" } };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toBeUndefined();
+    });
+
+    it("ignores qualityGates array", () => {
+      const raw = { pipeline: { qualityGates: ["lint", "test"] } };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toBeUndefined();
+    });
+
+    it("skips drift when false", () => {
+      const raw = {
+        pipeline: {
+          qualityGates: {
+            lint: "pnpm run lint",
+            drift: false,
+          },
+        },
+      };
+      const result = parsePipelineConfig(raw);
+      expect(result.qualityGates).toEqual({
+        lint: "pnpm run lint",
+        drift: false,
+      });
+    });
   });
 
   describe("exists", () => {

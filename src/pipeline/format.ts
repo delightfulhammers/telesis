@@ -25,6 +25,15 @@ export const formatRunResult = (result: RunResult): string => {
       lines.push(`  PR: ${result.prUrl}`);
     }
 
+    if (result.qualityGateSummary?.ran) {
+      const passedCount = result.qualityGateSummary.results.filter(
+        (r) => r.passed,
+      ).length;
+      lines.push(
+        `  Quality gates: ${passedCount}/${result.qualityGateSummary.results.length} passed`,
+      );
+    }
+
     if (result.reviewSummary?.ran) {
       const rs = result.reviewSummary;
       const status = rs.passed ? "passed" : "blocked";
@@ -52,6 +61,23 @@ export const formatRunResult = (result: RunResult): string => {
       lines.push(
         `  Review: blocked (${rs.totalFindings} findings, ${rs.blockingFindings} blocking, threshold: ${rs.threshold})`,
       );
+    }
+    if (result.commitResult) {
+      lines.push(
+        `  Commit: ${result.commitResult.sha.slice(0, 8)} (${result.commitResult.filesChanged} files)`,
+      );
+    }
+  } else if (result.stage === "quality_check_failed") {
+    lines.push(
+      `Pipeline blocked by quality gate for work item ${idShort} (${duration}s)`,
+    );
+    if (result.qualityGateSummary) {
+      for (const r of result.qualityGateSummary.results) {
+        const status = r.passed ? "passed" : "FAILED";
+        const suffix = r.error ? ` — ${r.error}` : "";
+        const amendNote = r.amended ? " (amended)" : "";
+        lines.push(`  ${r.gate}: ${status}${amendNote}${suffix}`);
+      }
     }
     if (result.commitResult) {
       lines.push(

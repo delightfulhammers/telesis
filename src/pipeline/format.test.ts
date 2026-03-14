@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatRunResult } from "./format.js";
-import type { RunResult, ReviewSummary } from "./types.js";
+import type { RunResult, ReviewSummary, QualityGateSummary } from "./types.js";
 
 describe("formatRunResult", () => {
   it("formats completed result with commit, push, and PR", () => {
@@ -186,6 +186,73 @@ describe("formatRunResult", () => {
     expect(output).toContain("threshold: high");
     expect(output).toContain("abc123de");
     expect(output).toContain("3 files");
+  });
+
+  it("formats quality_check_failed result with gate results", () => {
+    const qualityGateSummary: QualityGateSummary = {
+      ran: true,
+      passed: false,
+      results: [
+        { gate: "format", passed: true, durationMs: 1000, amended: true },
+        {
+          gate: "lint",
+          passed: false,
+          durationMs: 2000,
+          error: "3 lint errors",
+        },
+      ],
+    };
+    const result: RunResult = {
+      workItemId: "wi-12345678-abcd-1234-5678-abcdef012345",
+      planId: "plan-1234-abcd",
+      stage: "quality_check_failed",
+      commitResult: {
+        sha: "abc123def456abc123def456abc123def456abc1",
+        branch: "main",
+        message: "feat: something",
+        filesChanged: 3,
+      },
+      qualityGateSummary,
+      error: "Quality gate failed: lint",
+      durationMs: 10_000,
+    };
+
+    const output = formatRunResult(result);
+
+    expect(output).toContain("Pipeline blocked by quality gate");
+    expect(output).toContain("format: passed (amended)");
+    expect(output).toContain("lint: FAILED");
+    expect(output).toContain("3 lint errors");
+    expect(output).toContain("abc123de");
+  });
+
+  it("formats completed result with quality gate summary", () => {
+    const qualityGateSummary: QualityGateSummary = {
+      ran: true,
+      passed: true,
+      results: [
+        { gate: "lint", passed: true, durationMs: 1000 },
+        { gate: "test", passed: true, durationMs: 5000 },
+      ],
+    };
+    const result: RunResult = {
+      workItemId: "wi-12345678-abcd-1234-5678-abcdef012345",
+      planId: "plan-1234-abcd",
+      stage: "completed",
+      commitResult: {
+        sha: "abc123def456abc123def456abc123def456abc1",
+        branch: "main",
+        message: "feat: something",
+        filesChanged: 1,
+      },
+      qualityGateSummary,
+      durationMs: 20_000,
+    };
+
+    const output = formatRunResult(result);
+
+    expect(output).toContain("Pipeline completed");
+    expect(output).toContain("Quality gates: 2/2 passed");
   });
 
   it("formats awaiting_gate result", () => {

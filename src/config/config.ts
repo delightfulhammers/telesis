@@ -475,12 +475,21 @@ const validReviewBlockThresholds: readonly string[] = [
   "low",
 ];
 
+export interface QualityGatesConfig {
+  readonly format?: string | null;
+  readonly lint?: string | null;
+  readonly test?: string | null;
+  readonly build?: string | null;
+  readonly drift?: boolean;
+}
+
 export interface PipelineConfig {
   readonly autoApprove?: boolean;
   readonly closeIssue?: boolean;
   readonly reviewBeforePush?: boolean;
   readonly reviewBlockThreshold?: ReviewBlockThreshold;
   readonly reviewModel?: string;
+  readonly qualityGates?: QualityGatesConfig;
 }
 
 /** Parse pipeline config from .telesis/config.yml, returning defaults if absent */
@@ -502,6 +511,7 @@ export const parsePipelineConfig = (raw: RawConfig | null): PipelineConfig => {
     reviewBeforePush?: boolean;
     reviewBlockThreshold?: ReviewBlockThreshold;
     reviewModel?: string;
+    qualityGates?: QualityGatesConfig;
   } = {};
 
   if (typeof p.autoApprove === "boolean") {
@@ -528,6 +538,43 @@ export const parsePipelineConfig = (raw: RawConfig | null): PipelineConfig => {
   }
   if (typeof p.reviewModel === "string" && p.reviewModel.length > 0) {
     result.reviewModel = p.reviewModel;
+  }
+
+  if (
+    p.qualityGates &&
+    typeof p.qualityGates === "object" &&
+    !Array.isArray(p.qualityGates)
+  ) {
+    const qg = p.qualityGates as Record<string, unknown>;
+    const gates: {
+      format?: string | null;
+      lint?: string | null;
+      test?: string | null;
+      build?: string | null;
+      drift?: boolean;
+    } = {};
+
+    const parseStringOrNull = (key: string): string | null | undefined => {
+      const val = qg[key];
+      if (val === null) return null;
+      if (typeof val === "string") return val.length > 0 ? val : undefined;
+      return undefined;
+    };
+
+    for (const key of ["format", "lint", "test", "build"] as const) {
+      const val = parseStringOrNull(key);
+      if (val !== undefined) {
+        gates[key] = val;
+      }
+    }
+
+    if (typeof qg.drift === "boolean") {
+      gates.drift = qg.drift;
+    }
+
+    if (Object.keys(gates).length > 0) {
+      result.qualityGates = gates;
+    }
   }
 
   return result;

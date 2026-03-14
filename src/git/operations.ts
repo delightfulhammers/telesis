@@ -57,6 +57,40 @@ export const commit = (rootDir: string, message: string): CommitResult => {
   return { sha, branch, message, filesChanged };
 };
 
+/** Count files changed in the HEAD commit (works even for the initial commit) */
+const countFilesInCommit = (rootDir: string): number => {
+  const output = execFileSync(
+    "git",
+    ["show", "--name-only", "--format=", "HEAD"],
+    { cwd: rootDir, encoding: "utf-8" },
+  ).trim();
+  return output.length > 0 ? output.split("\n").length : 0;
+};
+
+/** Amend the most recent commit (no message change) and return updated result */
+export const amendCommit = (rootDir: string): CommitResult => {
+  execFileSync("git", ["commit", "--amend", "--no-edit"], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  });
+
+  const sha = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  }).trim();
+
+  const branch = currentBranch(rootDir);
+
+  const message = execFileSync("git", ["log", "-1", "--format=%s"], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  }).trim();
+
+  const filesChanged = countFilesInCommit(rootDir);
+
+  return { sha, branch, message, filesChanged };
+};
+
 /** Push a branch to the remote */
 export const push = (
   rootDir: string,

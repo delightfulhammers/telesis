@@ -358,6 +358,67 @@ describe("formatEventLine", () => {
     expect(formatEventLine(event)).toContain("\x1b[31m");
   });
 
+  it("formats pipeline:quality_gate_passed with gate name and duration", () => {
+    const event = createEvent("pipeline:quality_gate_passed", {
+      workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
+      gate: "lint",
+      durationMs: 3000,
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("pipeline:quality_gate_passed");
+    expect(line).toContain("work-item=abcdef01");
+    expect(line).toContain("gate=lint");
+    expect(line).toContain("3s");
+  });
+
+  it("formats pipeline:quality_gate_passed with amended flag", () => {
+    const event = createEvent("pipeline:quality_gate_passed", {
+      workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
+      gate: "format",
+      durationMs: 2000,
+      amended: true,
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("(amended)");
+  });
+
+  it("formats pipeline:quality_gate_failed with error", () => {
+    const event = createEvent("pipeline:quality_gate_failed", {
+      workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
+      gate: "test",
+      durationMs: 5000,
+      error: "3 tests failed",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("pipeline:quality_gate_failed");
+    expect(line).toContain("gate=test");
+    expect(line).toContain("3 tests failed");
+  });
+
+  it("applies green color for pipeline:quality_gate_passed", () => {
+    const event = createEvent("pipeline:quality_gate_passed", {
+      workItemId: "abc",
+      gate: "lint",
+      durationMs: 1000,
+    });
+
+    expect(formatEventLine(event)).toContain("\x1b[32m");
+  });
+
+  it("applies red color for pipeline:quality_gate_failed", () => {
+    const event = createEvent("pipeline:quality_gate_failed", {
+      workItemId: "abc",
+      gate: "build",
+      durationMs: 1000,
+      error: "build failed",
+    });
+
+    expect(formatEventLine(event)).toContain("\x1b[31m");
+  });
+
   it("formats intake:item:skipped", () => {
     const event = createEvent("intake:item:skipped", {
       itemId: "uuid-1",

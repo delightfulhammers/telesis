@@ -25,7 +25,11 @@ const colorForType = (type: EventType): string => {
   if (type.startsWith("intake:")) return COLORS.cyan;
   if (type.startsWith("plan:")) return COLORS.magenta;
   if (type.startsWith("validation:")) return COLORS.yellow;
-  if (type === "pipeline:failed" || type === "pipeline:review_failed")
+  if (
+    type === "pipeline:failed" ||
+    type === "pipeline:review_failed" ||
+    type === "pipeline:quality_gate_failed"
+  )
     return COLORS.red;
   if (type.startsWith("pipeline:")) return COLORS.green;
   if (type.startsWith("git:")) return COLORS.cyan;
@@ -140,6 +144,12 @@ const formatPayload = (event: TelesisDaemonEvent): string => {
 
     case "pipeline:review_failed":
       return `work-item=${event.payload.workItemId.slice(0, 8)} findings=${event.payload.findingCount} blocking=${event.payload.blockingCount} threshold=${event.payload.threshold}`;
+
+    case "pipeline:quality_gate_passed":
+      return `work-item=${event.payload.workItemId.slice(0, 8)} gate=${event.payload.gate} ${Math.floor(event.payload.durationMs / 1000)}s${event.payload.amended ? " (amended)" : ""}`;
+
+    case "pipeline:quality_gate_failed":
+      return `work-item=${event.payload.workItemId.slice(0, 8)} gate=${event.payload.gate} error="${truncate(event.payload.error ?? "unknown", 60)}"`;
 
     case "git:committed":
       return `sha=${event.payload.sha.slice(0, 8)} branch=${event.payload.branch} files=${event.payload.filesChanged}`;

@@ -9,10 +9,12 @@ import {
   createBranch,
   stageAll,
   commit,
+  amendCommit,
   push,
   currentBranch,
   remoteBranchExists,
 } from "../git/operations.js";
+import { runQualityGates, defaultExecCommand } from "./quality-gates.js";
 import { generateCommitMessage } from "../git/commit-message.js";
 import { createPullRequest, closeIssue } from "../github/pr.js";
 import { extractRepoContext } from "../github/environment.js";
@@ -245,7 +247,7 @@ export const runPipeline = async (
   emitStage("committing");
   stageAll(deps.rootDir);
   const commitMessage = generateCommitMessage(plan, workItem);
-  const commitResult = commit(deps.rootDir, commitMessage);
+  let commitResult = commit(deps.rootDir, commitMessage);
 
   deps.onEvent?.(
     createEvent("git:committed", {
@@ -255,7 +257,51 @@ export const runPipeline = async (
     }),
   );
 
-  // 11. Review (if configured)
+  // 11. Quality gates (if configured)
+  let qualityGateSummary;
+  if (deps.pipelineConfig.qualityGates) {
+    emitStage("quality_check");
+    const { summary, amendedCommit } = runQualityGates(
+      {
+        rootDir: deps.rootDir,
+        workItemId: workItem.id,
+        onEvent: deps.onEvent,
+        hasChanges,
+        stageAll,
+        amendCommit,
+        runDriftChecks: deps.runDriftChecks ?? (() => ({ passed: true })),
+        execCommand: deps.execCommand ?? defaultExecCommand,
+      },
+      deps.pipelineConfig.qualityGates,
+    );
+
+    qualityGateSummary = summary;
+
+    if (amendedCommit) {
+      commitResult = amendedCommit;
+      deps.onEvent?.(
+        createEvent("git:committed", {
+          sha: commitResult.sha,
+          branch: commitResult.branch,
+          filesChanged: commitResult.filesChanged,
+        }),
+      );
+    }
+
+    if (!summary.passed) {
+      return {
+        workItemId: workItem.id,
+        planId: plan.id,
+        stage: "quality_check_failed",
+        commitResult,
+        qualityGateSummary,
+        error: `Quality gate failed: ${summary.results.find((r) => !r.passed)?.gate}`,
+        durationMs: Date.now() - startTime,
+      };
+    }
+  }
+
+  // 12. Review (if configured)
   let reviewSummary: ReviewSummary | undefined;
 
   if (shouldReview) {
@@ -439,6 +485,7 @@ export const runPipeline = async (
     pushResult,
     prUrl,
     reviewSummary,
+    qualityGateSummary,
     durationMs: Date.now() - startTime,
   };
 };

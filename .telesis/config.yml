@@ -19,3 +19,9 @@ git:
 pipeline:
   autoApprove: false
   closeIssue: false
+  qualityGates:
+    format: "pnpm run format"
+    lint: "pnpm run lint"
+    test: "pnpm test"
+    build: "pnpm run build"
+    drift: true

@@ -63,6 +63,8 @@ export type EventType =
   | "pipeline:failed"
   | "pipeline:review_passed"
   | "pipeline:review_failed"
+  | "pipeline:quality_gate_passed"
+  | "pipeline:quality_gate_failed"
   | "git:committed"
   | "git:pushed"
   | "github:pr_created"
@@ -192,6 +194,15 @@ export interface PipelineReviewPayload {
   readonly threshold: string;
 }
 
+/** Quality gate payload types */
+export interface PipelineQualityGatePayload {
+  readonly workItemId: string;
+  readonly gate: string;
+  readonly durationMs: number;
+  readonly error?: string;
+  readonly amended?: boolean;
+}
+
 /** Git payload types */
 export interface GitCommitPayload {
   readonly sha: string;
@@ -268,6 +279,8 @@ export type TelesisDaemonEvent =
   | BaseEvent<"pipeline:failed", PipelineEventPayload>
   | BaseEvent<"pipeline:review_passed", PipelineReviewPayload>
   | BaseEvent<"pipeline:review_failed", PipelineReviewPayload>
+  | BaseEvent<"pipeline:quality_gate_passed", PipelineQualityGatePayload>
+  | BaseEvent<"pipeline:quality_gate_failed", PipelineQualityGatePayload>
   | BaseEvent<"git:committed", GitCommitPayload>
   | BaseEvent<"git:pushed", GitPushPayload>
   | BaseEvent<"github:pr_created", GitHubPRCreatedPayload>
@@ -324,6 +337,8 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "pipeline:failed": "pipeline",
   "pipeline:review_passed": "pipeline",
   "pipeline:review_failed": "pipeline",
+  "pipeline:quality_gate_passed": "pipeline",
+  "pipeline:quality_gate_failed": "pipeline",
   "git:committed": "git",
   "git:pushed": "git",
   "github:pr_created": "github",

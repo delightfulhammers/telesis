@@ -9,6 +9,7 @@ import {
   createBranch,
   stageAll,
   commit,
+  amendCommit,
   push,
   remoteBranchExists,
 } from "./operations.js";
@@ -162,6 +163,53 @@ describe("commit", () => {
     initGitRepo(dir);
 
     expect(() => commit(dir, "empty commit")).toThrow();
+  });
+});
+
+describe("amendCommit", () => {
+  it("amends the last commit and returns updated result", () => {
+    const dir = makeTempDir();
+    initGitRepo(dir);
+    writeFileSync(join(dir, "a.ts"), "a\n");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    const original = commit(dir, "first commit");
+
+    // Modify a file, stage, and amend
+    writeFileSync(join(dir, "b.ts"), "b\n");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    const amended = amendCommit(dir);
+
+    // SHA should change
+    expect(amended.sha).not.toBe(original.sha);
+    expect(amended.sha).toMatch(/^[a-f0-9]{40}$/);
+
+    // Message should be preserved
+    expect(amended.message).toBe("first commit");
+
+    // Files changed should include both files
+    expect(amended.filesChanged).toBe(2);
+
+    // Commit count should not increase (still 2: initial + first commit)
+    const commitCount = execFileSync("git", ["rev-list", "--count", "HEAD"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+    expect(commitCount).toBe("2");
+  });
+
+  it("preserves branch name", () => {
+    const dir = makeTempDir();
+    initGitRepo(dir);
+    createBranch(dir, "feature/amend-test");
+    writeFileSync(join(dir, "a.ts"), "a\n");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    commit(dir, "on branch");
+
+    writeFileSync(join(dir, "b.ts"), "b\n");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    const amended = amendCommit(dir);
+
+    expect(amended.branch).toBe("feature/amend-test");
   });
 });
 
