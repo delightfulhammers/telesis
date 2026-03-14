@@ -375,6 +375,24 @@ describe("config", () => {
       const raw = { pipeline: { reviewBlockThreshold: 42 } };
       expect(() => parsePipelineConfig(raw)).toThrow(TypeError);
     });
+
+    it("parses reviewModel when present", () => {
+      const raw = { pipeline: { reviewModel: "claude-opus-4-6" } };
+      const result = parsePipelineConfig(raw);
+      expect(result.reviewModel).toBe("claude-opus-4-6");
+    });
+
+    it("omits reviewModel when absent", () => {
+      const raw = { pipeline: { autoApprove: true } };
+      const result = parsePipelineConfig(raw);
+      expect(result.reviewModel).toBeUndefined();
+    });
+
+    it("ignores empty string reviewModel", () => {
+      const raw = { pipeline: { reviewModel: "" } };
+      const result = parsePipelineConfig(raw);
+      expect(result.reviewModel).toBeUndefined();
+    });
   });
 
   describe("exists", () => {

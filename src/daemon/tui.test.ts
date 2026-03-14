@@ -307,7 +307,7 @@ describe("formatEventLine", () => {
       workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
       findingCount: 3,
       blockingCount: 0,
-      threshold: "error",
+      threshold: "high",
     });
 
     const line = formatEventLine(event);
@@ -315,7 +315,7 @@ describe("formatEventLine", () => {
     expect(line).toContain("work-item=abcdef01");
     expect(line).toContain("findings=3");
     expect(line).toContain("blocking=0");
-    expect(line).toContain("threshold=error");
+    expect(line).toContain("threshold=high");
   });
 
   it("formats pipeline:review_failed with findings and threshold", () => {
@@ -323,7 +323,7 @@ describe("formatEventLine", () => {
       workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
       findingCount: 5,
       blockingCount: 2,
-      threshold: "warning",
+      threshold: "medium",
     });
 
     const line = formatEventLine(event);
@@ -331,7 +331,7 @@ describe("formatEventLine", () => {
     expect(line).toContain("work-item=abcdef01");
     expect(line).toContain("findings=5");
     expect(line).toContain("blocking=2");
-    expect(line).toContain("threshold=warning");
+    expect(line).toContain("threshold=medium");
   });
 
   it("applies green color for pipeline:review_passed events", () => {
@@ -339,7 +339,7 @@ describe("formatEventLine", () => {
       workItemId: "abc",
       findingCount: 0,
       blockingCount: 0,
-      threshold: "error",
+      threshold: "high",
     });
 
     // Green ANSI code (pipeline:* → green)
@@ -351,7 +351,7 @@ describe("formatEventLine", () => {
       workItemId: "abc",
       findingCount: 1,
       blockingCount: 1,
-      threshold: "error",
+      threshold: "high",
     });
 
     // Red ANSI code (failure events → red)

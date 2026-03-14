@@ -480,6 +480,7 @@ export interface PipelineConfig {
   readonly closeIssue?: boolean;
   readonly reviewBeforePush?: boolean;
   readonly reviewBlockThreshold?: ReviewBlockThreshold;
+  readonly reviewModel?: string;
 }
 
 /** Parse pipeline config from .telesis/config.yml, returning defaults if absent */
@@ -500,6 +501,7 @@ export const parsePipelineConfig = (raw: RawConfig | null): PipelineConfig => {
     closeIssue?: boolean;
     reviewBeforePush?: boolean;
     reviewBlockThreshold?: ReviewBlockThreshold;
+    reviewModel?: string;
   } = {};
 
   if (typeof p.autoApprove === "boolean") {
@@ -523,6 +525,9 @@ export const parsePipelineConfig = (raw: RawConfig | null): PipelineConfig => {
       p.reviewBlockThreshold as ReviewBlockThreshold;
   } else {
     result.reviewBlockThreshold = "high";
+  }
+  if (typeof p.reviewModel === "string" && p.reviewModel.length > 0) {
+    result.reviewModel = p.reviewModel;
   }
 
   return result;

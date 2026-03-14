@@ -136,6 +136,7 @@ describe("formatRunResult", () => {
     const output = formatRunResult(result);
 
     expect(output).toContain("Pipeline failed");
+    expect(output).toContain("Review: blocked");
     expect(output).toContain("5 findings");
     expect(output).toContain("2 blocking");
     expect(output).toContain("threshold: medium");

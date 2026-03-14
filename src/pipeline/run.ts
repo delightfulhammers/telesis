@@ -46,6 +46,9 @@ const isBlocking = (
     severity as (typeof SEVERITIES)[number],
   );
   const thresholdIndex = SEVERITIES.indexOf(threshold);
+  if (thresholdIndex < 0) {
+    throw new TypeError(`Unknown threshold: ${threshold}`);
+  }
   return severityIndex >= 0 && severityIndex <= thresholdIndex;
 };
 
@@ -145,7 +148,14 @@ export const runPipeline = async (
   };
   updatePlan(deps.rootDir, plan);
 
-  // 5. Execute plan
+  // 5. Execute plan — capture HEAD before execution so review can diff all changes
+  const shouldReview = deps.pipelineConfig.reviewBeforePush === true;
+  const preExecutionSha = shouldReview
+    ? execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: deps.rootDir,
+        encoding: "utf-8",
+      }).trim()
+    : "";
   emitStage("executing");
 
   const executorDeps: ExecutorDeps = {
@@ -233,10 +243,6 @@ export const runPipeline = async (
 
   // 10. Stage all + commit
   emitStage("committing");
-  const preCommitSha = execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: deps.rootDir,
-    encoding: "utf-8",
-  }).trim();
   stageAll(deps.rootDir);
   const commitMessage = generateCommitMessage(plan, workItem);
   const commitResult = commit(deps.rootDir, commitMessage);
@@ -251,16 +257,16 @@ export const runPipeline = async (
 
   // 11. Review (if configured)
   let reviewSummary: ReviewSummary | undefined;
-  const shouldReview = deps.pipelineConfig.reviewBeforePush === true;
 
   if (shouldReview) {
     emitStage("reviewing");
     const threshold = deps.pipelineConfig.reviewBlockThreshold ?? "high";
 
     try {
-      const resolved = resolveDiff(deps.rootDir, `${preCommitSha}...HEAD`);
+      const resolved = resolveDiff(deps.rootDir, `${preExecutionSha}..HEAD`);
       const context = assembleReviewContext(deps.rootDir);
-      const reviewModel = DEFAULT_REVIEW_MODEL;
+      const reviewModel =
+        deps.pipelineConfig.reviewModel ?? DEFAULT_REVIEW_MODEL;
       const sessionId = randomUUID();
 
       const reviewResult = await reviewDiff(
