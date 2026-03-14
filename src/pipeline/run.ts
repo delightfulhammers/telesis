@@ -17,7 +17,13 @@ import { generateCommitMessage } from "../git/commit-message.js";
 import { createPullRequest, closeIssue } from "../github/pr.js";
 import { extractRepoContext } from "../github/environment.js";
 import { createEvent } from "../daemon/types.js";
-import type { RunDeps, RunResult, RunStage } from "./types.js";
+import { resolveDiff } from "../agent/review/diff.js";
+import { assembleReviewContext } from "../agent/review/context.js";
+import { reviewDiff } from "../agent/review/agent.js";
+import { SEVERITIES } from "../agent/review/types.js";
+import type { ReviewBlockThreshold } from "../config/config.js";
+import type { ReviewFinding } from "../agent/review/types.js";
+import type { RunDeps, RunResult, RunStage, ReviewSummary } from "./types.js";
 
 const DEFAULT_BRANCH_PREFIX = "telesis/";
 
@@ -28,6 +34,27 @@ const slugify = (text: string): string =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 40);
+
+/** Check whether a finding's severity meets or exceeds the blocking threshold */
+const isBlocking = (
+  severity: string,
+  threshold: ReviewBlockThreshold,
+): boolean => {
+  const severityIndex = SEVERITIES.indexOf(
+    severity as (typeof SEVERITIES)[number],
+  );
+  const thresholdIndex = SEVERITIES.indexOf(threshold);
+  return severityIndex >= 0 && severityIndex <= thresholdIndex;
+};
+
+/** Filter findings to those at or above the blocking threshold */
+export const filterBlockingFindings = (
+  findings: readonly ReviewFinding[],
+  threshold: ReviewBlockThreshold,
+): readonly ReviewFinding[] =>
+  findings.filter((f) => isBlocking(f.severity, threshold));
+
+const DEFAULT_REVIEW_MODEL = "claude-sonnet-4-6";
 
 /** Run the full pipeline for a work item */
 export const runPipeline = async (
@@ -216,7 +243,94 @@ export const runPipeline = async (
     }),
   );
 
-  // 11. Push (if configured)
+  // 11. Review (if configured)
+  let reviewSummary: ReviewSummary | undefined;
+  const shouldReview = deps.pipelineConfig.reviewBeforePush === true;
+
+  if (shouldReview) {
+    emitStage("reviewing");
+    const threshold = deps.pipelineConfig.reviewBlockThreshold ?? "high";
+
+    try {
+      const resolved = resolveDiff(deps.rootDir, "HEAD~1");
+      const context = assembleReviewContext(deps.rootDir);
+      const reviewModel = DEFAULT_REVIEW_MODEL;
+      const sessionId = `pipeline-review-${workItem.id.slice(0, 8)}`;
+
+      const reviewResult = await reviewDiff(
+        deps.modelClient,
+        resolved.diff,
+        resolved.files,
+        context,
+        sessionId,
+        reviewModel,
+      );
+
+      const blocking = filterBlockingFindings(reviewResult.findings, threshold);
+
+      reviewSummary = {
+        ran: true,
+        passed: blocking.length === 0,
+        totalFindings: reviewResult.findings.length,
+        blockingFindings: blocking.length,
+        threshold,
+        findings: reviewResult.findings,
+      };
+
+      if (blocking.length > 0) {
+        deps.onEvent?.(
+          createEvent("pipeline:review_failed", {
+            workItemId: workItem.id,
+            findingCount: reviewResult.findings.length,
+            blockingCount: blocking.length,
+            threshold,
+          }),
+        );
+
+        return {
+          workItemId: workItem.id,
+          planId: plan.id,
+          stage: "review_failed",
+          commitResult,
+          reviewSummary,
+          durationMs: Date.now() - startTime,
+        };
+      }
+
+      deps.onEvent?.(
+        createEvent("pipeline:review_passed", {
+          workItemId: workItem.id,
+          findingCount: reviewResult.findings.length,
+          blockingCount: 0,
+          threshold,
+        }),
+      );
+    } catch (err) {
+      // Review tooling failure should not block the pipeline
+      const msg = err instanceof Error ? err.message : "unknown error";
+      console.error(`Review stage error (non-blocking): ${msg}`);
+
+      reviewSummary = {
+        ran: false,
+        passed: true,
+        totalFindings: 0,
+        blockingFindings: 0,
+        threshold,
+        findings: [],
+      };
+
+      deps.onEvent?.(
+        createEvent("pipeline:review_passed", {
+          workItemId: workItem.id,
+          findingCount: 0,
+          blockingCount: 0,
+          threshold,
+        }),
+      );
+    }
+  }
+
+  // 12. Push (if configured)
   let pushResult;
   const shouldPush = deps.gitConfig.pushAfterCommit !== false;
   if (shouldPush) {
@@ -233,7 +347,7 @@ export const runPipeline = async (
     );
   }
 
-  // 12. Create PR (if configured and on a branch)
+  // 13. Create PR (if configured and on a branch)
   let prUrl: string | undefined;
   if (deps.gitConfig.createPR === true && !commitToMain) {
     emitStage("creating_pr");
@@ -270,7 +384,7 @@ export const runPipeline = async (
     }
   }
 
-  // 13. Close issue (if configured and source is GitHub)
+  // 14. Close issue (if configured and source is GitHub)
   if (deps.pipelineConfig.closeIssue === true && workItem.source === "github") {
     emitStage("closing_issue");
 
@@ -291,7 +405,7 @@ export const runPipeline = async (
     }
   }
 
-  // 14. Update work item status
+  // 15. Update work item status
   updateWorkItem(deps.rootDir, {
     ...workItem,
     status: "completed",
@@ -312,6 +426,7 @@ export const runPipeline = async (
     commitResult,
     pushResult,
     prUrl,
+    reviewSummary,
     durationMs: Date.now() - startTime,
   };
 };

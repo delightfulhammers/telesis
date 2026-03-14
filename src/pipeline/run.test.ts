@@ -3,10 +3,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { useTempDir } from "../test-utils.js";
-import { runPipeline } from "./run.js";
+import { runPipeline, filterBlockingFindings } from "./run.js";
 import type { RunDeps } from "./types.js";
 import type { WorkItem } from "../intake/types.js";
 import type { Plan } from "../plan/types.js";
+import type { ReviewFinding } from "../agent/review/types.js";
 import { createWorkItem } from "../intake/store.js";
 
 const makeTempDir = useTempDir("pipeline-run");
@@ -58,11 +59,33 @@ vi.mock("../github/environment.js", () => ({
   extractRepoContext: vi.fn(() => null),
 }));
 
+vi.mock("../agent/review/diff.js", () => ({
+  resolveDiff: vi.fn(() => ({
+    diff: "mock diff",
+    files: [{ path: "file.ts", status: "modified" }],
+    ref: "HEAD~1",
+  })),
+}));
+
+vi.mock("../agent/review/context.js", () => ({
+  assembleReviewContext: vi.fn(() => ({
+    conventions: "mock conventions",
+    projectName: "test-project",
+    primaryLanguage: "TypeScript",
+  })),
+}));
+
+vi.mock("../agent/review/agent.js", () => ({
+  reviewDiff: vi.fn(),
+}));
+
 import { createPlanFromWorkItem } from "../plan/create.js";
 import { executePlan } from "../plan/executor.js";
+import { reviewDiff } from "../agent/review/agent.js";
 
 const mockCreatePlan = vi.mocked(createPlanFromWorkItem);
 const mockExecutePlan = vi.mocked(executePlan);
+const mockReviewDiff = vi.mocked(reviewDiff);
 
 const makeMockPlan = (overrides?: Partial<Plan>): Plan => ({
   id: "plan-test-1234-5678-9012-abcdef012345",
@@ -329,5 +352,263 @@ describe("runPipeline", () => {
     expect(eventTypes).toContain("pipeline:started");
     expect(eventTypes).toContain("pipeline:stage_changed");
     expect(eventTypes).toContain("pipeline:completed");
+  });
+
+  describe("review stage", () => {
+    const setupReviewTest = (dir: string) => {
+      const plan = makeMockPlan();
+      mockCreatePlan.mockResolvedValueOnce(plan);
+      mockExecutePlan.mockImplementationOnce(async () => {
+        writeFileSync(join(dir, "new-feature.ts"), "export const x = 1;\n");
+        return {
+          planId: plan.id,
+          status: "completed" as const,
+          completedTasks: 1,
+          totalTasks: 1,
+          durationMs: 1000,
+        };
+      });
+      return plan;
+    };
+
+    const makeFinding = (
+      severity: "critical" | "high" | "medium" | "low",
+      overrides?: Partial<ReviewFinding>,
+    ): ReviewFinding => ({
+      id: `finding-${severity}`,
+      sessionId: "test-session",
+      severity,
+      category: "bug",
+      path: "file.ts",
+      description: `${severity} issue`,
+      suggestion: `Fix the ${severity} issue`,
+      ...overrides,
+    });
+
+    it("skips review when reviewBeforePush is false", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+      setupReviewTest(dir);
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: { reviewBeforePush: false },
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("completed");
+      expect(result.reviewSummary).toBeUndefined();
+      expect(mockReviewDiff).not.toHaveBeenCalled();
+    });
+
+    it("skips review when reviewBeforePush is not set", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+      setupReviewTest(dir);
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: {},
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("completed");
+      expect(result.reviewSummary).toBeUndefined();
+      expect(mockReviewDiff).not.toHaveBeenCalled();
+    });
+
+    it("proceeds to push when review passes with no blocking findings", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+      setupReviewTest(dir);
+
+      mockReviewDiff.mockResolvedValueOnce({
+        findings: [makeFinding("low")],
+        model: "claude-sonnet-4-6",
+        durationMs: 5000,
+        tokenUsage: { inputTokens: 100, outputTokens: 50 },
+      });
+
+      const onEvent = vi.fn();
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: {
+          reviewBeforePush: true,
+          reviewBlockThreshold: "high",
+        },
+        onEvent,
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("completed");
+      expect(result.reviewSummary).toBeDefined();
+      expect(result.reviewSummary!.ran).toBe(true);
+      expect(result.reviewSummary!.passed).toBe(true);
+      expect(result.reviewSummary!.totalFindings).toBe(1);
+      expect(result.reviewSummary!.blockingFindings).toBe(0);
+
+      const eventTypes = onEvent.mock.calls.map(
+        (call: unknown[]) => (call[0] as { type: string }).type,
+      );
+      expect(eventTypes).toContain("pipeline:review_passed");
+      expect(eventTypes).not.toContain("pipeline:review_failed");
+    });
+
+    it("blocks push when review finds blocking findings", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+      setupReviewTest(dir);
+
+      mockReviewDiff.mockResolvedValueOnce({
+        findings: [makeFinding("critical"), makeFinding("low")],
+        model: "claude-sonnet-4-6",
+        durationMs: 5000,
+        tokenUsage: { inputTokens: 100, outputTokens: 50 },
+      });
+
+      const onEvent = vi.fn();
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: {
+          reviewBeforePush: true,
+          reviewBlockThreshold: "high",
+        },
+        onEvent,
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("review_failed");
+      expect(result.commitResult).toBeDefined();
+      expect(result.pushResult).toBeUndefined();
+      expect(result.reviewSummary).toBeDefined();
+      expect(result.reviewSummary!.ran).toBe(true);
+      expect(result.reviewSummary!.passed).toBe(false);
+      expect(result.reviewSummary!.blockingFindings).toBe(1);
+
+      const eventTypes = onEvent.mock.calls.map(
+        (call: unknown[]) => (call[0] as { type: string }).type,
+      );
+      expect(eventTypes).toContain("pipeline:review_failed");
+      expect(eventTypes).not.toContain("pipeline:review_passed");
+    });
+
+    it("treats review errors as non-blocking", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+      setupReviewTest(dir);
+
+      mockReviewDiff.mockRejectedValueOnce(new Error("API timeout"));
+
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const onEvent = vi.fn();
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        pipelineConfig: { reviewBeforePush: true },
+        onEvent,
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("completed");
+      expect(result.reviewSummary).toBeDefined();
+      expect(result.reviewSummary!.ran).toBe(false);
+      expect(result.reviewSummary!.passed).toBe(true);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("API timeout"),
+      );
+
+      const eventTypes = onEvent.mock.calls.map(
+        (call: unknown[]) => (call[0] as { type: string }).type,
+      );
+      expect(eventTypes).toContain("pipeline:review_passed");
+
+      consoleSpy.mockRestore();
+    });
+  });
+});
+
+describe("filterBlockingFindings", () => {
+  const makeFinding = (
+    severity: "critical" | "high" | "medium" | "low",
+  ): ReviewFinding => ({
+    id: `finding-${severity}`,
+    sessionId: "test-session",
+    severity,
+    category: "bug",
+    path: "file.ts",
+    description: `${severity} issue`,
+    suggestion: `Fix the ${severity} issue`,
+  });
+
+  it("blocks critical and high when threshold is high", () => {
+    const findings = [
+      makeFinding("critical"),
+      makeFinding("high"),
+      makeFinding("medium"),
+      makeFinding("low"),
+    ];
+
+    const blocking = filterBlockingFindings(findings, "high");
+    expect(blocking).toHaveLength(2);
+    expect(blocking.map((f) => f.severity)).toEqual(["critical", "high"]);
+  });
+
+  it("blocks only critical when threshold is critical", () => {
+    const findings = [
+      makeFinding("critical"),
+      makeFinding("high"),
+      makeFinding("medium"),
+    ];
+
+    const blocking = filterBlockingFindings(findings, "critical");
+    expect(blocking).toHaveLength(1);
+    expect(blocking[0].severity).toBe("critical");
+  });
+
+  it("blocks all severities when threshold is low", () => {
+    const findings = [
+      makeFinding("critical"),
+      makeFinding("high"),
+      makeFinding("medium"),
+      makeFinding("low"),
+    ];
+
+    const blocking = filterBlockingFindings(findings, "low");
+    expect(blocking).toHaveLength(4);
+  });
+
+  it("blocks critical, high, and medium when threshold is medium", () => {
+    const findings = [
+      makeFinding("critical"),
+      makeFinding("high"),
+      makeFinding("medium"),
+      makeFinding("low"),
+    ];
+
+    const blocking = filterBlockingFindings(findings, "medium");
+    expect(blocking).toHaveLength(3);
+    expect(blocking.map((f) => f.severity)).toEqual([
+      "critical",
+      "high",
+      "medium",
+    ]);
+  });
+
+  it("returns empty array when no findings meet threshold", () => {
+    const findings = [makeFinding("low"), makeFinding("medium")];
+
+    const blocking = filterBlockingFindings(findings, "critical");
+    expect(blocking).toHaveLength(0);
+  });
+
+  it("returns empty array for empty findings", () => {
+    const blocking = filterBlockingFindings([], "high");
+    expect(blocking).toHaveLength(0);
   });
 });

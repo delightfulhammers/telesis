@@ -61,6 +61,8 @@ export type EventType =
   | "pipeline:stage_changed"
   | "pipeline:completed"
   | "pipeline:failed"
+  | "pipeline:review_passed"
+  | "pipeline:review_failed"
   | "git:committed"
   | "git:pushed"
   | "github:pr_created"
@@ -183,6 +185,13 @@ export interface PipelineStagePayload {
   readonly stage: string;
 }
 
+export interface PipelineReviewPayload {
+  readonly workItemId: string;
+  readonly findingCount: number;
+  readonly blockingCount: number;
+  readonly threshold: string;
+}
+
 /** Git payload types */
 export interface GitCommitPayload {
   readonly sha: string;
@@ -257,6 +266,8 @@ export type TelesisDaemonEvent =
   | BaseEvent<"pipeline:stage_changed", PipelineStagePayload>
   | BaseEvent<"pipeline:completed", PipelineEventPayload>
   | BaseEvent<"pipeline:failed", PipelineEventPayload>
+  | BaseEvent<"pipeline:review_passed", PipelineReviewPayload>
+  | BaseEvent<"pipeline:review_failed", PipelineReviewPayload>
   | BaseEvent<"git:committed", GitCommitPayload>
   | BaseEvent<"git:pushed", GitPushPayload>
   | BaseEvent<"github:pr_created", GitHubPRCreatedPayload>
@@ -311,6 +322,8 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "pipeline:stage_changed": "pipeline",
   "pipeline:completed": "pipeline",
   "pipeline:failed": "pipeline",
+  "pipeline:review_passed": "pipeline",
+  "pipeline:review_failed": "pipeline",
   "git:committed": "git",
   "git:pushed": "git",
   "github:pr_created": "github",

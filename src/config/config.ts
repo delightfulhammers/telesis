@@ -466,22 +466,40 @@ export const parseGitConfig = (raw: RawConfig | null): GitConfig => {
   return result;
 };
 
+export type ReviewBlockThreshold = "critical" | "high" | "medium" | "low";
+
+const validReviewBlockThresholds: readonly string[] = [
+  "critical",
+  "high",
+  "medium",
+  "low",
+];
+
 export interface PipelineConfig {
   readonly autoApprove?: boolean;
   readonly closeIssue?: boolean;
+  readonly reviewBeforePush?: boolean;
+  readonly reviewBlockThreshold?: ReviewBlockThreshold;
 }
 
 /** Parse pipeline config from .telesis/config.yml, returning defaults if absent */
 export const parsePipelineConfig = (raw: RawConfig | null): PipelineConfig => {
-  if (!raw || typeof raw !== "object" || !raw.pipeline) return {};
+  const defaults = {
+    reviewBeforePush: false as boolean,
+    reviewBlockThreshold: "high" as ReviewBlockThreshold,
+  };
+
+  if (!raw || typeof raw !== "object" || !raw.pipeline) return defaults;
 
   const pipeline = raw.pipeline;
-  if (typeof pipeline !== "object" || pipeline === null) return {};
+  if (typeof pipeline !== "object" || pipeline === null) return defaults;
 
   const p = pipeline as Record<string, unknown>;
   const result: {
     autoApprove?: boolean;
     closeIssue?: boolean;
+    reviewBeforePush?: boolean;
+    reviewBlockThreshold?: ReviewBlockThreshold;
   } = {};
 
   if (typeof p.autoApprove === "boolean") {
@@ -489,6 +507,22 @@ export const parsePipelineConfig = (raw: RawConfig | null): PipelineConfig => {
   }
   if (typeof p.closeIssue === "boolean") {
     result.closeIssue = p.closeIssue;
+  }
+  result.reviewBeforePush =
+    typeof p.reviewBeforePush === "boolean" ? p.reviewBeforePush : false;
+  if (p.reviewBlockThreshold !== undefined) {
+    if (
+      typeof p.reviewBlockThreshold !== "string" ||
+      !validReviewBlockThresholds.includes(p.reviewBlockThreshold)
+    ) {
+      throw new TypeError(
+        `Invalid reviewBlockThreshold: "${String(p.reviewBlockThreshold)}". Must be one of: ${validReviewBlockThresholds.join(", ")}`,
+      );
+    }
+    result.reviewBlockThreshold =
+      p.reviewBlockThreshold as ReviewBlockThreshold;
+  } else {
+    result.reviewBlockThreshold = "high";
   }
 
   return result;

@@ -302,6 +302,62 @@ describe("formatEventLine", () => {
     expect(line).toContain("Add feature");
   });
 
+  it("formats pipeline:review_passed with findings and threshold", () => {
+    const event = createEvent("pipeline:review_passed", {
+      workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
+      findingCount: 3,
+      blockingCount: 0,
+      threshold: "error",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("pipeline:review_passed");
+    expect(line).toContain("work-item=abcdef01");
+    expect(line).toContain("findings=3");
+    expect(line).toContain("blocking=0");
+    expect(line).toContain("threshold=error");
+  });
+
+  it("formats pipeline:review_failed with findings and threshold", () => {
+    const event = createEvent("pipeline:review_failed", {
+      workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
+      findingCount: 5,
+      blockingCount: 2,
+      threshold: "warning",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("pipeline:review_failed");
+    expect(line).toContain("work-item=abcdef01");
+    expect(line).toContain("findings=5");
+    expect(line).toContain("blocking=2");
+    expect(line).toContain("threshold=warning");
+  });
+
+  it("applies green color for pipeline:review_passed events", () => {
+    const event = createEvent("pipeline:review_passed", {
+      workItemId: "abc",
+      findingCount: 0,
+      blockingCount: 0,
+      threshold: "error",
+    });
+
+    // Green ANSI code (pipeline:* → green)
+    expect(formatEventLine(event)).toContain("\x1b[32m");
+  });
+
+  it("applies green color for pipeline:review_failed events", () => {
+    const event = createEvent("pipeline:review_failed", {
+      workItemId: "abc",
+      findingCount: 1,
+      blockingCount: 1,
+      threshold: "error",
+    });
+
+    // Green ANSI code (pipeline:* → green)
+    expect(formatEventLine(event)).toContain("\x1b[32m");
+  });
+
   it("formats intake:item:skipped", () => {
     const event = createEvent("intake:item:skipped", {
       itemId: "uuid-1",

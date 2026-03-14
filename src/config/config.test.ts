@@ -205,7 +205,10 @@ describe("config", () => {
       expect(parseValidationConfig(null)).toEqual({});
       expect(parsePlannerConfig(null)).toEqual({});
       expect(parseGitConfig(null)).toEqual({});
-      expect(parsePipelineConfig(null)).toEqual({});
+      expect(parsePipelineConfig(null)).toEqual({
+        reviewBeforePush: false,
+        reviewBlockThreshold: "high",
+      });
     });
   });
 
@@ -253,6 +256,8 @@ describe("config", () => {
         pipeline: {
           autoApprove: true,
           closeIssue: false,
+          reviewBeforePush: true,
+          reviewBlockThreshold: "medium",
         },
       };
 
@@ -295,6 +300,8 @@ describe("config", () => {
       expect(parsePipelineConfig(raw)).toEqual({
         autoApprove: true,
         closeIssue: false,
+        reviewBeforePush: true,
+        reviewBlockThreshold: "medium",
       });
     });
   });
@@ -316,7 +323,57 @@ describe("config", () => {
       const raw = loadRawConfig(rootDir);
       expect(parseDispatchConfig(raw)).toEqual({ defaultAgent: "codex" });
       expect(parseGitConfig(raw)).toEqual({ branchPrefix: "feature/" });
-      expect(parsePipelineConfig(raw)).toEqual({ autoApprove: true });
+      expect(parsePipelineConfig(raw)).toEqual({
+        autoApprove: true,
+        reviewBeforePush: false,
+        reviewBlockThreshold: "high",
+      });
+    });
+  });
+
+  describe("parsePipelineConfig", () => {
+    it("returns defaults when neither review field is present", () => {
+      const raw = { pipeline: { autoApprove: true } };
+      const result = parsePipelineConfig(raw);
+      expect(result.autoApprove).toBe(true);
+      expect(result.reviewBeforePush).toBe(false);
+      expect(result.reviewBlockThreshold).toBe("high");
+    });
+
+    it("parses both review fields when present", () => {
+      const raw = {
+        pipeline: {
+          reviewBeforePush: true,
+          reviewBlockThreshold: "critical",
+        },
+      };
+      expect(parsePipelineConfig(raw)).toEqual({
+        reviewBeforePush: true,
+        reviewBlockThreshold: "critical",
+      });
+    });
+
+    it("accepts all valid threshold values", () => {
+      for (const threshold of ["critical", "high", "medium", "low"]) {
+        const raw = { pipeline: { reviewBlockThreshold: threshold } };
+        expect(parsePipelineConfig(raw)).toEqual({
+          reviewBeforePush: false,
+          reviewBlockThreshold: threshold,
+        });
+      }
+    });
+
+    it("throws TypeError for invalid reviewBlockThreshold", () => {
+      const raw = { pipeline: { reviewBlockThreshold: "severe" } };
+      expect(() => parsePipelineConfig(raw)).toThrow(TypeError);
+      expect(() => parsePipelineConfig(raw)).toThrow(
+        /Invalid reviewBlockThreshold.*severe/,
+      );
+    });
+
+    it("throws TypeError for non-string reviewBlockThreshold", () => {
+      const raw = { pipeline: { reviewBlockThreshold: 42 } };
+      expect(() => parsePipelineConfig(raw)).toThrow(TypeError);
     });
   });
 

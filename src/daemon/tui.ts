@@ -133,6 +133,12 @@ const formatPayload = (event: TelesisDaemonEvent): string => {
     case "pipeline:stage_changed":
       return `work-item=${event.payload.workItemId.slice(0, 8)} stage=${event.payload.stage}`;
 
+    case "pipeline:review_passed":
+      return `work-item=${event.payload.workItemId.slice(0, 8)} findings=${event.payload.findingCount} blocking=${event.payload.blockingCount} threshold=${event.payload.threshold}`;
+
+    case "pipeline:review_failed":
+      return `work-item=${event.payload.workItemId.slice(0, 8)} findings=${event.payload.findingCount} blocking=${event.payload.blockingCount} threshold=${event.payload.threshold}`;
+
     case "git:committed":
       return `sha=${event.payload.sha.slice(0, 8)} branch=${event.payload.branch} files=${event.payload.filesChanged}`;
 

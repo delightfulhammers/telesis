@@ -47,6 +47,10 @@ export const runCommand = new Command("run")
   .option("--auto-approve", "Skip plan confirmation prompt")
   .option("--no-push", "Skip push after commit")
   .option("--no-validate", "Skip validation loop")
+  .option(
+    "--no-review",
+    "Skip the review stage even if reviewBeforePush is enabled in config",
+  )
   .option("--branch <name>", "Override branch name")
   .action(
     handleAction(
@@ -57,6 +61,7 @@ export const runCommand = new Command("run")
           autoApprove?: boolean;
           push?: boolean;
           validate?: boolean;
+          review?: boolean;
           branch?: string;
         },
       ) => {
@@ -98,6 +103,7 @@ export const runCommand = new Command("run")
         const effectivePipelineConfig = {
           ...pipelineConfig,
           ...(opts.autoApprove ? { autoApprove: true } : {}),
+          ...(opts.review === false ? { reviewBeforePush: false } : {}),
         };
 
         // Set up interactive confirm (or auto-approve)

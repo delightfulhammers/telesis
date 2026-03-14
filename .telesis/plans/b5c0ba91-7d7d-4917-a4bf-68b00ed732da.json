@@ -1,0 +1,84 @@
+{
+  "id": "b5c0ba91-7d7d-4917-a4bf-68b00ed732da",
+  "workItemId": "e7136a95-4d42-4237-85cc-0f115ae4851b",
+  "title": "Pipeline: auto-review before push",
+  "status": "completed",
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Add reviewBeforePush and reviewBlockThreshold to PipelineConfig",
+      "description": "Extend the `PipelineConfig` type and its parser in `src/config/` to support two new fields:\n- `reviewBeforePush: boolean` (default: `false`)\n- `reviewBlockThreshold: 'critical' | 'high' | 'medium' | 'low'` (default: `'high'`)\n\nSteps:\n1. Locate the `PipelineConfig` interface (likely in `src/config/types.ts` or similar) and add the two fields with their types.\n2. Update the config parser/validator to read these fields from `.telesis/config.yml`, applying defaults when absent.\n3. Add unit tests covering: both fields present, neither present (defaults apply), invalid threshold value produces a typed error.\n4. Do not touch the pipeline orchestrator yet — config changes only.",
+      "dependsOn": [],
+      "status": "completed",
+      "validationAttempts": 2,
+      "validationErrors": [
+        "Update config parser to read reviewBeforePush from config.yml with default false when absent",
+        "Update config parser to read reviewBlockThreshold from config.yml with default 'high' when absent",
+        "Unit test: neither field present results in defaults being applied"
+      ],
+      "sessionId": "75b2a47b-d002-4e3e-a952-51eb177fcbc0",
+      "completedAt": "2026-03-14T13:09:06.065Z",
+      "correctionSessionIds": [
+        "0d6dd8e7-392b-40ab-8dba-6b3b44d8cb8b"
+      ]
+    },
+    {
+      "id": "task-2",
+      "title": "Add --no-review CLI flag to telesis run command",
+      "description": "Update the `telesis run` command definition in `src/cli/run.ts` (or wherever the run command is defined under `src/cli/`) to accept a `--no-review` flag.\n\n1. Add `.option('--no-review', 'Skip the review stage even if reviewBeforePush is enabled in config')` to the Commander command.\n2. Pass the resolved flag value (boolean `skipReview`) through to whatever options object is forwarded to the pipeline orchestrator. If a `RunOptions` or similar type exists in `src/pipeline/`, add `skipReview?: boolean` to it.\n3. Ensure the flag composes correctly with config: if `reviewBeforePush` is false in config OR `--no-review` is passed, the review stage is skipped.\n4. No orchestrator logic yet — wiring only.",
+      "dependsOn": [
+        "task-1"
+      ],
+      "status": "completed",
+      "sessionId": "d42d2b3a-3a71-4bae-865b-4131190774a2",
+      "completedAt": "2026-03-14T13:10:31.976Z",
+      "validationAttempts": 1
+    },
+    {
+      "id": "task-3",
+      "title": "Add review stage events to the daemon event system",
+      "description": "Register two new pipeline lifecycle events so the rest of the system can observe the review stage outcome.\n\n1. Find where pipeline events are defined (likely `src/pipeline/events.ts` or a shared events/types file). Add:\n   - `'pipeline:review_passed'` — emitted when review runs and finds no blocking issues.\n   - `'pipeline:review_failed'` — emitted when review runs and blocking findings are present.\n2. Both events should carry a payload that includes at minimum: `workItemId: string`, `findingCount: number`, `blockingCount: number`, `threshold: string`.\n3. Update any event type union or discriminated union so TypeScript is aware of the new events.\n4. Update the TUI formatter / event display logic (wherever existing pipeline events like `pipeline:committed` or `pipeline:pushed` are formatted for output) to render human-readable messages for both new events.\n5. Add unit tests for the formatter cases.",
+      "dependsOn": [
+        "task-1"
+      ],
+      "status": "completed",
+      "sessionId": "a943992e-3fb4-4416-be13-0dd098b11d4f",
+      "completedAt": "2026-03-14T13:13:10.915Z",
+      "validationAttempts": 1
+    },
+    {
+      "id": "task-4",
+      "title": "Extend RunResult to include review findings summary",
+      "description": "Update the `RunResult` type (likely in `src/pipeline/types.ts`) to carry review information so callers can display it.\n\n1. Add an optional `reviewSummary` field to `RunResult`:\n   ```ts\n   reviewSummary?: {\n     ran: boolean;\n     passed: boolean;\n     totalFindings: number;\n     blockingFindings: number;\n     threshold: string;\n     findings: ReviewFinding[]; // reuse or import whatever type telesis review already returns\n   }\n   ```\n2. Import or reuse the existing finding type from the review business logic package (e.g. `src/review/`) — do not duplicate the type.\n3. Update the CLI run command's output handler to print the review summary when `reviewSummary.ran` is true — show finding counts and whether it passed or blocked.\n4. No orchestrator changes yet.",
+      "dependsOn": [
+        "task-1"
+      ],
+      "status": "completed",
+      "sessionId": "f9c4b1d3-fb9a-4581-9400-dfc8f0dfd17f",
+      "completedAt": "2026-03-14T13:15:24.190Z",
+      "validationAttempts": 1
+    },
+    {
+      "id": "task-5",
+      "title": "Implement the review stage in the pipeline orchestrator",
+      "description": "Add the `reviewing` stage to the pipeline orchestrator in `src/pipeline/` between the `committing` and `pushing` stages.\n\n1. After a successful commit, check whether the review stage should run:\n   - `config.pipeline.reviewBeforePush === true` AND `options.skipReview !== true`\n   - If not, proceed directly to pushing as before.\n2. When the stage runs:\n   a. Set pipeline stage to `'reviewing'`.\n   b. Call the review business logic (from `src/review/` — do not shell out, call the function directly) against the committed diff/branch.\n   c. Filter findings by the configured `reviewBlockThreshold` — a finding is blocking if its severity is >= the threshold (order: critical > high > medium > low).\n   d. Populate `RunResult.reviewSummary` with the results.\n   e. If blocking findings exist:\n      - Emit `pipeline:review_failed` event with finding counts.\n      - Set pipeline stage to `'review_failed'`.\n      - Return the `RunResult` without pushing (do not throw — return a typed failure result).\n   f. If no blocking findings:\n      - Emit `pipeline:review_passed` event.\n      - Proceed to the pushing stage.\n3. Handle errors from the review call gracefully: if review itself throws unexpectedly, treat it as a non-blocking warning (log to stderr, emit `pipeline:review_passed` with a note) so a review tooling failure doesn't permanently block pushes — unless `reviewBeforePush` is strict-mode (not required for this issue, just handle the error path cleanly).\n4. Unit tests must cover:\n   - Review disabled (skipped correctly)\n   - Review passes (push proceeds, event emitted)\n   - Review fails with blocking findings (push blocked, stage set to `review_failed`)\n   - Review skipped via `--no-review` flag\n   - Severity threshold filtering (e.g. threshold=high blocks high+critical, not medium/low)",
+      "dependsOn": [
+        "task-2",
+        "task-3",
+        "task-4"
+      ],
+      "status": "completed",
+      "sessionId": "d0bbd966-86ee-4444-aa4b-ccbef8173b2b",
+      "completedAt": "2026-03-14T13:20:38.484Z",
+      "validationAttempts": 1
+    }
+  ],
+  "createdAt": "2026-03-14T13:04:26.140Z",
+  "tokenUsage": {
+    "inputTokens": 2895,
+    "outputTokens": 1574
+  },
+  "approvedAt": "2026-03-14T13:04:26.144Z",
+  "startedAt": "2026-03-14T13:04:26.147Z",
+  "completedAt": "2026-03-14T13:20:38.486Z"
+}

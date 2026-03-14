@@ -7,8 +7,10 @@ import type {
   PlannerConfig,
   DispatchConfig,
   PipelineConfig,
+  ReviewBlockThreshold,
 } from "../config/config.js";
 import type { CommitResult, PushResult } from "../git/types.js";
+import type { ReviewFinding } from "../agent/review/types.js";
 
 /** Dependencies injected into the pipeline orchestrator */
 export interface RunDeps {
@@ -31,12 +33,24 @@ export type RunStage =
   | "awaiting_approval"
   | "executing"
   | "awaiting_gate"
+  | "reviewing"
+  | "review_failed"
   | "committing"
   | "pushing"
   | "creating_pr"
   | "closing_issue"
   | "completed"
   | "failed";
+
+/** Summary of the review stage within a pipeline run */
+export interface ReviewSummary {
+  readonly ran: boolean;
+  readonly passed: boolean;
+  readonly totalFindings: number;
+  readonly blockingFindings: number;
+  readonly threshold: ReviewBlockThreshold;
+  readonly findings: readonly ReviewFinding[];
+}
 
 /** Result of a pipeline run */
 export interface RunResult {
@@ -46,6 +60,7 @@ export interface RunResult {
   readonly commitResult?: CommitResult;
   readonly pushResult?: PushResult;
   readonly prUrl?: string;
+  readonly reviewSummary?: ReviewSummary;
   readonly error?: string;
   readonly durationMs: number;
 }
