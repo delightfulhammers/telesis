@@ -10,6 +10,8 @@ import {
   stageAll,
   commit,
   amendCommit,
+  softReset,
+  resolveRef,
   push,
   currentBranch,
   remoteBranchExists,
@@ -19,7 +21,6 @@ import { generateCommitMessage } from "../git/commit-message.js";
 import { createPullRequest, closeIssue } from "../github/pr.js";
 import { extractRepoContext } from "../github/environment.js";
 import { randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { createEvent } from "../daemon/types.js";
 import { resolveDiff } from "../agent/review/diff.js";
 import { assembleReviewContext } from "../agent/review/context.js";
@@ -150,14 +151,9 @@ export const runPipeline = async (
   };
   updatePlan(deps.rootDir, plan);
 
-  // 5. Execute plan — capture HEAD before execution so review can diff all changes
+  // 5. Execute plan — capture HEAD before execution so we can squash agent commits
   const shouldReview = deps.pipelineConfig.reviewBeforePush === true;
-  const preExecutionSha = shouldReview
-    ? execFileSync("git", ["rev-parse", "HEAD"], {
-        cwd: deps.rootDir,
-        encoding: "utf-8",
-      }).trim()
-    : "";
+  const preExecutionSha = resolveRef(deps.rootDir);
   emitStage("executing");
 
   const executorDeps: ExecutorDeps = {
@@ -207,7 +203,21 @@ export const runPipeline = async (
     );
   }
 
-  // 8. Check for changes
+  // 8. Squash any agent commits back to staged changes so we get one pipeline commit
+  try {
+    softReset(deps.rootDir, preExecutionSha);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown error";
+    deps.onEvent?.(
+      createEvent("pipeline:failed", {
+        workItemId: workItem.id,
+        title: workItem.title,
+      }),
+    );
+    return fail(plan.id, "failed", `Failed to squash agent commits: ${msg}`);
+  }
+
+  // 9. Check for changes
   if (!hasChanges(deps.rootDir)) {
     deps.onEvent?.(
       createEvent("pipeline:completed", {

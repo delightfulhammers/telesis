@@ -10,6 +10,7 @@ import {
   stageAll,
   commit,
   amendCommit,
+  softReset,
   push,
   remoteBranchExists,
 } from "./operations.js";
@@ -210,6 +211,82 @@ describe("amendCommit", () => {
     const amended = amendCommit(dir);
 
     expect(amended.branch).toBe("feature/amend-test");
+  });
+});
+
+describe("softReset", () => {
+  it("resets HEAD to a given SHA preserving changes as staged", () => {
+    const dir = makeTempDir();
+    initGitRepo(dir);
+
+    // Get SHA of initial commit
+    const initialSha = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+
+    // Make two more commits (simulating agent commits)
+    writeFileSync(join(dir, "a.ts"), "a\n");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    execFileSync("git", ["commit", "-m", "agent commit 1"], { cwd: dir });
+
+    writeFileSync(join(dir, "b.ts"), "b\n");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    execFileSync("git", ["commit", "-m", "agent commit 2"], { cwd: dir });
+
+    // Verify we have 3 commits
+    const countBefore = execFileSync("git", ["rev-list", "--count", "HEAD"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+    expect(countBefore).toBe("3");
+
+    // Soft reset to initial commit
+    softReset(dir, initialSha);
+
+    // Should be back to 1 commit
+    const countAfter = execFileSync("git", ["rev-list", "--count", "HEAD"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+    expect(countAfter).toBe("1");
+
+    // But all files should still be staged
+    const status = execFileSync("git", ["status", "--porcelain"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+    expect(status).toContain("A  a.ts");
+    expect(status).toContain("A  b.ts");
+  });
+
+  it("preserves unstaged changes alongside reset", () => {
+    const dir = makeTempDir();
+    initGitRepo(dir);
+
+    const initialSha = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+
+    // Agent commits one file
+    writeFileSync(join(dir, "committed.ts"), "committed\n");
+    execFileSync("git", ["add", "."], { cwd: dir });
+    execFileSync("git", ["commit", "-m", "agent commit"], { cwd: dir });
+
+    // Unstaged file exists
+    writeFileSync(join(dir, "unstaged.ts"), "unstaged\n");
+
+    softReset(dir, initialSha);
+
+    // Both files should be present
+    expect(hasChanges(dir)).toBe(true);
+    const status = execFileSync("git", ["status", "--porcelain"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+    expect(status).toContain("committed.ts");
+    expect(status).toContain("unstaged.ts");
   });
 });
 

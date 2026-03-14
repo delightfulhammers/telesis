@@ -363,6 +363,58 @@ describe("runPipeline", () => {
     expect(eventTypes).toContain("pipeline:completed");
   });
 
+  it("squashes agent commits into one pipeline commit", async () => {
+    const dir = makeTempDir();
+    initTestRepo(dir);
+    makeWorkItem(dir);
+
+    const plan = makeMockPlan();
+    mockCreatePlan.mockResolvedValueOnce(plan);
+    mockExecutePlan.mockImplementationOnce(async () => {
+      // Simulate agent making its own commits during execution
+      writeFileSync(join(dir, "task1.ts"), "export const task1 = 1;\n");
+      execFileSync("git", ["add", "."], { cwd: dir });
+      execFileSync("git", ["commit", "-m", "agent: task 1"], { cwd: dir });
+
+      writeFileSync(join(dir, "task2.ts"), "export const task2 = 2;\n");
+      execFileSync("git", ["add", "."], { cwd: dir });
+      execFileSync("git", ["commit", "-m", "agent: task 2"], { cwd: dir });
+
+      return {
+        planId: plan.id,
+        status: "completed" as const,
+        completedTasks: 2,
+        totalTasks: 2,
+        durationMs: 1000,
+      };
+    });
+
+    const deps = makeDeps(dir, {
+      gitConfig: { commitToMain: true, pushAfterCommit: false },
+    });
+    const result = await runPipeline(deps, "wi-test-1");
+
+    expect(result.stage).toBe("completed");
+    expect(result.commitResult).toBeDefined();
+
+    // Both files should be in the single pipeline commit
+    const diffFiles = execFileSync(
+      "git",
+      ["diff", "--name-only", "HEAD~1", "HEAD"],
+      { cwd: dir, encoding: "utf-8" },
+    ).trim();
+    expect(diffFiles).toContain("task1.ts");
+    expect(diffFiles).toContain("task2.ts");
+
+    // Should be one commit on top of the pre-execution state (plus telesis state commits)
+    const log = execFileSync("git", ["log", "--oneline", "--format=%s"], {
+      cwd: dir,
+      encoding: "utf-8",
+    }).trim();
+    // The agent's "agent: task 1" commit should NOT appear
+    expect(log).not.toContain("agent: task 1");
+  });
+
   describe("quality gates stage", () => {
     it("runs quality gates when configured and passes", async () => {
       const dir = makeTempDir();

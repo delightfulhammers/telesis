@@ -8,6 +8,13 @@ export const currentBranch = (rootDir: string): string =>
     encoding: "utf-8",
   }).trim();
 
+/** Resolve a git ref to its full SHA */
+export const resolveRef = (rootDir: string, ref: string = "HEAD"): string =>
+  execFileSync("git", ["rev-parse", ref], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  }).trim();
+
 /** Check whether the working tree has uncommitted changes (staged or unstaged) */
 export const hasChanges = (rootDir: string): boolean => {
   const status = execFileSync("git", ["status", "--porcelain"], {
@@ -55,6 +62,14 @@ export const commit = (rootDir: string, message: string): CommitResult => {
   const filesChanged = diffStat.length > 0 ? diffStat.split("\n").length : 0;
 
   return { sha, branch, message, filesChanged };
+};
+
+/** Soft-reset HEAD to a given SHA, preserving all changes as staged */
+export const softReset = (rootDir: string, sha: string): void => {
+  execFileSync("git", ["reset", "--soft", sha], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  });
 };
 
 /** Count files changed in the HEAD commit (works even for the initial commit) */
