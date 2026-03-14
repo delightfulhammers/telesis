@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import type { AgentAdapter } from "./adapter.js";
 import type { AgentEvent } from "./types.js";
 
@@ -8,25 +9,49 @@ export interface SpawnResult {
   readonly exited: Promise<number>;
 }
 
+/** Options passed to spawn — env is optional and only set when needed */
+export interface SpawnOpts {
+  readonly stdout: "pipe";
+  readonly stderr: "pipe";
+  readonly env?: Record<string, string | undefined>;
+}
+
 /** Spawn function signature matching Bun.spawn's subset we use */
-export type SpawnFn = (
-  cmd: readonly string[],
-  opts: { stdout: "pipe"; stderr: "pipe" },
-) => SpawnResult;
+export type SpawnFn = (cmd: readonly string[], opts: SpawnOpts) => SpawnResult;
 
 /** Default spawn using Bun.spawn */
 const defaultSpawn: SpawnFn = (cmd, opts) =>
   Bun.spawn(cmd as string[], opts) as SpawnResult;
+
+/**
+ * Resolve the installed claude CLI path.
+ * Returns the absolute path if found on PATH, undefined otherwise.
+ * When set as CLAUDE_CODE_EXECUTABLE, this tells the claude ACP agent
+ * to use the installed binary instead of its bundled (potentially stale) copy.
+ */
+export const resolveClaudeExecutable = (): string | undefined => {
+  try {
+    const path = execFileSync("which", ["claude"], {
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
+    return path || undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 /** Spawn acpx and wait for it to exit, returning stdout */
 const runAcpx = async (
   spawn: SpawnFn,
   acpxPath: string,
   args: readonly string[],
+  env?: Record<string, string | undefined>,
 ): Promise<string> => {
   const proc = spawn([acpxPath, ...args], {
     stdout: "pipe",
     stderr: "pipe",
+    env,
   });
 
   // Drain both streams concurrently to avoid pipe deadlock
@@ -247,6 +272,8 @@ export interface AcpxAdapterOptions {
   readonly approveAll?: boolean;
   /** Override spawn function (for testing) */
   readonly spawn?: SpawnFn;
+  /** Override claude executable resolution (for testing) */
+  readonly resolveClaude?: () => string | undefined;
 }
 
 /** Create an AgentAdapter backed by acpx subprocess calls */
@@ -257,6 +284,20 @@ export const createAcpxAdapter = (
   const approveAll = options.approveAll ?? true;
   const spawn = options.spawn ?? defaultSpawn;
   let availabilityChecked = false;
+
+  // Resolve installed claude path once at creation time.
+  // If found, we set CLAUDE_CODE_EXECUTABLE so the ACP agent uses the installed
+  // binary instead of its bundled copy (which may be a stale version).
+  const claudePath = (options.resolveClaude ?? resolveClaudeExecutable)();
+  const claudeEnv = claudePath
+    ? { ...process.env, CLAUDE_CODE_EXECUTABLE: claudePath }
+    : undefined;
+
+  /** Return claude-specific env when agent is "claude", undefined otherwise */
+  const envForAgent = (
+    agent: string,
+  ): Record<string, string | undefined> | undefined =>
+    agent === "claude" ? claudeEnv : undefined;
 
   const ensureAvailable = async (): Promise<void> => {
     if (availabilityChecked) return;
@@ -269,15 +310,12 @@ export const createAcpxAdapter = (
       await ensureAvailable();
       try {
         // Top-level --cwd, then agent subcommand
-        await runAcpx(spawn, acpxPath, [
-          "--cwd",
-          cwd,
-          agent,
-          "sessions",
-          "ensure",
-          "--name",
-          name,
-        ]);
+        await runAcpx(
+          spawn,
+          acpxPath,
+          ["--cwd", cwd, agent, "sessions", "ensure", "--name", name],
+          envForAgent(agent),
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("Internal error") || msg.includes("Query closed")) {
@@ -304,7 +342,8 @@ export const createAcpxAdapter = (
       if (approveAll) args.push("--approve-all");
       args.push(agent, "prompt", text, "--session", sessionName);
 
-      const proc = spawn(args, { stdout: "pipe", stderr: "pipe" });
+      const env = envForAgent(agent);
+      const proc = spawn(args, { stdout: "pipe", stderr: "pipe", env });
 
       try {
         // Drain stderr concurrently to avoid pipe deadlock
@@ -329,26 +368,22 @@ export const createAcpxAdapter = (
 
     cancel: async (agent, sessionName, cwd) => {
       await ensureAvailable();
-      await runAcpx(spawn, acpxPath, [
-        "--cwd",
-        cwd,
-        agent,
-        "cancel",
-        "--session",
-        sessionName,
-      ]);
+      await runAcpx(
+        spawn,
+        acpxPath,
+        ["--cwd", cwd, agent, "cancel", "--session", sessionName],
+        envForAgent(agent),
+      );
     },
 
     closeSession: async (agent, name, cwd) => {
       await ensureAvailable();
-      await runAcpx(spawn, acpxPath, [
-        "--cwd",
-        cwd,
-        agent,
-        "sessions",
-        "close",
-        name,
-      ]);
+      await runAcpx(
+        spawn,
+        acpxPath,
+        ["--cwd", cwd, agent, "sessions", "close", name],
+        envForAgent(agent),
+      );
     },
   };
 };

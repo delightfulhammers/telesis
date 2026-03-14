@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   createAcpxAdapter,
+  resolveClaudeExecutable,
   type SpawnFn,
+  type SpawnOpts,
   type SpawnResult,
 } from "./acpx-adapter.js";
 import type { AgentEvent } from "./types.js";
@@ -29,13 +31,19 @@ const makeMockProc = (
 /** Build a spawn mock that returns version on first call and custom result after */
 const makeSpawn = (
   resultFn: (cmd: readonly string[]) => SpawnResult,
-): { spawn: SpawnFn; calls: readonly string[][] } => {
+): {
+  spawn: SpawnFn;
+  calls: readonly string[][];
+  opts: readonly SpawnOpts[];
+} => {
   const calls: string[][] = [];
-  const spawn: SpawnFn = (cmd) => {
+  const opts: SpawnOpts[] = [];
+  const spawn: SpawnFn = (cmd, o) => {
     calls.push([...cmd]);
+    opts.push(o);
     return resultFn(cmd);
   };
-  return { spawn, calls };
+  return { spawn, calls, opts };
 };
 
 /** Convenience: spawn that succeeds on --version and delegates to fn for everything else */
@@ -285,5 +293,65 @@ describe("createAcpxAdapter", () => {
       "--session",
       "my-session",
     ]);
+  });
+
+  it("sets CLAUDE_CODE_EXECUTABLE env for claude agent when installed", async () => {
+    const { spawn, opts } = makeVersionAwareSpawn(() => makeMockProc("", 0));
+
+    const adapter = createAcpxAdapter({
+      spawn,
+      resolveClaude: () => "/usr/local/bin/claude",
+    });
+    await adapter.createSession("claude", "s1", "/tmp");
+
+    // opts[0] is --version check, opts[1] is createSession
+    expect(opts[1]!.env).toBeDefined();
+    expect(opts[1]!.env!.CLAUDE_CODE_EXECUTABLE).toBe("/usr/local/bin/claude");
+  });
+
+  it("does not set CLAUDE_CODE_EXECUTABLE env for non-claude agents", async () => {
+    const { spawn, opts } = makeVersionAwareSpawn(() => makeMockProc("", 0));
+
+    const adapter = createAcpxAdapter({
+      spawn,
+      resolveClaude: () => "/usr/local/bin/claude",
+    });
+    await adapter.createSession("codex", "s1", "/tmp");
+
+    expect(opts[1]!.env).toBeUndefined();
+  });
+
+  it("does not set env when claude is not installed", async () => {
+    const { spawn, opts } = makeVersionAwareSpawn(() => makeMockProc("", 0));
+
+    const adapter = createAcpxAdapter({
+      spawn,
+      resolveClaude: () => undefined,
+    });
+    await adapter.createSession("claude", "s1", "/tmp");
+
+    expect(opts[1]!.env).toBeUndefined();
+  });
+
+  it("passes CLAUDE_CODE_EXECUTABLE through prompt calls", async () => {
+    const { spawn, opts } = makeVersionAwareSpawn(() => makeMockProc("", 0));
+
+    const adapter = createAcpxAdapter({
+      spawn,
+      resolveClaude: () => "/opt/claude",
+    });
+    await adapter.prompt("claude", "s1", "do something", "/tmp", () => {});
+
+    // opts[0] is --version, opts[1] is prompt
+    expect(opts[1]!.env!.CLAUDE_CODE_EXECUTABLE).toBe("/opt/claude");
+  });
+});
+
+describe("resolveClaudeExecutable", () => {
+  it("returns a path when claude is installed", () => {
+    const result = resolveClaudeExecutable();
+    // claude is installed on this machine
+    expect(result).toBeDefined();
+    expect(result).toContain("claude");
   });
 });
