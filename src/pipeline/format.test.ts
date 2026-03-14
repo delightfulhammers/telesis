@@ -255,6 +255,41 @@ describe("formatRunResult", () => {
     expect(output).toContain("Quality gates: 2/2 passed");
   });
 
+  it("shows resumed information when pipeline was resumed", () => {
+    const result: RunResult = {
+      workItemId: "wi-12345678-abcd-1234-5678-abcdef012345",
+      planId: "plan-1234-abcd",
+      stage: "completed",
+      commitResult: {
+        sha: "abc123def456abc123def456abc123def456abc1",
+        branch: "main",
+        message: "feat: something",
+        filesChanged: 1,
+      },
+      resumed: true,
+      resumedFromStage: "quality_check",
+      durationMs: 20_000,
+    };
+
+    const output = formatRunResult(result);
+
+    expect(output).toContain("Resumed from");
+    expect(output).toContain("quality_check");
+  });
+
+  it("does not show resumed info when not resumed", () => {
+    const result: RunResult = {
+      workItemId: "wi-12345678-abcd-1234-5678-abcdef012345",
+      planId: "plan-1234-abcd",
+      stage: "completed",
+      durationMs: 5_000,
+    };
+
+    const output = formatRunResult(result);
+
+    expect(output).not.toContain("Resumed");
+  });
+
   it("formats awaiting_gate result", () => {
     const result: RunResult = {
       workItemId: "wi-12345678-abcd-1234-5678-abcdef012345",

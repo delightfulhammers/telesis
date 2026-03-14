@@ -58,6 +58,7 @@ export type EventType =
   | "validation:correction:started"
   | "validation:escalated"
   | "pipeline:started"
+  | "pipeline:resumed"
   | "pipeline:stage_changed"
   | "pipeline:completed"
   | "pipeline:failed"
@@ -182,6 +183,11 @@ export interface PipelineEventPayload {
   readonly title: string;
 }
 
+export interface PipelineResumedPayload {
+  readonly workItemId: string;
+  readonly resumedFromStage: string;
+}
+
 export interface PipelineStagePayload {
   readonly workItemId: string;
   readonly stage: string;
@@ -274,6 +280,7 @@ export type TelesisDaemonEvent =
   | BaseEvent<"validation:correction:started", ValidationEventPayload>
   | BaseEvent<"validation:escalated", ValidationEventPayload>
   | BaseEvent<"pipeline:started", PipelineEventPayload>
+  | BaseEvent<"pipeline:resumed", PipelineResumedPayload>
   | BaseEvent<"pipeline:stage_changed", PipelineStagePayload>
   | BaseEvent<"pipeline:completed", PipelineEventPayload>
   | BaseEvent<"pipeline:failed", PipelineEventPayload>
@@ -332,6 +339,7 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "validation:correction:started": "validation",
   "validation:escalated": "validation",
   "pipeline:started": "pipeline",
+  "pipeline:resumed": "pipeline",
   "pipeline:stage_changed": "pipeline",
   "pipeline:completed": "pipeline",
   "pipeline:failed": "pipeline",

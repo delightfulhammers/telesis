@@ -136,6 +136,9 @@ const formatPayload = (event: TelesisDaemonEvent): string => {
     case "pipeline:failed":
       return `work-item=${event.payload.workItemId.slice(0, 8)} "${truncate(event.payload.title, 50)}"`;
 
+    case "pipeline:resumed":
+      return `work-item=${event.payload.workItemId.slice(0, 8)} resumed-from=${event.payload.resumedFromStage}`;
+
     case "pipeline:stage_changed":
       return `work-item=${event.payload.workItemId.slice(0, 8)} stage=${event.payload.stage}`;
 

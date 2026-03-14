@@ -100,5 +100,9 @@ export const formatRunResult = (result: RunResult): string => {
     }
   }
 
+  if (result.resumed) {
+    lines.push(`  (Resumed from "${result.resumedFromStage}" stage)`);
+  }
+
   return lines.join("\n");
 };

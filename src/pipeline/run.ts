@@ -1,6 +1,6 @@
 import { loadWorkItem, updateWorkItem } from "../intake/store.js";
 import { createPlanFromWorkItem } from "../plan/create.js";
-import { updatePlan } from "../plan/store.js";
+import { loadPlan, updatePlan } from "../plan/store.js";
 import { formatPlanDetail } from "../plan/format.js";
 import { executePlan } from "../plan/executor.js";
 import type { ExecutorDeps } from "../plan/executor.js";
@@ -28,7 +28,21 @@ import { reviewDiff } from "../agent/review/agent.js";
 import { SEVERITIES } from "../agent/review/types.js";
 import type { ReviewBlockThreshold } from "../config/config.js";
 import type { ReviewFinding } from "../agent/review/types.js";
-import type { RunDeps, RunResult, RunStage, ReviewSummary } from "./types.js";
+import {
+  isPastStage,
+  type RunDeps,
+  type RunResult,
+  type RunStage,
+  type RunOptions,
+  type ReviewSummary,
+  type PipelineState,
+} from "./types.js";
+import { savePipelineState, removePipelineState } from "./state.js";
+
+/** Mutable partial state for accumulation during pipeline execution */
+type MutablePartialState = {
+  -readonly [K in keyof PipelineState]?: PipelineState[K];
+};
 
 const DEFAULT_BRANCH_PREFIX = "telesis/";
 
@@ -64,13 +78,27 @@ export const filterBlockingFindings = (
 
 const DEFAULT_REVIEW_MODEL = "claude-sonnet-4-6";
 
+/** Build a PipelineState snapshot with accumulated values */
+const buildState = (
+  base: Pick<PipelineState, "workItemId" | "planId" | "startedAt">,
+  currentStage: RunStage,
+  accumulated: MutablePartialState = {},
+): PipelineState => ({
+  ...base,
+  ...accumulated,
+  currentStage,
+  updatedAt: new Date().toISOString(),
+});
+
 /** Run the full pipeline for a work item */
 export const runPipeline = async (
   deps: RunDeps,
   workItemId: string,
-  branchOverride?: string,
+  options?: RunOptions,
 ): Promise<RunResult> => {
   const startTime = Date.now();
+  const resumeState = options?.resumeState;
+  const branchOverride = options?.branchOverride;
 
   const emitStage = (stage: RunStage): void => {
     deps.onEvent?.(
@@ -95,13 +123,45 @@ export const runPipeline = async (
     return fail("", "failed", `No work item matching "${workItemId}"`);
   }
 
-  const validStatuses = new Set(["pending", "approved"]);
-  if (!validStatuses.has(workItem.status)) {
-    return fail(
-      "",
-      "failed",
-      `Work item ${workItem.id.slice(0, 8)} has status "${workItem.status}", expected "pending" or "approved"`,
+  // On fresh runs, validate status; on resume, skip since we already validated
+  if (!resumeState) {
+    const validStatuses = new Set(["pending", "approved"]);
+    if (!validStatuses.has(workItem.status)) {
+      return fail(
+        "",
+        "failed",
+        `Work item ${workItem.id.slice(0, 8)} has status "${workItem.status}", expected "pending" or "approved"`,
+      );
+    }
+  }
+
+  // State tracking for persistence
+  const stateBase = {
+    workItemId: workItem.id,
+    planId: resumeState?.planId ?? "",
+    startedAt: resumeState?.startedAt ?? new Date().toISOString(),
+  };
+  let accumulated: MutablePartialState = {};
+
+  // Emit resumed event if resuming
+  if (resumeState) {
+    deps.onEvent?.(
+      createEvent("pipeline:resumed", {
+        workItemId: workItem.id,
+        resumedFromStage: resumeState.currentStage,
+      }),
     );
+
+    // Restore cached values from previous run
+    accumulated = {
+      preExecutionSha: resumeState.preExecutionSha,
+      branch: resumeState.branch,
+      commitResult: resumeState.commitResult,
+      qualityGateSummary: resumeState.qualityGateSummary,
+      reviewSummary: resumeState.reviewSummary,
+      pushResult: resumeState.pushResult,
+      prUrl: resumeState.prUrl,
+    };
   }
 
   deps.onEvent?.(
@@ -111,165 +171,243 @@ export const runPipeline = async (
     }),
   );
 
-  // 2. Create plan
-  emitStage("planning");
+  // 2. Create plan (or reload on resume)
   let plan;
-  try {
-    plan = await createPlanFromWorkItem(
-      deps.modelClient,
+  if (resumeState && isPastStage(resumeState.currentStage, "planning")) {
+    // Plan already created — reload from store
+    plan = loadPlan(deps.rootDir, resumeState.planId);
+    if (!plan) {
+      return fail(
+        resumeState.planId,
+        "failed",
+        `Could not reload plan ${resumeState.planId.slice(0, 8)} for resume`,
+      );
+    }
+
+    // Ensure plan is approved when resuming past approval
+    if (
+      plan.status !== "approved" &&
+      plan.status !== "completed" &&
+      isPastStage(resumeState.currentStage, "awaiting_approval")
+    ) {
+      plan = {
+        ...plan,
+        status: "approved" as const,
+        approvedAt: new Date().toISOString(),
+      };
+      updatePlan(deps.rootDir, plan);
+    }
+  } else {
+    emitStage("planning");
+    try {
+      plan = await createPlanFromWorkItem(
+        deps.modelClient,
+        deps.rootDir,
+        workItem,
+        deps.plannerConfig.model,
+        deps.plannerConfig.maxTasks,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown error";
+      return fail("", "failed", `Plan creation failed: ${msg}`);
+    }
+
+    stateBase.planId = plan.id;
+    savePipelineState(
       deps.rootDir,
-      workItem,
-      deps.plannerConfig.model,
-      deps.plannerConfig.maxTasks,
+      buildState(stateBase, "awaiting_approval", accumulated),
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown error";
-    return fail("", "failed", `Plan creation failed: ${msg}`);
   }
 
   // 3. Display plan and prompt for approval
-  emitStage("awaiting_approval");
-  console.log("");
-  console.log(formatPlanDetail(plan));
-  console.log("");
+  if (
+    !(resumeState && isPastStage(resumeState.currentStage, "awaiting_approval"))
+  ) {
+    emitStage("awaiting_approval");
+    console.log("");
+    console.log(formatPlanDetail(plan));
+    console.log("");
 
-  const autoApprove = deps.pipelineConfig.autoApprove === true;
-  if (!autoApprove) {
-    const approved = await deps.confirm(
-      `Approve plan ${plan.id.slice(0, 8)}? (y/n)`,
-    );
-    if (!approved) {
-      return fail(plan.id, "failed", "Plan rejected by user");
+    const autoApprove = deps.pipelineConfig.autoApprove === true;
+    if (!autoApprove) {
+      const approved = await deps.confirm(
+        `Approve plan ${plan.id.slice(0, 8)}? (y/n)`,
+      );
+      if (!approved) {
+        removePipelineState(deps.rootDir, workItem.id);
+        return fail(plan.id, "failed", "Plan rejected by user");
+      }
     }
-  }
 
-  // 4. Approve plan
-  plan = {
-    ...plan,
-    status: "approved" as const,
-    approvedAt: new Date().toISOString(),
-  };
-  updatePlan(deps.rootDir, plan);
+    // 4. Approve plan
+    plan = {
+      ...plan,
+      status: "approved" as const,
+      approvedAt: new Date().toISOString(),
+    };
+    updatePlan(deps.rootDir, plan);
+
+    savePipelineState(
+      deps.rootDir,
+      buildState(stateBase, "executing", accumulated),
+    );
+  }
 
   // 5. Execute plan — capture HEAD before execution so we can squash agent commits
   const shouldReview = deps.pipelineConfig.reviewBeforePush === true;
-  const preExecutionSha = resolveRef(deps.rootDir);
-  emitStage("executing");
 
-  const executorDeps: ExecutorDeps = {
-    rootDir: deps.rootDir,
-    adapter: deps.adapter,
-    agent: deps.agent,
-    onEvent: deps.onEvent,
-    maxConcurrent: deps.dispatchConfig.maxConcurrent,
-    modelClient: deps.modelClient,
-    validationConfig: deps.validationConfig,
-  };
+  if (!(resumeState && isPastStage(resumeState.currentStage, "executing"))) {
+    const preExecutionSha = resolveRef(deps.rootDir);
+    accumulated.preExecutionSha = preExecutionSha;
+    emitStage("executing");
 
-  const execResult = await executePlan(executorDeps, plan);
+    const executorDeps: ExecutorDeps = {
+      rootDir: deps.rootDir,
+      adapter: deps.adapter,
+      agent: deps.agent,
+      onEvent: deps.onEvent,
+      maxConcurrent: deps.dispatchConfig.maxConcurrent,
+      modelClient: deps.modelClient,
+      validationConfig: deps.validationConfig,
+    };
 
-  // 6. Handle gate
-  if (execResult.status === "awaiting_gate") {
-    emitStage("awaiting_gate");
+    const execResult = await executePlan(executorDeps, plan);
 
-    const gateApproved = await deps.confirm(
-      `Plan ${plan.id.slice(0, 8)} hit a milestone gate. Approve? (y/n)`,
-    );
-    if (!gateApproved) {
-      return fail(plan.id, "awaiting_gate", "Gate approval pending");
+    // 6. Handle gate
+    if (execResult.status === "awaiting_gate") {
+      emitStage("awaiting_gate");
+
+      const gateApproved = await deps.confirm(
+        `Plan ${plan.id.slice(0, 8)} hit a milestone gate. Approve? (y/n)`,
+      );
+      if (!gateApproved) {
+        return fail(plan.id, "awaiting_gate", "Gate approval pending");
+      }
+
+      plan = {
+        ...plan,
+        status: "completed" as const,
+        completedAt: new Date().toISOString(),
+      };
+      updatePlan(deps.rootDir, plan);
     }
 
-    // Reload plan after execution updated it, then mark completed
-    plan = {
-      ...plan,
-      status: "completed" as const,
-      completedAt: new Date().toISOString(),
-    };
-    updatePlan(deps.rootDir, plan);
+    // 7. Handle failure/escalation
+    if (execResult.status === "failed" || execResult.status === "escalated") {
+      deps.onEvent?.(
+        createEvent("pipeline:failed", {
+          workItemId: workItem.id,
+          title: workItem.title,
+        }),
+      );
+      savePipelineState(
+        deps.rootDir,
+        buildState(stateBase, "executing", accumulated),
+      );
+      return fail(
+        plan.id,
+        "failed",
+        `Plan execution ${execResult.status}: ${execResult.completedTasks}/${execResult.totalTasks} tasks completed`,
+      );
+    }
+
+    // 8. Squash any agent commits back to staged changes so we get one pipeline commit
+    try {
+      softReset(deps.rootDir, preExecutionSha);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown error";
+      deps.onEvent?.(
+        createEvent("pipeline:failed", {
+          workItemId: workItem.id,
+          title: workItem.title,
+        }),
+      );
+      return fail(plan.id, "failed", `Failed to squash agent commits: ${msg}`);
+    }
+
+    // 9. Check for changes
+    if (!hasChanges(deps.rootDir)) {
+      removePipelineState(deps.rootDir, workItem.id);
+      deps.onEvent?.(
+        createEvent("pipeline:completed", {
+          workItemId: workItem.id,
+          title: workItem.title,
+        }),
+      );
+
+      updateWorkItem(deps.rootDir, {
+        ...workItem,
+        status: "completed",
+        completedAt: new Date().toISOString(),
+      });
+
+      return {
+        workItemId: workItem.id,
+        planId: plan.id,
+        stage: "completed",
+        durationMs: Date.now() - startTime,
+      };
+    }
+
+    savePipelineState(
+      deps.rootDir,
+      buildState(stateBase, "committing", accumulated),
+    );
   }
 
-  // 7. Handle failure/escalation
-  if (execResult.status === "failed" || execResult.status === "escalated") {
+  // 9. Create branch (unless commitToMain) + commit
+  if (!(resumeState && isPastStage(resumeState.currentStage, "committing"))) {
+    const commitToMain = deps.gitConfig.commitToMain === true;
+    let branch = currentBranch(deps.rootDir);
+
+    if (!commitToMain) {
+      const prefix = deps.gitConfig.branchPrefix ?? DEFAULT_BRANCH_PREFIX;
+      const slug = slugify(workItem.title);
+      const shortId = workItem.id.slice(0, 8);
+      branch = branchOverride ?? `${prefix}${shortId}-${slug}`;
+
+      createBranch(deps.rootDir, branch);
+    }
+
+    // 10. Stage all + commit
+    emitStage("committing");
+    stageAll(deps.rootDir);
+    const commitMessage = generateCommitMessage(plan, workItem);
+    const commitResult = commit(deps.rootDir, commitMessage);
+    accumulated.branch = branch;
+    accumulated.commitResult = commitResult;
+
     deps.onEvent?.(
-      createEvent("pipeline:failed", {
-        workItemId: workItem.id,
-        title: workItem.title,
+      createEvent("git:committed", {
+        sha: commitResult.sha,
+        branch: commitResult.branch,
+        filesChanged: commitResult.filesChanged,
       }),
     );
-    return fail(
-      plan.id,
-      "failed",
-      `Plan execution ${execResult.status}: ${execResult.completedTasks}/${execResult.totalTasks} tasks completed`,
+
+    // Determine next stage for state save
+    const nextStage: RunStage = deps.pipelineConfig.qualityGates
+      ? "quality_check"
+      : shouldReview
+        ? "reviewing"
+        : "pushing";
+    savePipelineState(
+      deps.rootDir,
+      buildState(stateBase, nextStage, accumulated),
     );
   }
 
-  // 8. Squash any agent commits back to staged changes so we get one pipeline commit
-  try {
-    softReset(deps.rootDir, preExecutionSha);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown error";
-    deps.onEvent?.(
-      createEvent("pipeline:failed", {
-        workItemId: workItem.id,
-        title: workItem.title,
-      }),
-    );
-    return fail(plan.id, "failed", `Failed to squash agent commits: ${msg}`);
-  }
-
-  // 9. Check for changes
-  if (!hasChanges(deps.rootDir)) {
-    deps.onEvent?.(
-      createEvent("pipeline:completed", {
-        workItemId: workItem.id,
-        title: workItem.title,
-      }),
-    );
-
-    updateWorkItem(deps.rootDir, {
-      ...workItem,
-      status: "completed",
-      completedAt: new Date().toISOString(),
-    });
-
-    return {
-      workItemId: workItem.id,
-      planId: plan.id,
-      stage: "completed",
-      durationMs: Date.now() - startTime,
-    };
-  }
-
-  // 9. Create branch (unless commitToMain)
-  const commitToMain = deps.gitConfig.commitToMain === true;
-  let branch = currentBranch(deps.rootDir);
-
-  if (!commitToMain) {
-    const prefix = deps.gitConfig.branchPrefix ?? DEFAULT_BRANCH_PREFIX;
-    const slug = slugify(workItem.title);
-    const shortId = workItem.id.slice(0, 8);
-    branch = branchOverride ?? `${prefix}${shortId}-${slug}`;
-
-    createBranch(deps.rootDir, branch);
-  }
-
-  // 10. Stage all + commit
-  emitStage("committing");
-  stageAll(deps.rootDir);
-  const commitMessage = generateCommitMessage(plan, workItem);
-  let commitResult = commit(deps.rootDir, commitMessage);
-
-  deps.onEvent?.(
-    createEvent("git:committed", {
-      sha: commitResult.sha,
-      branch: commitResult.branch,
-      filesChanged: commitResult.filesChanged,
-    }),
-  );
+  // Use accumulated values (from this run or from resume state)
+  let commitResult = accumulated.commitResult!;
+  let branch = accumulated.branch ?? currentBranch(deps.rootDir);
+  const preExecutionSha = accumulated.preExecutionSha;
 
   // 11. Quality gates (if configured)
-  let qualityGateSummary;
-  if (deps.pipelineConfig.qualityGates) {
+  let qualityGateSummary = accumulated.qualityGateSummary;
+  if (
+    deps.pipelineConfig.qualityGates &&
+    !(resumeState && isPastStage(resumeState.currentStage, "quality_check"))
+  ) {
     emitStage("quality_check");
     const { summary, amendedCommit } = runQualityGates(
       {
@@ -286,9 +424,11 @@ export const runPipeline = async (
     );
 
     qualityGateSummary = summary;
+    accumulated.qualityGateSummary = summary;
 
     if (amendedCommit) {
       commitResult = amendedCommit;
+      accumulated.commitResult = commitResult;
       deps.onEvent?.(
         createEvent("git:committed", {
           sha: commitResult.sha,
@@ -299,6 +439,10 @@ export const runPipeline = async (
     }
 
     if (!summary.passed) {
+      savePipelineState(
+        deps.rootDir,
+        buildState(stateBase, "quality_check", accumulated),
+      );
       return {
         workItemId: workItem.id,
         planId: plan.id,
@@ -309,17 +453,32 @@ export const runPipeline = async (
         durationMs: Date.now() - startTime,
       };
     }
+
+    const nextStage: RunStage = shouldReview ? "reviewing" : "pushing";
+    savePipelineState(
+      deps.rootDir,
+      buildState(stateBase, nextStage, accumulated),
+    );
   }
 
   // 12. Review (if configured)
-  let reviewSummary: ReviewSummary | undefined;
+  let reviewSummary: ReviewSummary | undefined = accumulated.reviewSummary;
 
-  if (shouldReview) {
+  if (
+    shouldReview &&
+    !(resumeState && isPastStage(resumeState.currentStage, "reviewing"))
+  ) {
     emitStage("reviewing");
     const threshold = deps.pipelineConfig.reviewBlockThreshold ?? "high";
 
     try {
-      const resolved = resolveDiff(deps.rootDir, `${preExecutionSha}..HEAD`);
+      if (!preExecutionSha) {
+        throw new Error(
+          "preExecutionSha is required for review diff — pipeline state may be corrupt",
+        );
+      }
+      const diffRef = `${preExecutionSha}..HEAD`;
+      const resolved = resolveDiff(deps.rootDir, diffRef);
       const context = assembleReviewContext(deps.rootDir);
       const reviewModel =
         deps.pipelineConfig.reviewModel ?? DEFAULT_REVIEW_MODEL;
@@ -344,6 +503,7 @@ export const runPipeline = async (
         threshold,
         findings: reviewResult.findings,
       };
+      accumulated.reviewSummary = reviewSummary;
 
       if (blocking.length > 0) {
         deps.onEvent?.(
@@ -353,6 +513,11 @@ export const runPipeline = async (
             blockingCount: blocking.length,
             threshold,
           }),
+        );
+
+        savePipelineState(
+          deps.rootDir,
+          buildState(stateBase, "reviewing", accumulated),
         );
 
         return {
@@ -386,6 +551,7 @@ export const runPipeline = async (
         threshold,
         findings: [],
       };
+      accumulated.reviewSummary = reviewSummary;
 
       deps.onEvent?.(
         createEvent("pipeline:review_passed", {
@@ -396,16 +562,26 @@ export const runPipeline = async (
         }),
       );
     }
+
+    savePipelineState(
+      deps.rootDir,
+      buildState(stateBase, "pushing", accumulated),
+    );
   }
 
   // 12. Push (if configured)
-  let pushResult;
+  const commitToMain = deps.gitConfig.commitToMain === true;
+  let pushResult = accumulated.pushResult;
   const shouldPush = deps.gitConfig.pushAfterCommit !== false;
-  if (shouldPush) {
+  if (
+    shouldPush &&
+    !(resumeState && isPastStage(resumeState.currentStage, "pushing"))
+  ) {
     emitStage("pushing");
     const needsUpstream =
       !commitToMain && !remoteBranchExists(deps.rootDir, branch);
     pushResult = push(deps.rootDir, branch, needsUpstream);
+    accumulated.pushResult = pushResult;
 
     deps.onEvent?.(
       createEvent("git:pushed", {
@@ -413,11 +589,20 @@ export const runPipeline = async (
         remote: pushResult.remote,
       }),
     );
+
+    savePipelineState(
+      deps.rootDir,
+      buildState(stateBase, "creating_pr", accumulated),
+    );
   }
 
   // 13. Create PR (if configured and on a branch)
-  let prUrl: string | undefined;
-  if (deps.gitConfig.createPR === true && !commitToMain) {
+  let prUrl: string | undefined = accumulated.prUrl;
+  if (
+    deps.gitConfig.createPR === true &&
+    !commitToMain &&
+    !(resumeState && isPastStage(resumeState.currentStage, "creating_pr"))
+  ) {
     emitStage("creating_pr");
 
     const token = process.env.GITHUB_TOKEN;
@@ -441,6 +626,7 @@ export const runPipeline = async (
       });
 
       prUrl = prResult.url;
+      accumulated.prUrl = prUrl;
 
       deps.onEvent?.(
         createEvent("github:pr_created", {
@@ -450,6 +636,11 @@ export const runPipeline = async (
         }),
       );
     }
+
+    savePipelineState(
+      deps.rootDir,
+      buildState(stateBase, "closing_issue", accumulated),
+    );
   }
 
   // 14. Close issue (if configured and source is GitHub)
@@ -473,7 +664,9 @@ export const runPipeline = async (
     }
   }
 
-  // 15. Update work item status
+  // 15. Cleanup state + update work item status
+  removePipelineState(deps.rootDir, workItem.id);
+
   updateWorkItem(deps.rootDir, {
     ...workItem,
     status: "completed",
@@ -496,6 +689,8 @@ export const runPipeline = async (
     prUrl,
     reviewSummary,
     qualityGateSummary,
+    resumed: !!resumeState,
+    resumedFromStage: resumeState?.currentStage,
     durationMs: Date.now() - startTime,
   };
 };

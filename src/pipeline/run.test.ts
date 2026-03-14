@@ -8,7 +8,10 @@ import type { RunDeps } from "./types.js";
 import type { WorkItem } from "../intake/types.js";
 import type { Plan } from "../plan/types.js";
 import type { ReviewFinding } from "../agent/review/types.js";
+import { isPastStage, type PipelineState } from "./types.js";
 import { createWorkItem } from "../intake/store.js";
+import { savePipelineState, loadPipelineState } from "./state.js";
+import { createPlan as createPlanInStore } from "../plan/store.js";
 
 const makeTempDir = useTempDir("pipeline-run");
 
@@ -322,7 +325,9 @@ describe("runPipeline", () => {
     const deps = makeDeps(dir, {
       gitConfig: { pushAfterCommit: false },
     });
-    const result = await runPipeline(deps, "wi-test-1", "custom/branch");
+    const result = await runPipeline(deps, "wi-test-1", {
+      branchOverride: "custom/branch",
+    });
 
     expect(result.stage).toBe("completed");
     expect(result.commitResult!.branch).toBe("custom/branch");
@@ -694,6 +699,250 @@ describe("runPipeline", () => {
 
       consoleSpy.mockRestore();
     });
+  });
+
+  describe("resume", () => {
+    const makeResumeState = (
+      overrides?: Partial<PipelineState>,
+    ): PipelineState => ({
+      workItemId: "wi-test-1234-5678-9012-abcdef012345",
+      planId: "plan-test-1234-5678-9012-abcdef012345",
+      currentStage: "committing",
+      startedAt: "2026-03-14T00:00:00Z",
+      updatedAt: "2026-03-14T00:01:00Z",
+      ...overrides,
+    });
+
+    it("skips planning and approval when resuming past them", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      // Create the plan in the store so it can be loaded on resume
+      const plan = makeMockPlan();
+      createPlanInStore(dir, {
+        ...plan,
+        status: "approved",
+        approvedAt: "2026-03-14T00:00:00Z",
+      });
+
+      // Mock executor to produce changes
+      mockExecutePlan.mockImplementationOnce(async () => {
+        writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+        return {
+          planId: plan.id,
+          status: "completed" as const,
+          completedTasks: 1,
+          totalTasks: 1,
+          durationMs: 1000,
+        };
+      });
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+      });
+
+      const resumeState = makeResumeState({
+        currentStage: "executing",
+      });
+      const result = await runPipeline(deps, "wi-test-1", { resumeState });
+
+      expect(result.stage).toBe("completed");
+      // createPlanFromWorkItem should NOT have been called — plan was loaded from store
+      expect(mockCreatePlan).not.toHaveBeenCalled();
+      // confirm should NOT have been called — approval was skipped
+      expect(deps.confirm).not.toHaveBeenCalled();
+    });
+
+    it("emits pipeline:resumed event", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      const plan = makeMockPlan();
+      createPlanInStore(dir, {
+        ...plan,
+        status: "approved",
+        approvedAt: "2026-03-14T00:00:00Z",
+      });
+
+      mockExecutePlan.mockImplementationOnce(async () => {
+        writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+        return {
+          planId: plan.id,
+          status: "completed" as const,
+          completedTasks: 1,
+          totalTasks: 1,
+          durationMs: 1000,
+        };
+      });
+
+      const onEvent = vi.fn();
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+        onEvent,
+      });
+
+      const resumeState = makeResumeState({
+        currentStage: "executing",
+      });
+      await runPipeline(deps, "wi-test-1", { resumeState });
+
+      const eventTypes = onEvent.mock.calls.map(
+        (call: unknown[]) => (call[0] as { type: string }).type,
+      );
+      expect(eventTypes).toContain("pipeline:resumed");
+    });
+
+    it("skips to committing when resuming past execution", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      const plan = makeMockPlan();
+      createPlanInStore(dir, {
+        ...plan,
+        status: "approved",
+        approvedAt: "2026-03-14T00:00:00Z",
+      });
+
+      // Write a file and stage it to simulate changes from a prior execution
+      writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+      execFileSync("git", ["add", "."], { cwd: dir });
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+      });
+
+      const resumeState = makeResumeState({
+        currentStage: "committing",
+        preExecutionSha: "abc123",
+      });
+      const result = await runPipeline(deps, "wi-test-1", { resumeState });
+
+      expect(result.stage).toBe("completed");
+      expect(result.commitResult).toBeDefined();
+      // Executor should not have been called — we skipped past execution
+      expect(mockExecutePlan).not.toHaveBeenCalled();
+    });
+
+    it("saves state on completion then cleans up", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+      commitTelesisState(dir);
+
+      const plan = makeMockPlan();
+      mockCreatePlan.mockResolvedValueOnce(plan);
+      mockExecutePlan.mockImplementationOnce(async () => {
+        commitTelesisState(dir);
+        return {
+          planId: plan.id,
+          status: "completed" as const,
+          completedTasks: 1,
+          totalTasks: 1,
+          durationMs: 1000,
+        };
+      });
+
+      const deps = makeDeps(dir, {
+        pipelineConfig: { autoApprove: true },
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("completed");
+      // State file should be cleaned up on success
+      const state = loadPipelineState(
+        dir,
+        "wi-test-1234-5678-9012-abcdef012345",
+      );
+      expect(state).toBeNull();
+    });
+
+    it("persists state on failure", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      const plan = makeMockPlan();
+      mockCreatePlan.mockResolvedValueOnce(plan);
+      mockExecutePlan.mockResolvedValueOnce({
+        planId: plan.id,
+        status: "failed",
+        completedTasks: 0,
+        totalTasks: 1,
+        durationMs: 1000,
+      });
+
+      const deps = makeDeps(dir, {
+        pipelineConfig: { autoApprove: true },
+      });
+      const result = await runPipeline(deps, "wi-test-1");
+
+      expect(result.stage).toBe("failed");
+      // State file should remain for resume
+      const state = loadPipelineState(
+        dir,
+        "wi-test-1234-5678-9012-abcdef012345",
+      );
+      expect(state).not.toBeNull();
+      expect(state!.currentStage).toBe("executing");
+    });
+
+    it("returns resumed flag in result", async () => {
+      const dir = makeTempDir();
+      initTestRepo(dir);
+      makeWorkItem(dir);
+
+      const plan = makeMockPlan();
+      createPlanInStore(dir, {
+        ...plan,
+        status: "approved",
+        approvedAt: "2026-03-14T00:00:00Z",
+      });
+
+      writeFileSync(join(dir, "feature.ts"), "export const x = 1;\n");
+      execFileSync("git", ["add", "."], { cwd: dir });
+
+      const deps = makeDeps(dir, {
+        gitConfig: { commitToMain: true, pushAfterCommit: false },
+      });
+
+      const resumeState = makeResumeState({
+        currentStage: "committing",
+      });
+      const result = await runPipeline(deps, "wi-test-1", { resumeState });
+
+      expect(result.resumed).toBe(true);
+      expect(result.resumedFromStage).toBe("committing");
+    });
+  });
+});
+
+describe("isPastStage", () => {
+  it("returns true when current is past target", () => {
+    expect(isPastStage("committing", "planning")).toBe(true);
+    expect(isPastStage("pushing", "executing")).toBe(true);
+  });
+
+  it("returns false when current is before target", () => {
+    expect(isPastStage("planning", "committing")).toBe(false);
+  });
+
+  it("returns false when current equals target", () => {
+    expect(isPastStage("executing", "executing")).toBe(false);
+  });
+
+  it("throws for terminal stages not in STAGE_ORDER", () => {
+    expect(() => isPastStage("failed", "planning")).toThrow(
+      "not in STAGE_ORDER",
+    );
+    expect(() => isPastStage("quality_check_failed", "planning")).toThrow(
+      "not in STAGE_ORDER",
+    );
+    expect(() => isPastStage("review_failed", "planning")).toThrow(
+      "not in STAGE_ORDER",
+    );
   });
 });
 

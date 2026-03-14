@@ -419,6 +419,28 @@ describe("formatEventLine", () => {
     expect(formatEventLine(event)).toContain("\x1b[31m");
   });
 
+  it("formats pipeline:resumed with work item and stage", () => {
+    const event = createEvent("pipeline:resumed", {
+      workItemId: "abcdef01-2345-6789-abcd-ef0123456789",
+      resumedFromStage: "quality_check",
+    });
+
+    const line = formatEventLine(event);
+    expect(line).toContain("pipeline:resumed");
+    expect(line).toContain("work-item=abcdef01");
+    expect(line).toContain("resumed-from=quality_check");
+  });
+
+  it("applies green color for pipeline:resumed events (informational)", () => {
+    const event = createEvent("pipeline:resumed", {
+      workItemId: "abc",
+      resumedFromStage: "pushing",
+    });
+
+    // Green ANSI code (pipeline:* → green, not red)
+    expect(formatEventLine(event)).toContain("\x1b[32m");
+  });
+
   it("formats intake:item:skipped", () => {
     const event = createEvent("intake:item:skipped", {
       itemId: "uuid-1",

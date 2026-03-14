@@ -17,6 +17,13 @@ import { createSdk, createModelClient } from "../agent/model/client.js";
 import { createTelemetryLogger } from "../agent/telemetry/logger.js";
 import { runPipeline } from "../pipeline/run.js";
 import { formatRunResult } from "../pipeline/format.js";
+import { loadPipelineState, removePipelineState } from "../pipeline/state.js";
+import { STAGE_ORDER } from "../pipeline/types.js";
+import { loadWorkItem } from "../intake/store.js";
+
+/** Check whether a stage is resumable (exists in STAGE_ORDER) */
+const isResumableStage = (stage: string): boolean =>
+  (STAGE_ORDER as readonly string[]).includes(stage);
 import { runChecks } from "../drift/runner.js";
 import { allChecks } from "../drift/checks/index.js";
 
@@ -55,6 +62,8 @@ export const runCommand = new Command("run")
   )
   .option("--no-quality-check", "Skip quality gates")
   .option("--branch <name>", "Override branch name")
+  .option("--resume", "Auto-resume from partial state without prompting")
+  .option("--restart", "Discard partial state and start fresh")
   .action(
     handleAction(
       async (
@@ -67,6 +76,8 @@ export const runCommand = new Command("run")
           review?: boolean;
           qualityCheck?: boolean;
           branch?: string;
+          resume?: boolean;
+          restart?: boolean;
         },
       ) => {
         const rootDir = projectRoot();
@@ -111,6 +122,49 @@ export const runCommand = new Command("run")
           ...(opts.qualityCheck === false ? { qualityGates: undefined } : {}),
         };
 
+        // Resolve work item to get full ID for state lookup
+        const workItem = loadWorkItem(rootDir, workItemId);
+        const fullId = workItem?.id;
+
+        // Check for existing pipeline state (resume/restart logic)
+        let resumeState;
+        if (fullId) {
+          const existingState = loadPipelineState(rootDir, fullId);
+
+          if (existingState) {
+            if (!isResumableStage(existingState.currentStage)) {
+              console.error(
+                `Pipeline stopped in terminal state "${existingState.currentStage}". Use --restart to start fresh.`,
+              );
+              removePipelineState(rootDir, fullId);
+              process.exitCode = 1;
+              return;
+            }
+
+            if (opts.restart) {
+              removePipelineState(rootDir, fullId);
+            } else if (opts.resume) {
+              resumeState = existingState;
+            } else {
+              // Prompt user
+              const { confirm: promptConfirm, close: promptClose } =
+                createConfirm();
+              try {
+                const shouldResume = await promptConfirm(
+                  `Pipeline for ${fullId.slice(0, 8)} stopped at "${existingState.currentStage}". Resume? (y/n)`,
+                );
+                if (shouldResume) {
+                  resumeState = existingState;
+                } else {
+                  removePipelineState(rootDir, fullId);
+                }
+              } finally {
+                promptClose();
+              }
+            }
+          }
+        }
+
         // Set up interactive confirm (or auto-approve)
         const { confirm, close } = effectivePipelineConfig.autoApprove
           ? { confirm: async () => true, close: () => {} }
@@ -133,7 +187,10 @@ export const runCommand = new Command("run")
               runDriftChecks: (rootDir) => runChecks(allChecks, rootDir),
             },
             workItemId,
-            opts.branch,
+            {
+              branchOverride: opts.branch,
+              resumeState,
+            },
           );
 
           console.log("");
@@ -141,7 +198,8 @@ export const runCommand = new Command("run")
 
           if (
             result.stage === "failed" ||
-            result.stage === "quality_check_failed"
+            result.stage === "quality_check_failed" ||
+            result.stage === "review_failed"
           ) {
             process.exitCode = 1;
           }

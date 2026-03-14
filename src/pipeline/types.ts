@@ -12,6 +12,39 @@ import type {
 import type { CommitResult, PushResult } from "../git/types.js";
 import type { ReviewFinding } from "../agent/review/types.js";
 
+/** Ordered pipeline stages — used for resume skip logic */
+export const STAGE_ORDER: readonly RunStage[] = [
+  "planning",
+  "awaiting_approval",
+  "executing",
+  "awaiting_gate",
+  "committing",
+  "quality_check",
+  "reviewing",
+  "pushing",
+  "creating_pr",
+  "closing_issue",
+  "completed",
+] as const;
+
+/** Check whether `current` is strictly past `target` in the stage ordering.
+ *  Throws if either stage is not in STAGE_ORDER (terminal/error stages are not resumable). */
+export const isPastStage = (current: RunStage, target: RunStage): boolean => {
+  const currentIdx = STAGE_ORDER.indexOf(current);
+  const targetIdx = STAGE_ORDER.indexOf(target);
+  if (currentIdx === -1) {
+    throw new TypeError(
+      `Stage "${current}" is not in STAGE_ORDER — terminal stages are not resumable`,
+    );
+  }
+  if (targetIdx === -1) {
+    throw new TypeError(
+      `Stage "${target}" is not in STAGE_ORDER — terminal stages are not resumable`,
+    );
+  }
+  return currentIdx > targetIdx;
+};
+
 /** Quality gate types */
 export type QualityGateName = "format" | "lint" | "test" | "build" | "drift";
 
@@ -73,6 +106,28 @@ export interface ReviewSummary {
   readonly findings: readonly ReviewFinding[];
 }
 
+/** Persisted state for pipeline resumability */
+export interface PipelineState {
+  readonly workItemId: string;
+  readonly planId: string;
+  readonly currentStage: RunStage;
+  readonly startedAt: string;
+  readonly updatedAt: string;
+  readonly preExecutionSha?: string;
+  readonly branch?: string;
+  readonly commitResult?: CommitResult;
+  readonly qualityGateSummary?: QualityGateSummary;
+  readonly reviewSummary?: ReviewSummary;
+  readonly pushResult?: PushResult;
+  readonly prUrl?: string;
+}
+
+/** Options for running the pipeline */
+export interface RunOptions {
+  readonly branchOverride?: string;
+  readonly resumeState?: PipelineState;
+}
+
 /** Result of a pipeline run */
 export interface RunResult {
   readonly workItemId: string;
@@ -83,6 +138,8 @@ export interface RunResult {
   readonly prUrl?: string;
   readonly reviewSummary?: ReviewSummary;
   readonly qualityGateSummary?: QualityGateSummary;
+  readonly resumed?: boolean;
+  readonly resumedFromStage?: RunStage;
   readonly error?: string;
   readonly durationMs: number;
 }
