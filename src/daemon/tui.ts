@@ -25,6 +25,8 @@ const colorForType = (type: EventType): string => {
   if (type.startsWith("intake:")) return COLORS.cyan;
   if (type.startsWith("plan:")) return COLORS.magenta;
   if (type.startsWith("validation:")) return COLORS.yellow;
+  if (type === "pipeline:failed" || type === "pipeline:review_failed")
+    return COLORS.red;
   if (type.startsWith("pipeline:")) return COLORS.green;
   if (type.startsWith("git:")) return COLORS.cyan;
   if (type.startsWith("github:")) return COLORS.magenta;

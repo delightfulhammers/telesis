@@ -16,6 +16,8 @@ import {
 import { generateCommitMessage } from "../git/commit-message.js";
 import { createPullRequest, closeIssue } from "../github/pr.js";
 import { extractRepoContext } from "../github/environment.js";
+import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { createEvent } from "../daemon/types.js";
 import { resolveDiff } from "../agent/review/diff.js";
 import { assembleReviewContext } from "../agent/review/context.js";
@@ -231,6 +233,10 @@ export const runPipeline = async (
 
   // 10. Stage all + commit
   emitStage("committing");
+  const preCommitSha = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: deps.rootDir,
+    encoding: "utf-8",
+  }).trim();
   stageAll(deps.rootDir);
   const commitMessage = generateCommitMessage(plan, workItem);
   const commitResult = commit(deps.rootDir, commitMessage);
@@ -252,10 +258,10 @@ export const runPipeline = async (
     const threshold = deps.pipelineConfig.reviewBlockThreshold ?? "high";
 
     try {
-      const resolved = resolveDiff(deps.rootDir, "HEAD~1");
+      const resolved = resolveDiff(deps.rootDir, `${preCommitSha}...HEAD`);
       const context = assembleReviewContext(deps.rootDir);
       const reviewModel = DEFAULT_REVIEW_MODEL;
-      const sessionId = `pipeline-review-${workItem.id.slice(0, 8)}`;
+      const sessionId = randomUUID();
 
       const reviewResult = await reviewDiff(
         deps.modelClient,

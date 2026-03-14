@@ -346,7 +346,7 @@ describe("formatEventLine", () => {
     expect(formatEventLine(event)).toContain("\x1b[32m");
   });
 
-  it("applies green color for pipeline:review_failed events", () => {
+  it("applies red color for pipeline:review_failed events", () => {
     const event = createEvent("pipeline:review_failed", {
       workItemId: "abc",
       findingCount: 1,
@@ -354,8 +354,8 @@ describe("formatEventLine", () => {
       threshold: "error",
     });
 
-    // Green ANSI code (pipeline:* → green)
-    expect(formatEventLine(event)).toContain("\x1b[32m");
+    // Red ANSI code (failure events → red)
+    expect(formatEventLine(event)).toContain("\x1b[31m");
   });
 
   it("formats intake:item:skipped", () => {

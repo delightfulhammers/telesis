@@ -50,7 +50,7 @@ export const formatRunResult = (result: RunResult): string => {
     if (result.reviewSummary?.ran) {
       const rs = result.reviewSummary;
       lines.push(
-        `  Review: ${rs.totalFindings} findings, ${rs.blockingFindings} blocking (threshold: ${rs.threshold})`,
+        `  Review: blocked (${rs.totalFindings} findings, ${rs.blockingFindings} blocking, threshold: ${rs.threshold})`,
       );
     }
     if (result.commitResult) {
