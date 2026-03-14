@@ -1,0 +1,58 @@
+{
+  "id": "cdc0aa79-c96a-4f39-8eed-283632725946",
+  "workItemId": "31e063d6-30e2-4a92-8d39-588bed8271c2",
+  "title": "dispatch show --text: reconstruct readable agent narrative from session events",
+  "status": "completed",
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Implement event text reconstruction logic in dispatch business logic package",
+      "description": "Create a new function `reconstructSessionText` in `src/dispatch/` (or the appropriate business logic package that handles dispatch/session operations — check existing files like `src/dispatch/session.ts` or similar).\n\nThe function should:\n- Accept an array of ACP session events (read from `.telesis/sessions/<id>.events.jsonl`)\n- Iterate over events in sequence order\n- Concatenate `text` fields from events where `type === 'output'` into a running text buffer\n- When a tool call event is encountered (check for `type === 'tool_call'` or `type === 'tool_use'` — inspect existing event type definitions to confirm the shape), emit an inline marker like `\\n[tool: <tool_name>]\\n` followed by any result text if present\n- When a thinking event is encountered (`type === 'thinking'`), emit `[thinking...]` as a marker\n- Return the fully reconstructed string\n\nBefore writing new code:\n- Inspect `src/dispatch/` and related files to understand the existing event type definitions and session reading utilities\n- Reuse any existing `readSessionEvents` or similar helpers rather than duplicating JSONL parsing\n- Check `src/daemon/events.ts` or wherever ACP event types are defined to get the exact shape of output, tool, and thinking events\n\nWrite colocated unit tests in `src/dispatch/reconstruct.test.ts` (or adjacent to wherever you place the function). Tests must cover:\n- Pure output events concatenated correctly\n- Tool call events rendered inline with their name\n- Thinking events rendered as `[thinking...]`\n- Mixed sequence of all three types produces coherent output\n- Empty event array returns empty string\n- Events with missing or undefined `text` fields do not crash",
+      "dependsOn": [],
+      "status": "completed",
+      "validationAttempts": 3,
+      "validationErrors": [
+        "Create reconstructSessionText function in src/dispatch/ package",
+        "Function accepts an array of ACP session events",
+        "Concatenates text fields from output events into a running buffer",
+        "Emits inline marker for tool call events with tool name and optional result text",
+        "Emits [thinking...] marker for thinking events",
+        "Returns the fully reconstructed string",
+        "Reuses existing event type definitions (inspect src/dispatch/, src/daemon/events.ts)",
+        "Write colocated unit tests in src/dispatch/reconstruct.test.ts",
+        "Tests cover pure output events concatenated correctly",
+        "Tests cover tool call events rendered inline with their name",
+        "Tests cover thinking events rendered as [thinking...]",
+        "Tests cover mixed sequence of all three types produces coherent output",
+        "Tests cover empty event array returns empty string",
+        "Tests cover events with missing or undefined text fields do not crash"
+      ],
+      "sessionId": "f33ccfea-27c2-403c-99f8-d975e19ea06d",
+      "completedAt": "2026-03-14T11:42:55.265Z",
+      "correctionSessionIds": [
+        "e1c6c570-52c3-402c-ac19-71534946ed56",
+        "162e6683-450c-43a5-8b20-19f3b9dc7a9e"
+      ]
+    },
+    {
+      "id": "task-2",
+      "title": "Add --text flag to `telesis dispatch show` CLI command",
+      "description": "Modify the `telesis dispatch show` command in `src/cli/dispatch.ts` (or wherever the dispatch CLI commands are defined — find the file that registers the `dispatch show` subcommand with Commander).\n\nChanges required:\n- Add `.option('--text', 'Reconstruct and display full agent narrative from session events')` to the `show` command definition\n- In the action handler, when `options.text` is true:\n  1. Read the session's `.events.jsonl` file (reuse existing session loading logic)\n  2. Call the `reconstructSessionText` function from task-1\n  3. Print the reconstructed text to stdout\n- When `options.text` is false/absent, the existing behavior must be completely unchanged\n- If the session events file does not exist or is empty, print a helpful message like `No events found for session <id>` and exit cleanly (no stack trace)\n- If reconstruction produces an empty string (e.g., session has no output events), print `No output events in session <id>`\n\nDo not modify the default code path in any way. The `--text` branch is purely additive.",
+      "dependsOn": [
+        "task-1"
+      ],
+      "status": "completed",
+      "sessionId": "2cb6882a-54bc-495a-b68d-f85ebf4ce846",
+      "completedAt": "2026-03-14T11:44:14.321Z",
+      "validationAttempts": 1
+    }
+  ],
+  "createdAt": "2026-03-14T11:37:29.794Z",
+  "tokenUsage": {
+    "inputTokens": 2891,
+    "outputTokens": 805
+  },
+  "approvedAt": "2026-03-14T11:37:29.794Z",
+  "startedAt": "2026-03-14T11:37:29.796Z",
+  "completedAt": "2026-03-14T11:44:14.323Z"
+}

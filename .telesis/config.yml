@@ -13,7 +13,7 @@ intake:
 
 git:
   commitToMain: true
-  pushAfterCommit: true
+  pushAfterCommit: false
   createPR: false
 
 pipeline:

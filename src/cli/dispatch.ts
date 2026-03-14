@@ -15,6 +15,7 @@ import {
   loadSessionEvents,
 } from "../dispatch/store.js";
 import { formatSessionList, formatSessionDetail } from "../dispatch/format.js";
+import { reconstructSessionText } from "../dispatch/reconstruct.js";
 import { createEventRenderer } from "../daemon/tui.js";
 import type { TelesisDaemonEvent } from "../daemon/types.js";
 import { setupOversight } from "../oversight/setup.js";
@@ -132,8 +133,12 @@ const listCommand = new Command("list")
 const showCommand = new Command("show")
   .description("Show a dispatch session's event log")
   .argument("<session-id>", "Session ID or prefix")
+  .option(
+    "--text",
+    "Reconstruct and display full agent narrative from session events",
+  )
   .action(
-    handleAction((sessionId: string) => {
+    handleAction((sessionId: string, opts: { text?: boolean }) => {
       const rootDir = projectRoot();
 
       const meta = loadSessionMeta(rootDir, sessionId);
@@ -152,6 +157,22 @@ const showCommand = new Command("show")
         console.error(
           `Warning: ${invalidLineCount} malformed line(s) in event log were skipped.`,
         );
+      }
+
+      if (opts.text) {
+        if (events.length === 0) {
+          console.log(`No events found for session ${meta.id}`);
+          return;
+        }
+
+        const text = reconstructSessionText(events);
+        if (text.length === 0) {
+          console.log(`No output events in session ${meta.id}`);
+          return;
+        }
+
+        console.log(text);
+        return;
       }
 
       console.log(formatSessionDetail(meta, events));
