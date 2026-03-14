@@ -8,6 +8,7 @@ import {
 } from "./format.js";
 import type { ReviewSession, ReviewFinding } from "./types.js";
 import type { Dismissal } from "./dismissal/types.js";
+import type { FindingLabel } from "./convergence.js";
 
 const makeSession = (
   overrides: Partial<ReviewSession> = {},
@@ -256,6 +257,39 @@ describe("formatPersonaReport", () => {
     const report = formatPersonaReport(session, []);
     expect(report).toContain("0 findings");
   });
+
+  it("applies convergence labels to findings", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security"],
+    });
+    const findings = [
+      makeFinding({ id: "f1", persona: "security", description: "Issue A" }),
+      makeFinding({ id: "f2", persona: "security", description: "Issue B" }),
+    ];
+    const labels = new Map<string, FindingLabel>([
+      ["f1", "persistent"],
+      ["f2", "new"],
+    ]);
+    const report = formatPersonaReport(session, findings, {
+      convergenceLabels: labels,
+    });
+    expect(report).toContain("[recurring]");
+    expect(report).toContain("[new]");
+  });
+
+  it("displays activeThemes instead of session themes when provided", () => {
+    const session = makeSession({
+      mode: "personas",
+      personas: ["security"],
+      themes: ["old theme A", "old theme B"],
+    });
+    const report = formatPersonaReport(session, [], {
+      activeThemes: ["old theme A"],
+    });
+    expect(report).toContain("Themes: old theme A");
+    expect(report).not.toContain("old theme B");
+  });
 });
 
 describe("filterBySeverity", () => {
@@ -319,6 +353,24 @@ describe("formatFinding", () => {
     const result = formatFinding(finding, dismissal);
     expect(result).toContain("[DISMISSED: false-positive]");
     expect(result).toContain("[high] security");
+  });
+
+  it("includes [new] when convergence label is new", () => {
+    const result = formatFinding(finding, undefined, "new");
+    expect(result).toContain("[new]");
+    expect(result).toContain("src/auth.ts:42 [new]");
+  });
+
+  it("includes [recurring] when convergence label is persistent", () => {
+    const result = formatFinding(finding, undefined, "persistent");
+    expect(result).toContain("[recurring]");
+    expect(result).toContain("src/auth.ts:42 [recurring]");
+  });
+
+  it("omits convergence tag when no label provided", () => {
+    const result = formatFinding(finding);
+    expect(result).not.toContain("[new]");
+    expect(result).not.toContain("[recurring]");
   });
 });
 

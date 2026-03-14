@@ -1,5 +1,6 @@
 import type { ReviewSession, ReviewFinding, Severity } from "./types.js";
 import type { Dismissal } from "./dismissal/types.js";
+import type { FindingLabel } from "./convergence.js";
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   critical: 0,
@@ -46,13 +47,23 @@ const wrapText = (text: string, indent: number, maxWidth: number): string => {
   return lines.join("\n");
 };
 
+const CONVERGENCE_LABEL_DISPLAY: Record<FindingLabel, string> = {
+  new: " [new]",
+  persistent: " [recurring]",
+  resolved: "",
+};
+
 export const formatFinding = (
   finding: ReviewFinding,
   dismissal?: Dismissal,
+  convergenceLabel?: FindingLabel,
 ): string => {
   const icon = SEVERITY_ICON[finding.severity];
   const dismissed = dismissal ? ` [DISMISSED: ${dismissal.reason}]` : "";
-  const header = `  ${icon} [${finding.severity}] ${finding.category} — ${formatLocation(finding)}${dismissed}`;
+  const label = convergenceLabel
+    ? CONVERGENCE_LABEL_DISPLAY[convergenceLabel]
+    : "";
+  const header = `  ${icon} [${finding.severity}] ${finding.category} — ${formatLocation(finding)}${label}${dismissed}`;
   const desc = wrapText(finding.description, 4, 72);
   const suggestion = wrapText("Suggestion: " + finding.suggestion, 4, 72);
   return `${header}\n${desc}\n\n${suggestion}`;
@@ -107,6 +118,7 @@ export const formatReviewReport = (
   findings: readonly ReviewFinding[],
   options?: {
     dismissals?: ReadonlyMap<string, Dismissal>;
+    convergenceLabels?: ReadonlyMap<string, FindingLabel>;
     cost?: number | null;
   },
 ): string => {
@@ -119,7 +131,13 @@ export const formatReviewReport = (
     lines.push("");
   } else {
     for (const finding of sortedFindings(findings)) {
-      lines.push(formatFinding(finding, options?.dismissals?.get(finding.id)));
+      lines.push(
+        formatFinding(
+          finding,
+          options?.dismissals?.get(finding.id),
+          options?.convergenceLabels?.get(finding.id),
+        ),
+      );
       lines.push("");
     }
   }
@@ -133,6 +151,7 @@ export const formatReviewReport = (
 
 export interface PersonaReportOptions {
   readonly mergedCount?: number;
+  readonly activeThemes?: readonly string[];
 }
 
 export const formatPersonaReport = (
@@ -140,6 +159,7 @@ export const formatPersonaReport = (
   findings: readonly ReviewFinding[],
   options: PersonaReportOptions & {
     dismissals?: ReadonlyMap<string, Dismissal>;
+    convergenceLabels?: ReadonlyMap<string, FindingLabel>;
     cost?: number | null;
   } = {},
 ): string => {
@@ -149,8 +169,9 @@ export const formatPersonaReport = (
   const divider = "═".repeat(50);
   const lines: string[] = [header, personaLine];
 
-  if (session.themes && session.themes.length > 0) {
-    lines.push(`Themes: ${session.themes.join(", ")}`);
+  const themes = options.activeThemes ?? session.themes;
+  if (themes && themes.length > 0) {
+    lines.push(`Themes: ${themes.join(", ")}`);
   }
 
   lines.push(divider, "");
@@ -168,7 +189,13 @@ export const formatPersonaReport = (
       lines.push("  No findings.");
     } else {
       for (const finding of sortedFindings(personaFindings)) {
-        lines.push(formatFinding(finding, options.dismissals?.get(finding.id)));
+        lines.push(
+          formatFinding(
+            finding,
+            options.dismissals?.get(finding.id),
+            options.convergenceLabels?.get(finding.id),
+          ),
+        );
       }
     }
     lines.push("");

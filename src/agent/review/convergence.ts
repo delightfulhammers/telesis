@@ -54,6 +54,8 @@ export interface ConvergenceSummary {
   readonly resolvedCount: number;
   readonly totalCount: number;
   readonly converged: boolean;
+  readonly recurringRatio: number;
+  readonly plateauDetected: boolean;
 }
 
 // --- Cross-round Matching ---
@@ -152,6 +154,8 @@ export const summarizeConvergence = (
   const resolvedCount = labeled.filter((l) => l.label === "resolved").length;
   const totalCount = newCount + persistentCount;
   const round = priorSessions.length + 1;
+  const recurringRatio = totalCount > 0 ? persistentCount / totalCount : 0;
+  const plateauDetected = round >= 3 && recurringRatio >= 0.8;
 
   return {
     round,
@@ -160,6 +164,8 @@ export const summarizeConvergence = (
     resolvedCount,
     totalCount,
     converged: totalCount === 0,
+    recurringRatio,
+    plateauDetected,
   };
 };
 
@@ -205,5 +211,11 @@ export const formatConvergenceSummary = (
     parts.push(`${summary.resolvedCount} resolved`);
   }
 
-  return parts.join(" ");
+  const line = parts.join(" ");
+
+  if (summary.plateauDetected) {
+    return `${line}\nReview has plateaued — 80%+ of findings are recurring. Consider dismissing or stopping.`;
+  }
+
+  return line;
 };

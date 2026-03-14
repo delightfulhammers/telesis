@@ -153,6 +153,31 @@ export const extractThemes = async (
   }
 };
 
+const DEFAULT_THEME_RELEVANCE_THRESHOLD = 0.3;
+
+/**
+ * Filters themes to only those with at least one matching current finding.
+ * Uses Jaccard word-bag similarity to determine relevance — if no current
+ * finding's description overlaps the theme text at ≥ threshold, the theme
+ * is considered resolved and excluded from display.
+ */
+export const filterActiveThemes = (
+  themes: readonly string[],
+  currentFindings: readonly ReviewFinding[],
+  threshold: number = DEFAULT_THEME_RELEVANCE_THRESHOLD,
+): readonly string[] => {
+  if (themes.length === 0 || currentFindings.length === 0) return [];
+
+  const findingBags = currentFindings.map((f) => wordBag(f.description));
+
+  return themes.filter((theme) => {
+    const themeBag = wordBag(theme);
+    return findingBags.some(
+      (bag) => jaccardSimilarity(themeBag, bag) >= threshold,
+    );
+  });
+};
+
 const DEFAULT_ANTI_PATTERN_THRESHOLD = 0.3;
 
 /**

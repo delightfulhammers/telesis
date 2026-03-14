@@ -35,7 +35,11 @@ import {
   applyPersonaOverrides,
 } from "../agent/review/personas.js";
 import { deduplicateFindings } from "../agent/review/dedup.js";
-import { extractThemes, filterByAntiPatterns } from "../agent/review/themes.js";
+import {
+  extractThemes,
+  filterByAntiPatterns,
+  filterActiveThemes,
+} from "../agent/review/themes.js";
 import { verifyFindings } from "../agent/review/verify.js";
 import {
   filterByConfidence,
@@ -89,7 +93,11 @@ import {
   summarizeConvergence,
   formatConvergenceSummary,
 } from "../agent/review/convergence.js";
-import type { ConvergenceSummary } from "../agent/review/convergence.js";
+import type {
+  ConvergenceSummary,
+  FindingLabel,
+  LabeledFinding,
+} from "../agent/review/convergence.js";
 import {
   replyToReviewComment,
   listPullRequestReviewComments,
@@ -483,12 +491,17 @@ export const reviewCommand = new Command("review")
             singlePriorSessions,
           );
 
+          const singleActiveThemes = session.themes
+            ? filterActiveThemes(session.themes, finalFindings)
+            : undefined;
           const singleCost = deriveCostFromSession(session, rootDir);
           displayFindings(session, finalFindings, opts, {
             rawFindingCount,
             filterStats: combinedFilterStats,
             cost: singleCost,
             convergence: singleConvergence,
+            labeledFindings: singleLabeled,
+            activeThemes: singleActiveThemes,
           });
           if (opts.githubPr) {
             await postToGitHubSafe(session, finalFindings, {
@@ -653,6 +666,9 @@ export const reviewCommand = new Command("review")
           personaPriorSessions,
         );
 
+        const activeThemes = session.themes
+          ? filterActiveThemes(session.themes, finalFindings)
+          : undefined;
         const personaCost = deriveCostFromSession(session, rootDir);
         displayFindings(session, finalFindings, opts, {
           mergedCount: dedupResult.mergedCount,
@@ -660,6 +676,8 @@ export const reviewCommand = new Command("review")
           filterStats: combinedFilterStats,
           cost: personaCost,
           convergence,
+          labeledFindings: convergenceLabeled,
+          activeThemes,
         });
         if (opts.githubPr) {
           await postToGitHubSafe(session, finalFindings, {
@@ -700,6 +718,8 @@ const displayFindings = (
     filterStats?: FilterStats;
     cost?: number | null;
     convergence?: ConvergenceSummary;
+    labeledFindings?: readonly LabeledFinding[];
+    activeThemes?: readonly string[];
   },
 ): void => {
   // "No new findings" message when all findings were filtered.
@@ -750,17 +770,34 @@ const displayFindings = (
     ? filterBySeverity(findings, opts.minSeverity as Severity)
     : findings;
 
+  // Build convergence label map for display (only on round > 1)
+  const convergenceLabels =
+    extra?.labeledFindings && extra.convergence && extra.convergence.round > 1
+      ? new Map<string, FindingLabel>(
+          extra.labeledFindings
+            .filter((l) => l.label !== "resolved")
+            .map((l) => [l.finding.id, l.label]),
+        )
+      : undefined;
+
   if (opts.json) {
     console.log(JSON.stringify({ session, findings: filtered }, null, 2));
   } else if (session.mode === "personas") {
     console.log(
       formatPersonaReport(session, filtered, {
         mergedCount: extra?.mergedCount,
+        convergenceLabels,
+        activeThemes: extra?.activeThemes,
         cost: extra?.cost,
       }),
     );
   } else {
-    console.log(formatReviewReport(session, filtered, { cost: extra?.cost }));
+    console.log(
+      formatReviewReport(session, filtered, {
+        convergenceLabels,
+        cost: extra?.cost,
+      }),
+    );
   }
 
   // Show convergence summary when there are prior rounds

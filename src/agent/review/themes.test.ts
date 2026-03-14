@@ -5,7 +5,11 @@ import type { ModelClient } from "../model/client.js";
 import type { CompletionRequest, CompletionResponse } from "../model/types.js";
 import type { ReviewSession, ReviewFinding, ThemeConclusion } from "./types.js";
 import { saveReviewSession } from "./store.js";
-import { extractThemes, filterByAntiPatterns } from "./themes.js";
+import {
+  extractThemes,
+  filterByAntiPatterns,
+  filterActiveThemes,
+} from "./themes.js";
 import { useTempDir } from "../../test-utils.js";
 
 const makeTempDir = useTempDir("themes-test");
@@ -369,5 +373,40 @@ describe("filterByAntiPatterns", () => {
     // With a low threshold, they get filtered
     const lenient = filterByAntiPatterns(findings, conclusions, 0.15);
     expect(lenient.findings).toHaveLength(0);
+  });
+});
+
+describe("filterActiveThemes", () => {
+  it("keeps themes with matching finding descriptions", () => {
+    const themes = ["SQL injection risk"];
+    const findings: readonly ReviewFinding[] = [
+      makeFinding("f1", "s1", "SQL injection risk in query builder"),
+    ];
+    const result = filterActiveThemes(themes, findings);
+    expect(result).toEqual(["SQL injection risk"]);
+  });
+
+  it("filters themes with no matching findings", () => {
+    const themes = ["SQL injection risk", "path traversal vulnerability"];
+    const findings: readonly ReviewFinding[] = [
+      makeFinding("f1", "s1", "SQL injection risk in query builder"),
+    ];
+    const result = filterActiveThemes(themes, findings);
+    expect(result).toEqual(["SQL injection risk"]);
+    expect(result).not.toContain("path traversal vulnerability");
+  });
+
+  it("returns empty when findings are empty", () => {
+    const themes = ["SQL injection risk"];
+    const result = filterActiveThemes(themes, []);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty when themes are empty", () => {
+    const findings: readonly ReviewFinding[] = [
+      makeFinding("f1", "s1", "Some finding"),
+    ];
+    const result = filterActiveThemes([], findings);
+    expect(result).toEqual([]);
   });
 });

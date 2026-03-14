@@ -164,6 +164,78 @@ describe("summarizeConvergence", () => {
     expect(summary.round).toBe(3);
     expect(summary.converged).toBe(true);
   });
+
+  it("detects plateau when round >= 3 and recurring ratio >= 0.8", () => {
+    const labeled: LabeledFinding[] = [
+      ...Array.from({ length: 4 }, (_, i) => ({
+        finding: makeFinding({ id: `p${i}` }),
+        label: "persistent" as const,
+        priorMatch: {
+          finding: makeFinding({ id: `old-p${i}` }),
+          strategy: "positional" as const,
+          score: 0.8,
+        },
+      })),
+      { finding: makeFinding({ id: "n1" }), label: "new" as const },
+    ];
+    const priors = [
+      makeSession({ id: "00000000-0000-0000-0000-000000000001" }),
+      makeSession({ id: "00000000-0000-0000-0000-000000000002" }),
+    ];
+
+    const summary = summarizeConvergence(labeled, priors);
+
+    expect(summary.round).toBe(3);
+    expect(summary.recurringRatio).toBe(0.8);
+    expect(summary.plateauDetected).toBe(true);
+  });
+
+  it("does not detect plateau on round 2 even with 100% persistent", () => {
+    const labeled: LabeledFinding[] = [
+      {
+        finding: makeFinding(),
+        label: "persistent",
+        priorMatch: {
+          finding: makeFinding(),
+          strategy: "positional",
+          score: 0.8,
+        },
+      },
+    ];
+    const priors = [makeSession()];
+
+    const summary = summarizeConvergence(labeled, priors);
+
+    expect(summary.round).toBe(2);
+    expect(summary.recurringRatio).toBe(1);
+    expect(summary.plateauDetected).toBe(false);
+  });
+
+  it("does not detect plateau when ratio < 0.8", () => {
+    const labeled: LabeledFinding[] = [
+      {
+        finding: makeFinding({ id: "p1" }),
+        label: "persistent",
+        priorMatch: {
+          finding: makeFinding({ id: "old" }),
+          strategy: "positional",
+          score: 0.8,
+        },
+      },
+      { finding: makeFinding({ id: "n1" }), label: "new" },
+      { finding: makeFinding({ id: "n2" }), label: "new" },
+    ];
+    const priors = [
+      makeSession({ id: "00000000-0000-0000-0000-000000000001" }),
+      makeSession({ id: "00000000-0000-0000-0000-000000000002" }),
+    ];
+
+    const summary = summarizeConvergence(labeled, priors);
+
+    expect(summary.round).toBe(3);
+    expect(summary.recurringRatio).toBeCloseTo(0.333, 2);
+    expect(summary.plateauDetected).toBe(false);
+  });
 });
 
 describe("formatConvergenceSummary", () => {
@@ -175,6 +247,8 @@ describe("formatConvergenceSummary", () => {
       resolvedCount: 5,
       totalCount: 0,
       converged: true,
+      recurringRatio: 0,
+      plateauDetected: false,
     };
 
     const text = formatConvergenceSummary(summary);
@@ -190,6 +264,8 @@ describe("formatConvergenceSummary", () => {
       resolvedCount: 3,
       totalCount: 3,
       converged: false,
+      recurringRatio: 1 / 3,
+      plateauDetected: false,
     };
 
     const text = formatConvergenceSummary(summary);
@@ -197,6 +273,40 @@ describe("formatConvergenceSummary", () => {
     expect(text).toContain("2 new");
     expect(text).toContain("1 persistent");
     expect(text).toContain("3 resolved");
+    expect(text).not.toContain("plateaued");
+  });
+
+  it("includes plateau message when plateau detected", () => {
+    const summary = {
+      round: 3,
+      newCount: 1,
+      persistentCount: 4,
+      resolvedCount: 0,
+      totalCount: 5,
+      converged: false,
+      recurringRatio: 0.8,
+      plateauDetected: true,
+    };
+
+    const text = formatConvergenceSummary(summary);
+    expect(text).toContain("plateaued");
+    expect(text).toContain("Consider dismissing or stopping");
+  });
+
+  it("omits plateau message when not detected", () => {
+    const summary = {
+      round: 3,
+      newCount: 3,
+      persistentCount: 1,
+      resolvedCount: 0,
+      totalCount: 4,
+      converged: false,
+      recurringRatio: 0.25,
+      plateauDetected: false,
+    };
+
+    const text = formatConvergenceSummary(summary);
+    expect(text).not.toContain("plateaued");
   });
 });
 
