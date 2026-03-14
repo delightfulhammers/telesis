@@ -1,6 +1,6 @@
 # Telesis — Architecture
 *By Delightful Hammers*
-*Last updated: 2026-03-11*
+*Last updated: 2026-03-14*
 
 ---
 
@@ -76,6 +76,7 @@ telesis/
       context.ts          ← project context assembly for agent consumption
       dispatcher.ts       ← orchestration: context + adapter + store + events
       format.ts           ← CLI output formatting for list/show
+      reconstruct.ts      ← session text reconstruction from event logs (v0.19.0)
     intake/               ← work intake from external sources (v0.15.0)
       types.ts            ← WorkItem, WorkItemStatus, IntakeSyncResult
       source.ts           ← IntakeSource interface, RawIssue
@@ -101,11 +102,14 @@ telesis/
     git/                  ← git write operations (v0.18.0)
       types.ts            ← CommitResult, PushResult
       operations.ts       ← branch, commit, push, hasChanges via execFileSync
-      commit-message.ts   ← deterministic commit message from plan + work item
+      commit-message.ts   ← LLM-generated commit message from diff + plan context (v0.19.0)
+      diff-utils.ts       ← diff stat extraction utilities (v0.19.0)
     pipeline/             ← full loop orchestrator (v0.18.0)
       types.ts            ← RunDeps, RunStage, RunResult
       run.ts              ← runPipeline — plan → execute → commit → push → PR
       format.ts           ← run result formatting for CLI display
+      quality-gates.ts    ← configurable pre-push quality checks (v0.19.0)
+      state.ts            ← pipeline state persistence for resumability (v0.19.0)
     oversight/            ← active oversight observers for dispatch sessions (v0.14.0)
       types.ts            ← Observer, PolicyFile, OversightFinding, AutonomyLevel types
       policy.ts           ← parse .telesis/agents/<name>.md (YAML frontmatter + body)
@@ -137,6 +141,7 @@ telesis/
       http.ts             ← shared HTTP helpers: headers, fetchWithRetry, GitHubApiError (v0.18.0)
       client.ts           ← Raw fetch wrappers for GitHub REST API (review operations)
       pr.ts               ← PR creation, issue close, issue comment (v0.18.0)
+      pr-body.ts          ← LLM-generated PR body descriptions (v0.19.0)
       format.ts           ← Finding → markdown comment body, drift → markdown comment body
       adapter.ts          ← ReviewFinding[] → { event, body, comments[] } mapping
       dismissals.ts       ← GitHub DismissalSource adapter (v0.10.0)

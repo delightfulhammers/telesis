@@ -1,6 +1,6 @@
 # Telesis — Milestones
 *By Delightful Hammers*
-*Last updated: 2026-03-12*
+*Last updated: 2026-03-14*
 
 ---
 
@@ -1063,6 +1063,46 @@ item to committed code — with human gates at plan approval and milestone compl
 6. **Phase 6 — Events, Drift, TUI:** New event types, formatting, drift directories
 7. **Phase 7 — Self-Hosting Validation:** Run on Telesis itself (deferred to post-release)
 8. **Phase 8 — Documentation & Version Bump**
+
+---
+
+## v0.19.0 — Pipeline Hardening & Review Intelligence
+
+**Goal:** Harden the full loop pipeline with quality gates, LLM-generated commit messages,
+pipeline resumability, and commit squashing. Improve review convergence with plateau
+detection, new/recurring labels, and active theme filtering. Add dispatch session
+narrative reconstruction.
+
+**Status:** Complete
+
+### What Changes
+
+The pipeline gains several reliability and intelligence improvements: configurable quality
+gates that run format/lint/test/build/drift/review checks before push, LLM-generated commit
+messages and PR body descriptions, pipeline state persistence for crash recovery and
+resumability, and squashing of agent commits into a single pipeline commit.
+
+The review convergence system becomes smarter: plateau detection recommends stopping when
+80%+ of findings are recurring across 3+ rounds, each finding is labeled `[new]` or
+`[recurring]` in output, and stale themes that no longer match current findings are filtered
+from display.
+
+Dispatch gains `--text` mode for reconstructing readable agent narratives from session events.
+
+### Acceptance Criteria
+
+1. Quality gates run configurable checks (format, lint, test, build, drift, review) before push
+2. Quality gates amend the commit when formatters modify files
+3. LLM-generated commit messages from diff + plan context
+4. LLM-generated PR body descriptions
+5. Pipeline state persisted to `.telesis/pipeline-state/` for resumability
+6. Agent commits squashed into a single pipeline commit
+7. Plateau detection when round >= 3 and recurring ratio >= 80%
+8. Findings labeled `[new]` or `[recurring]` in review output (round 2+)
+9. Stale themes filtered from display based on current findings
+10. `telesis dispatch show <id> --text` reconstructs readable agent narrative
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
 
 ---
 

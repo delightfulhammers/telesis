@@ -135,6 +135,9 @@ Reviews code changes against project conventions, architecture rules, and design
 - Deterministic noise filter removes hedging, self-dismissing, and speculative findings
 - Cross-round convergence detection: findings labeled as new, persistent, or resolved across review rounds
 - Convergence summary displayed after each round when prior sessions for the same ref exist
+- Plateau detection: recommends stopping when 80%+ of findings are recurring (round 3+)
+- Findings display `[new]` or `[recurring]` labels in output (round 2+, omitted from `--show` and `--json`)
+- Stale themes filtered from display — only themes matching current findings are shown
 - Theme extraction deduplicates sessions by ref to exclude resolved findings
 - Review sessions stored in `.telesis/reviews/`
 - Personas configurable via `.telesis/config.yml` `review.personas` section
@@ -191,6 +194,7 @@ Dispatches coding agents via ACP (Agent Client Protocol) to execute development 
 - `telesis dispatch list` lists all dispatch sessions (active and completed)
 - `telesis dispatch list --json` outputs sessions as JSON
 - `telesis dispatch show <session-id>` replays a session's event log (supports ID prefix)
+- `telesis dispatch show <session-id> --text` reconstructs and displays the full agent output as readable text
 - The dispatcher supplies the agent with project context (spec, architecture, conventions)
 - Agent sessions are persisted in `.telesis/sessions/` (meta.json + events.jsonl per session)
 - Agent events stream through the daemon event backbone when the daemon is running
@@ -268,7 +272,13 @@ Full pipeline orchestration from work item to committed code.
   - `autoApprove` (default: false) — skip plan confirmation prompt
   - `closeIssue` (default: false) — close source GitHub issue on completion
 - Pipeline events flow through the daemon event backbone
-- One commit per plan — all task changes are committed together after plan completion
+- One commit per plan — agent commits squashed into a single pipeline commit
+- LLM-generated commit messages from diff + plan context
+- LLM-generated PR body descriptions
+- Pipeline state persisted to `.telesis/pipeline-state/` for crash recovery and resumability
+- Configurable quality gates run before push (format, lint, test, build, drift, review)
+- Quality gates amend the commit when formatters modify files
+- Quality gates configurable via `pipeline.qualityGates` in `.telesis/config.yml`
 
 ### `telesis milestone`
 
