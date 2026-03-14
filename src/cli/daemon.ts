@@ -6,7 +6,7 @@ import { handleAction } from "./handle-action.js";
 import { projectRoot } from "./project-root.js";
 import { startDaemon, stopDaemon, daemonStatus } from "../daemon/lifecycle.js";
 import { runDaemon } from "../daemon/entrypoint.js";
-import { parseDaemonConfig } from "../config/config.js";
+import { loadRawConfig, parseDaemonConfig } from "../config/config.js";
 import {
   generateLaunchAgentPlist,
   generateSystemdUnit,
@@ -146,7 +146,8 @@ const runCommand = new Command("__run")
   .action(
     handleAction(async () => {
       const rootDir = projectRoot();
-      const config = parseDaemonConfig(rootDir);
+      const rawConfig = loadRawConfig(rootDir);
+      const config = parseDaemonConfig(rawConfig);
       const pkgPath = join(rootDir, "package.json");
       let version = "0.0.0";
       try {

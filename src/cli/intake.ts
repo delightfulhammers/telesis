@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
 import {
+  loadRawConfig,
   parseDispatchConfig,
   parseIntakeConfig,
   parsePlannerConfig,
@@ -27,7 +28,8 @@ const githubCommand = new Command("github")
   .action(
     handleAction(async () => {
       const rootDir = projectRoot();
-      const intakeConfig = parseIntakeConfig(rootDir);
+      const rawConfig = loadRawConfig(rootDir);
+      const intakeConfig = parseIntakeConfig(rawConfig);
 
       const token = process.env.GITHUB_TOKEN;
       if (!token) {
@@ -116,6 +118,7 @@ const approveCommand = new Command("approve")
     handleAction(
       async (id: string, opts: { agent?: string; plan?: boolean }) => {
         const rootDir = projectRoot();
+        const rawConfig = loadRawConfig(rootDir);
 
         if (opts.plan) {
           // Plan mode: approve work item and create a draft plan
@@ -142,7 +145,7 @@ const approveCommand = new Command("approve")
           };
           updateWorkItem(rootDir, approved);
 
-          const plannerConfig = parsePlannerConfig(rootDir);
+          const plannerConfig = parsePlannerConfig(rawConfig);
           const sessionId = randomUUID();
           const telemetry = createTelemetryLogger(rootDir);
           const client = createModelClient({
@@ -191,7 +194,7 @@ const approveCommand = new Command("approve")
         }
 
         // Standard mode: approve and dispatch directly
-        const config = parseDispatchConfig(rootDir);
+        const config = parseDispatchConfig(rawConfig);
 
         const agent = opts.agent ?? config.defaultAgent ?? "claude";
         const adapter = createAcpxAdapter({

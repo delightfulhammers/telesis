@@ -15,6 +15,7 @@ import type { ValidationConfig } from "../validation/types.js";
 
 const TELESIS_DIR = ".telesis";
 const CONFIG_FILE = "config.yml";
+type RawConfig = Record<string, unknown>;
 
 let configCounter = 0;
 
@@ -44,6 +45,33 @@ export interface Config {
 
 const configPath = (rootDir: string): string =>
   join(rootDir, TELESIS_DIR, CONFIG_FILE);
+
+export const loadRawConfig = (
+  rootDir: string = process.cwd(),
+): RawConfig | null => {
+  const path = configPath(rootDir);
+  let data: string;
+  try {
+    data = readFileSync(path, "utf-8");
+  } catch (err) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      err.code === "ENOENT"
+    ) {
+      return null;
+    }
+    throw err;
+  }
+
+  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA });
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  return raw as RawConfig;
+};
 
 const validate = (cfg: Config): void => {
   if (!cfg.project?.name) {
@@ -186,18 +214,7 @@ export interface DispatchConfig {
 }
 
 /** Parse dispatch config from .telesis/config.yml, returning defaults if absent */
-export const parseDispatchConfig = (rootDir: string): DispatchConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parseDispatchConfig = (raw: RawConfig | null): DispatchConfig => {
   if (!raw || typeof raw !== "object" || !raw.dispatch) return {};
 
   const dispatch = raw.dispatch;
@@ -229,18 +246,9 @@ export interface OversightConfig {
 }
 
 /** Parse oversight config from .telesis/config.yml, returning defaults if absent */
-export const parseOversightConfig = (rootDir: string): OversightConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parseOversightConfig = (
+  raw: RawConfig | null,
+): OversightConfig => {
   if (!raw || typeof raw !== "object" || !raw.oversight) return {};
 
   const oversight = raw.oversight;
@@ -274,18 +282,7 @@ export interface IntakeConfig {
 }
 
 /** Parse intake config from .telesis/config.yml, returning defaults if absent */
-export const parseIntakeConfig = (rootDir: string): IntakeConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parseIntakeConfig = (raw: RawConfig | null): IntakeConfig => {
   if (!raw || typeof raw !== "object" || !raw.intake) return {};
 
   const intake = raw.intake;
@@ -341,18 +338,7 @@ export interface DaemonConfig {
 }
 
 /** Parse daemon config from .telesis/config.yml, returning defaults if absent */
-export const parseDaemonConfig = (rootDir: string): DaemonConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parseDaemonConfig = (raw: RawConfig | null): DaemonConfig => {
   if (!raw || typeof raw !== "object" || !raw.daemon) return {};
 
   const daemon = raw.daemon;
@@ -386,18 +372,9 @@ export const parseDaemonConfig = (rootDir: string): DaemonConfig => {
 export type { ValidationConfig };
 
 /** Parse validation config from .telesis/config.yml, returning defaults if absent */
-export const parseValidationConfig = (rootDir: string): ValidationConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parseValidationConfig = (
+  raw: RawConfig | null,
+): ValidationConfig => {
   if (!raw || typeof raw !== "object" || !raw.validation) return {};
 
   const validation = raw.validation;
@@ -429,18 +406,7 @@ export interface PlannerConfig {
 }
 
 /** Parse planner config from .telesis/config.yml, returning defaults if absent */
-export const parsePlannerConfig = (rootDir: string): PlannerConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parsePlannerConfig = (raw: RawConfig | null): PlannerConfig => {
   if (!raw || typeof raw !== "object" || !raw.planner) return {};
 
   const planner = raw.planner;
@@ -470,18 +436,7 @@ export interface GitConfig {
 }
 
 /** Parse git config from .telesis/config.yml, returning defaults if absent */
-export const parseGitConfig = (rootDir: string): GitConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parseGitConfig = (raw: RawConfig | null): GitConfig => {
   if (!raw || typeof raw !== "object" || !raw.git) return {};
 
   const git = raw.git;
@@ -517,18 +472,7 @@ export interface PipelineConfig {
 }
 
 /** Parse pipeline config from .telesis/config.yml, returning defaults if absent */
-export const parsePipelineConfig = (rootDir: string): PipelineConfig => {
-  const path = configPath(rootDir);
-  let data: string;
-  try {
-    data = readFileSync(path, "utf-8");
-  } catch {
-    return {};
-  }
-
-  const raw = yaml.load(data, { schema: yaml.JSON_SCHEMA }) as
-    | Record<string, unknown>
-    | undefined;
+export const parsePipelineConfig = (raw: RawConfig | null): PipelineConfig => {
   if (!raw || typeof raw !== "object" || !raw.pipeline) return {};
 
   const pipeline = raw.pipeline;

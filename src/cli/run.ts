@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
 import {
+  loadRawConfig,
   parseDispatchConfig,
   parsePlannerConfig,
   parseValidationConfig,
@@ -60,11 +61,12 @@ export const runCommand = new Command("run")
         },
       ) => {
         const rootDir = projectRoot();
-        const dispatchConfig = parseDispatchConfig(rootDir);
-        const plannerConfig = parsePlannerConfig(rootDir);
-        const validationConfig = parseValidationConfig(rootDir);
-        const gitConfig = parseGitConfig(rootDir);
-        const pipelineConfig = parsePipelineConfig(rootDir);
+        const rawConfig = loadRawConfig(rootDir);
+        const dispatchConfig = parseDispatchConfig(rawConfig);
+        const plannerConfig = parsePlannerConfig(rawConfig);
+        const validationConfig = parseValidationConfig(rawConfig);
+        const gitConfig = parseGitConfig(rawConfig);
+        const pipelineConfig = parsePipelineConfig(rawConfig);
 
         const agent = opts.agent ?? dispatchConfig.defaultAgent ?? "claude";
         const adapter = createAcpxAdapter({

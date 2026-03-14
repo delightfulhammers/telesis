@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
 import {
+  loadRawConfig,
   parseDispatchConfig,
   parsePlannerConfig,
   parseValidationConfig,
@@ -27,8 +28,9 @@ const buildExecutorDeps = (
   rootDir: string,
   opts: { agent?: string; validate?: boolean },
 ): ExecutorDeps => {
-  const dispatchConfig = parseDispatchConfig(rootDir);
-  const validationConfig = parseValidationConfig(rootDir);
+  const rawConfig = loadRawConfig(rootDir);
+  const dispatchConfig = parseDispatchConfig(rawConfig);
+  const validationConfig = parseValidationConfig(rawConfig);
   const agent = opts.agent ?? dispatchConfig.defaultAgent ?? "claude";
   const adapter = createAcpxAdapter({ acpxPath: dispatchConfig.acpxPath });
   const renderer = createEventRenderer();
@@ -104,7 +106,8 @@ const createCommand = new Command("create")
         return;
       }
 
-      const plannerConfig = parsePlannerConfig(rootDir);
+      const rawConfig = loadRawConfig(rootDir);
+      const plannerConfig = parsePlannerConfig(rawConfig);
       const sessionId = randomUUID();
       const telemetry = createTelemetryLogger(rootDir);
       const client = createModelClient({

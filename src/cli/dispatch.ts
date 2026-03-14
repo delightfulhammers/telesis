@@ -2,7 +2,11 @@ import { Command } from "commander";
 import { randomUUID } from "node:crypto";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
-import { parseDispatchConfig, parseOversightConfig } from "../config/config.js";
+import {
+  loadRawConfig,
+  parseDispatchConfig,
+  parseOversightConfig,
+} from "../config/config.js";
 import { createAcpxAdapter } from "../dispatch/acpx-adapter.js";
 import { dispatch } from "../dispatch/dispatcher.js";
 import {
@@ -24,8 +28,9 @@ const runCommand = new Command("run")
     handleAction(
       async (task: string, opts: { agent?: string; oversight: boolean }) => {
         const rootDir = projectRoot();
-        const config = parseDispatchConfig(rootDir);
-        const oversightConfig = parseOversightConfig(rootDir);
+        const rawConfig = loadRawConfig(rootDir);
+        const config = parseDispatchConfig(rawConfig);
+        const oversightConfig = parseOversightConfig(rawConfig);
 
         const agent = opts.agent ?? config.defaultAgent ?? "claude";
         const adapter = createAcpxAdapter({

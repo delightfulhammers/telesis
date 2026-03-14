@@ -1,0 +1,26 @@
+{
+  "id": "40411f3e-e90b-48e6-a9df-ecf0ef668842",
+  "workItemId": "a3f6bdf5-4132-4bfd-b8ac-7ebb5abb707c",
+  "title": "Refactor: Extract shared loadRawConfig helper to avoid repeated YAML parsing",
+  "status": "completed",
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Extract loadRawConfig helper and refactor all parse*Config functions",
+      "description": "Refactor `src/config/config.ts` to eliminate repeated YAML file reads.\n\n**Steps:**\n\n1. Add a `loadRawConfig(rootDir: string): Record<string, unknown> | null` function that reads `.telesis/config.yml` once using `readFileSync` + `yaml.load`. Return `null` if the file does not exist. Let other errors propagate.\n\n2. Refactor every `parse*Config` function signature to accept `raw: Record<string, unknown> | null` as their first argument instead of (or in addition to) `rootDir`. The affected functions are (at minimum): `parseGitConfig`, `parsePipelineConfig`, `parseValidationConfig`, `parsePlannerConfig`, `parseDispatchConfig`, and any other `parse*Config` functions that currently call `readFileSync` internally.\n\n3. Remove the inline `readFileSync` + `yaml.load` calls from each of those functions — they should now operate purely on the `raw` object passed in.\n\n4. Update every call site in `src/cli/` (and anywhere else that calls `parse*Config`) to:\n   a. Call `loadRawConfig(rootDir)` once.\n   b. Pass the result to each `parse*Config` call.\n   Specifically audit `src/cli/run.ts` (and any other CLI commands) where multiple parsers are called in sequence.\n\n5. Export `loadRawConfig` from `src/config/config.ts` (or from the config package's index if one exists).\n\n6. Update or add colocated unit tests in `src/config/config.test.ts` (create if absent):\n   - `loadRawConfig` returns `null` when the file is missing.\n   - `loadRawConfig` returns the parsed object when the file exists.\n   - Each `parse*Config` function correctly defaults when passed `null`.\n   - Each `parse*Config` function correctly picks values when passed a populated raw object.\n   - Verify no test stubs the filesystem multiple times for a single logical config load.\n\n**Edge cases:**\n- If `rootDir` is not provided to `loadRawConfig`, default to `process.cwd()`.\n- Keep backward-compatible behavior: if the YAML key for a given config section is absent, the parser should return its defaults exactly as before.\n- Do not change the return types of any `parse*Config` function.",
+      "dependsOn": [],
+      "status": "completed",
+      "sessionId": "e32fbdf7-8423-446b-80d9-7a536bd8adf7",
+      "completedAt": "2026-03-14T01:09:15.506Z",
+      "validationAttempts": 1
+    }
+  ],
+  "createdAt": "2026-03-14T01:05:20.538Z",
+  "tokenUsage": {
+    "inputTokens": 2796,
+    "outputTokens": 638
+  },
+  "approvedAt": "2026-03-14T01:05:20.540Z",
+  "startedAt": "2026-03-14T01:05:20.545Z",
+  "completedAt": "2026-03-14T01:09:15.509Z"
+}

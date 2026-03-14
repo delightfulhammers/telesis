@@ -1,0 +1,20 @@
+{
+  "id": "03f5cb73-4973-4888-850d-8d3d4efd2545",
+  "workItemId": "a3f6bdf5-4132-4bfd-b8ac-7ebb5abb707c",
+  "title": "Refactor: Extract shared loadRawConfig helper to avoid repeated YAML parsing",
+  "status": "draft",
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Extract loadRawConfig helper and refactor all parse*Config functions",
+      "description": "In `src/config/config.ts`, extract a shared `loadRawConfig(rootDir: string): Record<string, unknown> | null` helper function that reads and parses `.telesis/config.yml` once using `readFileSync` + `yaml.load`. Then refactor every `parse*Config` function (e.g. `parseGitConfig`, `parsePipelineConfig`, `parseValidationConfig`, `parsePlannerConfig`, `parseDispatchConfig`, and any others in the file) so they each accept a pre-loaded `rawConfig: Record<string, unknown> | null` as their first argument instead of `rootDir`. The existing public signatures that accept `rootDir` should be preserved as thin wrappers that call `loadRawConfig(rootDir)` and then delegate to the inner implementation, OR callers that already have the raw config can pass it directly. Preferred approach: keep the existing `parse*Config(rootDir)` signatures working for backward compatibility by having them internally call `loadRawConfig`, but also export the `loadRawConfig` helper so call sites like `telesis run` that invoke multiple parsers can load once and pass the result to each parser. Update callers in `src/pipeline/` and `src/cli/` that call multiple parsers in sequence to load the config once with `loadRawConfig` and pass it to each parser. Ensure all existing unit tests for config parsing continue to pass. Add a unit test that mocks `readFileSync` and verifies it is called exactly once when `loadRawConfig` is invoked, and that passing the result to multiple parsers does not trigger additional file reads.",
+      "dependsOn": [],
+      "status": "pending"
+    }
+  ],
+  "createdAt": "2026-03-14T01:02:44.202Z",
+  "tokenUsage": {
+    "inputTokens": 2806,
+    "outputTokens": 431
+  }
+}

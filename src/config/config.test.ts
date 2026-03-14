@@ -1,11 +1,17 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { mkdirSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   save,
   load,
   exists,
+  loadRawConfig,
+  parseDaemonConfig,
+  parseDispatchConfig,
+  parseOversightConfig,
   parseIntakeConfig,
+  parsePlannerConfig,
+  parseValidationConfig,
   parseGitConfig,
   parsePipelineConfig,
 } from "./config.js";
@@ -13,6 +19,11 @@ import type { Config } from "./config.js";
 import { useTempDir } from "../test-utils.js";
 
 const makeTempDir = useTempDir("config-test");
+const writeConfig = (rootDir: string, lines: readonly string[]): void => {
+  const dir = join(rootDir, ".telesis");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "config.yml"), lines.join("\n"));
+};
 
 describe("config", () => {
   describe("save and load", () => {
@@ -151,230 +162,161 @@ describe("config", () => {
     });
   });
 
-  describe("parseIntakeConfig", () => {
-    it("returns empty object when config file is missing", () => {
+  describe("loadRawConfig", () => {
+    it("returns null when config file is missing", () => {
       const rootDir = makeTempDir();
-      expect(parseIntakeConfig(rootDir)).toEqual({});
+      expect(loadRawConfig(rootDir)).toBeNull();
     });
 
-    it("returns empty object when no intake section", () => {
+    it("returns parsed object when config file exists", () => {
       const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        ["project:", "  name: Test"].join("\n"),
-      );
+      writeConfig(rootDir, [
+        "project:",
+        "  name: Test",
+        "git:",
+        "  commitToMain: true",
+      ]);
 
-      expect(parseIntakeConfig(rootDir)).toEqual({});
+      expect(loadRawConfig(rootDir)).toEqual({
+        project: { name: "Test" },
+        git: { commitToMain: true },
+      });
     });
 
-    it("parses GitHub labels and assignee", () => {
+    it("uses process.cwd() when rootDir is omitted", () => {
       const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "intake:",
-          "  github:",
-          "    labels:",
-          '      - "telesis"',
-          '      - "ready"',
-          "    assignee: alice",
-          "    state: open",
-        ].join("\n"),
-      );
-
-      const config = parseIntakeConfig(rootDir);
-      expect(config.github?.labels).toEqual(["telesis", "ready"]);
-      expect(config.github?.assignee).toBe("alice");
-      expect(config.github?.state).toBe("open");
-    });
-
-    it("parses excludeLabels", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "intake:",
-          "  github:",
-          "    excludeLabels:",
-          '      - "wontfix"',
-        ].join("\n"),
-      );
-
-      const config = parseIntakeConfig(rootDir);
-      expect(config.github?.excludeLabels).toEqual(["wontfix"]);
-    });
-
-    it("ignores invalid field types while preserving valid ones", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "intake:",
-          "  github:",
-          "    labels: not-an-array",
-          "    assignee: alice",
-        ].join("\n"),
-      );
-
-      const config = parseIntakeConfig(rootDir);
-      // labels is invalid (not an array) so it's dropped, but assignee is valid
-      expect(config.github?.labels).toBeUndefined();
-      expect(config.github?.assignee).toBe("alice");
-    });
-
-    it("returns empty github when all fields invalid", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "intake:",
-          "  github:",
-          "    labels: not-an-array",
-        ].join("\n"),
-      );
-
-      const config = parseIntakeConfig(rootDir);
-      expect(config.github).toBeUndefined();
+      writeConfig(rootDir, ["project:", "  name: CwdTest"]);
+      const prev = process.cwd();
+      process.chdir(rootDir);
+      try {
+        expect(loadRawConfig()).toEqual({ project: { name: "CwdTest" } });
+      } finally {
+        process.chdir(prev);
+      }
     });
   });
 
-  describe("parseGitConfig", () => {
-    it("returns empty object when config file is missing", () => {
-      const rootDir = makeTempDir();
-      expect(parseGitConfig(rootDir)).toEqual({});
-    });
-
-    it("returns empty object when no git section", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        ["project:", "  name: Test"].join("\n"),
-      );
-
-      expect(parseGitConfig(rootDir)).toEqual({});
-    });
-
-    it("parses all git config fields", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "git:",
-          '  branchPrefix: "feature/"',
-          "  commitToMain: true",
-          "  pushAfterCommit: false",
-          "  createPR: true",
-        ].join("\n"),
-      );
-
-      const config = parseGitConfig(rootDir);
-      expect(config.branchPrefix).toBe("feature/");
-      expect(config.commitToMain).toBe(true);
-      expect(config.pushAfterCommit).toBe(false);
-      expect(config.createPR).toBe(true);
-    });
-
-    it("ignores invalid field types", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "git:",
-          "  branchPrefix: 42",
-          "  commitToMain: true",
-        ].join("\n"),
-      );
-
-      const config = parseGitConfig(rootDir);
-      expect(config.branchPrefix).toBeUndefined();
-      expect(config.commitToMain).toBe(true);
+  describe("parse*Config with null raw config", () => {
+    it("returns defaults for all parse functions", () => {
+      expect(parseDispatchConfig(null)).toEqual({});
+      expect(parseOversightConfig(null)).toEqual({});
+      expect(parseIntakeConfig(null)).toEqual({});
+      expect(parseDaemonConfig(null)).toEqual({});
+      expect(parseValidationConfig(null)).toEqual({});
+      expect(parsePlannerConfig(null)).toEqual({});
+      expect(parseGitConfig(null)).toEqual({});
+      expect(parsePipelineConfig(null)).toEqual({});
     });
   });
 
-  describe("parsePipelineConfig", () => {
-    it("returns empty object when config file is missing", () => {
-      const rootDir = makeTempDir();
-      expect(parsePipelineConfig(rootDir)).toEqual({});
+  describe("parse*Config with populated raw config", () => {
+    it("picks values from each section", () => {
+      const raw = {
+        dispatch: {
+          defaultAgent: "codex",
+          maxConcurrent: 3,
+          acpxPath: "/tmp/acpx",
+        },
+        oversight: {
+          enabled: true,
+          defaultModel: "claude-sonnet-4-6",
+        },
+        intake: {
+          github: {
+            labels: ["telesis", "ready"],
+            excludeLabels: ["wontfix"],
+            assignee: "alice",
+            state: "open",
+          },
+        },
+        daemon: {
+          heartbeatIntervalMs: 2500,
+          watch: {
+            ignore: ["node_modules", ".git"],
+          },
+        },
+        validation: {
+          model: "claude-sonnet-4-6",
+          maxRetries: 2,
+          enableGates: true,
+        },
+        planner: {
+          model: "claude-sonnet-4-6",
+          maxTasks: 12,
+        },
+        git: {
+          branchPrefix: "feature/",
+          commitToMain: true,
+          pushAfterCommit: false,
+          createPR: true,
+        },
+        pipeline: {
+          autoApprove: true,
+          closeIssue: false,
+        },
+      };
+
+      expect(parseDispatchConfig(raw)).toEqual({
+        defaultAgent: "codex",
+        maxConcurrent: 3,
+        acpxPath: "/tmp/acpx",
+      });
+      expect(parseOversightConfig(raw)).toEqual({
+        enabled: true,
+        defaultModel: "claude-sonnet-4-6",
+      });
+      expect(parseIntakeConfig(raw)).toEqual({
+        github: {
+          labels: ["telesis", "ready"],
+          excludeLabels: ["wontfix"],
+          assignee: "alice",
+          state: "open",
+        },
+      });
+      expect(parseDaemonConfig(raw)).toEqual({
+        heartbeatIntervalMs: 2500,
+        watch: { ignore: ["node_modules", ".git"] },
+      });
+      expect(parseValidationConfig(raw)).toEqual({
+        model: "claude-sonnet-4-6",
+        maxRetries: 2,
+        enableGates: true,
+      });
+      expect(parsePlannerConfig(raw)).toEqual({
+        model: "claude-sonnet-4-6",
+        maxTasks: 12,
+      });
+      expect(parseGitConfig(raw)).toEqual({
+        branchPrefix: "feature/",
+        commitToMain: true,
+        pushAfterCommit: false,
+        createPR: true,
+      });
+      expect(parsePipelineConfig(raw)).toEqual({
+        autoApprove: true,
+        closeIssue: false,
+      });
     });
+  });
 
-    it("returns empty object when no pipeline section", () => {
+  describe("single logical config load", () => {
+    it("loads once and parses multiple sections from the same raw object", () => {
       const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        ["project:", "  name: Test"].join("\n"),
-      );
+      writeConfig(rootDir, [
+        "project:",
+        "  name: Test",
+        "dispatch:",
+        "  defaultAgent: codex",
+        "git:",
+        "  branchPrefix: feature/",
+        "pipeline:",
+        "  autoApprove: true",
+      ]);
 
-      expect(parsePipelineConfig(rootDir)).toEqual({});
-    });
-
-    it("parses all pipeline config fields", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "pipeline:",
-          "  autoApprove: true",
-          "  closeIssue: true",
-        ].join("\n"),
-      );
-
-      const config = parsePipelineConfig(rootDir);
-      expect(config.autoApprove).toBe(true);
-      expect(config.closeIssue).toBe(true);
-    });
-
-    it("ignores invalid field types", () => {
-      const rootDir = makeTempDir();
-      const dir = join(rootDir, ".telesis");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(
-        join(dir, "config.yml"),
-        [
-          "project:",
-          "  name: Test",
-          "pipeline:",
-          '  autoApprove: "yes"',
-          "  closeIssue: true",
-        ].join("\n"),
-      );
-
-      const config = parsePipelineConfig(rootDir);
-      expect(config.autoApprove).toBeUndefined();
-      expect(config.closeIssue).toBe(true);
+      const raw = loadRawConfig(rootDir);
+      expect(parseDispatchConfig(raw)).toEqual({ defaultAgent: "codex" });
+      expect(parseGitConfig(raw)).toEqual({ branchPrefix: "feature/" });
+      expect(parsePipelineConfig(raw)).toEqual({ autoApprove: true });
     });
   });
 

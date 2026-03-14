@@ -5,3 +5,17 @@ project:
   language: TypeScript
   status: active
   repo: github.com/delightfulhammers/telesis
+
+intake:
+  github:
+    owner: delightfulhammers
+    repo: telesis
+
+git:
+  commitToMain: true
+  pushAfterCommit: true
+  createPR: false
+
+pipeline:
+  autoApprove: false
+  closeIssue: false

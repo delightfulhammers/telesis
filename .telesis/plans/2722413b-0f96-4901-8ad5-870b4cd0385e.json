@@ -1,0 +1,26 @@
+{
+  "id": "2722413b-0f96-4901-8ad5-870b4cd0385e",
+  "workItemId": "a3f6bdf5-4132-4bfd-b8ac-7ebb5abb707c",
+  "title": "Refactor: Extract shared loadRawConfig helper to avoid repeated YAML parsing",
+  "status": "failed",
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Extract loadRawConfig helper and refactor all parse*Config functions",
+      "description": "Refactor `src/config/config.ts` to eliminate repeated YAML file reads.\n\n**Steps:**\n\n1. Add a `loadRawConfig(rootDir: string): Record<string, unknown> | null` helper function near the top of `src/config/config.ts`. It should:\n   - Read `.telesis/config.yml` using `readFileSync` (same path construction as existing parsers)\n   - Parse with `yaml.load`\n   - Return the parsed object cast to `Record<string, unknown>`, or `null` if the file does not exist (catch `ENOENT`)\n   - Throw on any other read or parse error\n\n2. Refactor every `parse*Config` function (e.g. `parseGitConfig`, `parsePipelineConfig`, `parseValidationConfig`, `parsePlannerConfig`, `parseDispatchConfig`, and any others present) to accept `(raw: Record<string, unknown> | null)` instead of `(rootDir: string)`. Each function should extract its section from `raw` directly rather than reading the file itself.\n\n3. Update all call sites that invoke these parsers — search the entire `src/` tree for calls to each `parse*Config` function. Call sites should call `loadRawConfig(rootDir)` once and pass the result to each parser. Likely call sites include `src/cli/run.ts` (or wherever `telesis run` wires config) and any other commands that use multiple parsers.\n\n4. Ensure the public API surface (exported function signatures) remains backward-compatible where needed, or update all callers consistently — do not leave mismatched signatures.\n\n5. Write or update unit tests in the colocated test file for `src/config/config.ts` (e.g. `src/config/config.test.ts`):\n   - Test that `loadRawConfig` returns `null` when the file is absent\n   - Test that `loadRawConfig` returns the parsed object when the file exists\n   - Test that each `parse*Config` function correctly extracts its section from a raw config object containing multiple sections\n   - Test that each `parse*Config` function handles `null` input (file absent) by returning appropriate defaults\n\n**Edge cases:**\n- If `.telesis/config.yml` is present but empty, `yaml.load` returns `null` or `undefined` — treat this as `null` (no config)\n- Do not introduce a module-level cache; the helper is purely a single-call utility. Caching is the caller's responsibility by reusing the return value.",
+      "dependsOn": [],
+      "status": "failed",
+      "sessionId": "7667580d-1b2a-41bb-8ec7-2b993122bbc7",
+      "error": "dispatch returned non-completed status"
+    }
+  ],
+  "createdAt": "2026-03-14T01:03:12.492Z",
+  "tokenUsage": {
+    "inputTokens": 2796,
+    "outputTokens": 674
+  },
+  "approvedAt": "2026-03-14T01:03:12.494Z",
+  "startedAt": "2026-03-14T01:03:12.499Z",
+  "error": "Task \"task-1\" failed: dispatch returned non-completed status",
+  "completedAt": "2026-03-14T01:03:14.040Z"
+}
