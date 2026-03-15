@@ -580,3 +580,8 @@ const saveSessionSafe = (
     );
   }
 };
+
+// Re-export types that form the public contract of the review pipeline.
+// External consumers (e.g., src/orchestrator/) should import from here
+// rather than reaching into types.ts directly.
+export type { ReviewFinding, ReviewSession, FilterStats } from "./types.js";

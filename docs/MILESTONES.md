@@ -1178,6 +1178,48 @@ prevention) hardens the MCP adapter layer against untrusted input.
 
 ---
 
+## v0.22.0 — Orchestrator Walking Skeleton
+
+**Goal:** Turn Telesis from a toolbox into a feedback and control system. The orchestrator is
+a deterministic state machine inside the daemon that enforces the full development lifecycle
+— from work item intake through shipped milestone — with targeted LLM calls for judgment and
+7 human decision points. Coding agents receive tasks; the orchestrator handles everything else.
+
+**Status:** In Progress
+
+### What Changes
+
+The daemon gains an orchestrator module — a persistent state machine that drives the complete
+lifecycle: intake → triage → milestone setup → planning → execution → quality gates → review
+convergence → milestone check → milestone completion. State is persisted to
+`.telesis/orchestrator.json` for crash recovery. The orchestrator makes targeted LLM calls
+(Haiku-class) for judgment at triage (suggest grouping) and milestone setup (does this need a
+TDD?). Human decisions are queued and surfaced via OS notifications; CLI commands
+(`telesis orchestrator status`, `approve`, `reject`) provide the interaction interface. Claude
+Code hooks gate git operations on preflight checks. Serial work item execution only — no
+parallelism in this milestone.
+
+### Acceptance Criteria
+
+1. Orchestrator state machine implemented with all 10 states (INTAKE through DONE)
+2. Orchestrator runs inside the daemon process, subscribes to event bus
+3. State transitions enforce preconditions (cannot skip states)
+4. Orchestrator state persisted to `.telesis/orchestrator.json`, resumes after crash
+5. LLM judgment call at TRIAGE suggests work item grouping into milestone scope
+6. LLM judgment call at MILESTONE_SETUP determines whether a TDD is needed
+7. Human decisions queued in `.telesis/decisions/`, surfaced via OS notifications (macOS)
+8. `telesis orchestrator status` shows current state, pending decisions, active milestone
+9. `telesis orchestrator approve <id>` and `reject <id> --reason "..."` respond to decisions
+10. REVIEWING state runs review-fix-review loop until convergence (new + persistent ≤ 3)
+11. MILESTONE_COMPLETE state runs full completion workflow (version bump, doc updates, context regen)
+12. Claude Code hooks installed: `PreToolCall(git commit)` runs `telesis preflight`
+13. Orchestrator emits events on the daemon bus for all state transitions
+14. Walking skeleton tested end-to-end: work item → shipped milestone on the Telesis repo
+15. All new business logic has colocated unit tests
+16. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,
