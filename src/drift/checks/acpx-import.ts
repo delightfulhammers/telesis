@@ -15,6 +15,7 @@ export const acpxImportCheck: DriftCheck = {
   name: "acpx-import-containment",
   description: "acpx imported only in src/dispatch/acpx-adapter.ts",
   requiresModel: false,
+  languages: ["TypeScript"],
   run: (rootDir, ctx) => {
     const srcDir = join(rootDir, "src");
     const allFiles = ctx ? ctx.srcFiles() : findTypeScriptFiles(srcDir);

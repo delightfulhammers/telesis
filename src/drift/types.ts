@@ -6,6 +6,7 @@ export interface DriftCheck {
   readonly name: string;
   readonly description: string;
   readonly requiresModel: boolean;
+  readonly languages?: readonly string[]; // undefined = runs for all languages
   readonly run: (rootDir: string, ctx?: ScanContext) => DriftFinding;
 }
 

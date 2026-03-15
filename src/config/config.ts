@@ -23,6 +23,7 @@ export interface Project {
   readonly name: string;
   readonly owner: string;
   readonly language: string;
+  readonly languages: readonly string[];
   readonly status: string;
   readonly repo: string;
 }
@@ -141,11 +142,23 @@ export const load = (rootDir: string): Config => {
     return val;
   };
 
+  const languages: readonly string[] = (() => {
+    const rawLangs = p.languages;
+    if (Array.isArray(rawLangs)) {
+      return rawLangs.filter(
+        (l): l is string => typeof l === "string" && l.length > 0,
+      );
+    }
+    return [];
+  })();
+  const language = languages[0] ?? "";
+
   const cfg: Config = {
     project: {
       name: str("name"),
       owner: str("owner"),
-      language: str("language"),
+      language,
+      languages,
       status: str("status"),
       repo: str("repo"),
     },
@@ -160,8 +173,10 @@ export const save = (rootDir: string, cfg: Config): void => {
   const dir = join(rootDir, TELESIS_DIR);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
 
+  // Write `languages` array instead of singular `language`
+  const { language: _lang, ...projectRest } = cfg.project;
   const content =
-    "# Telesis project configuration\n" + yaml.dump({ project: cfg.project });
+    "# Telesis project configuration\n" + yaml.dump({ project: projectRest });
 
   // Atomic write: temp file + rename
   const dest = configPath(rootDir);

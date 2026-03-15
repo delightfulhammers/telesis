@@ -16,6 +16,7 @@ const setupProject = (): string => {
       name: "TestProject",
       owner: "Test Owner",
       language: "Go",
+      languages: ["Go"],
       status: "active",
       repo: "",
     },

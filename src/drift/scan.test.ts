@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { useTempDir } from "../test-utils.js";
-import { findTypeScriptFiles, scanForPattern } from "./scan.js";
+import {
+  findTypeScriptFiles,
+  findSourceFiles,
+  extensionsForLanguages,
+  scanForPattern,
+} from "./scan.js";
 
 describe("findTypeScriptFiles", () => {
   const makeTempDir = useTempDir("scan");
@@ -65,6 +70,80 @@ describe("findTypeScriptFiles", () => {
 
     const files = findTypeScriptFiles(dir);
     expect(files).toEqual(["real/a.ts"]);
+  });
+});
+
+describe("findSourceFiles", () => {
+  const makeTempDir = useTempDir("source-files");
+
+  it("finds .ts files by default (backward compat)", () => {
+    const dir = makeTempDir();
+    writeFileSync(join(dir, "a.ts"), "");
+    writeFileSync(join(dir, "b.go"), "");
+
+    const files = findSourceFiles(dir);
+    expect(files).toEqual(["a.ts"]);
+  });
+
+  it("finds .go files when specified", () => {
+    const dir = makeTempDir();
+    writeFileSync(join(dir, "a.ts"), "");
+    writeFileSync(join(dir, "b.go"), "");
+
+    const files = findSourceFiles(dir, [".go"]);
+    expect(files).toEqual(["b.go"]);
+  });
+
+  it("finds multiple extension types", () => {
+    const dir = makeTempDir();
+    writeFileSync(join(dir, "a.ts"), "");
+    writeFileSync(join(dir, "b.go"), "");
+    writeFileSync(join(dir, "c.py"), "");
+
+    const files = findSourceFiles(dir, [".ts", ".go"]);
+    expect(files).toEqual(["a.ts", "b.go"]);
+  });
+
+  it("skips .d.ts only when .ts is in extensions", () => {
+    const dir = makeTempDir();
+    writeFileSync(join(dir, "types.d.ts"), "");
+    writeFileSync(join(dir, "real.ts"), "");
+
+    const files = findSourceFiles(dir, [".ts"]);
+    expect(files).toEqual(["real.ts"]);
+  });
+
+  it("does not skip .d.ts when .ts is not in extensions", () => {
+    const dir = makeTempDir();
+    writeFileSync(join(dir, "types.d.ts"), "");
+    writeFileSync(join(dir, "real.go"), "");
+
+    // Even with .d.ts extension, if .ts isn't in extensions, don't apply the filter
+    const files = findSourceFiles(dir, [".go"]);
+    expect(files).toEqual(["real.go"]);
+  });
+});
+
+describe("extensionsForLanguages", () => {
+  it("returns extensions for Go", () => {
+    expect(extensionsForLanguages(["Go"])).toEqual([".go"]);
+  });
+
+  it("returns extensions for TypeScript and Python", () => {
+    const result = extensionsForLanguages(["TypeScript", "Python"]);
+    expect(result).toContain(".ts");
+    expect(result).toContain(".tsx");
+    expect(result).toContain(".py");
+  });
+
+  it("returns empty for unknown language", () => {
+    expect(extensionsForLanguages(["Brainfuck"])).toEqual([]);
+  });
+
+  it("deduplicates extensions", () => {
+    const result = extensionsForLanguages(["TypeScript", "TypeScript"]);
+    const tsCount = result.filter((e) => e === ".ts").length;
+    expect(tsCount).toBe(1);
   });
 });
 

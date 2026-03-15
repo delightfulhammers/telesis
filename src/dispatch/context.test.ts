@@ -31,7 +31,8 @@ const setupProject = (
       `project:
   name: TestProject
   owner: TestOwner
-  language: TypeScript
+  languages:
+    - TypeScript
   status: active
   repo: github.com/test/test`,
   );

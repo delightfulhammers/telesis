@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
 import {
+  load,
   loadRawConfig,
   parseDispatchConfig,
   parsePlannerConfig,
@@ -81,6 +82,7 @@ export const runCommand = new Command("run")
         },
       ) => {
         const rootDir = projectRoot();
+        const cfg = load(rootDir);
         const rawConfig = loadRawConfig(rootDir);
         const dispatchConfig = parseDispatchConfig(rawConfig);
         const plannerConfig = parsePlannerConfig(rawConfig);
@@ -184,7 +186,8 @@ export const runCommand = new Command("run")
               plannerConfig,
               dispatchConfig,
               confirm,
-              runDriftChecks: (rootDir) => runChecks(allChecks, rootDir),
+              runDriftChecks: (rootDir) =>
+                runChecks(allChecks, rootDir, undefined, cfg.project.languages),
             },
             workItemId,
             {

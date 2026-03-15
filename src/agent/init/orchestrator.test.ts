@@ -104,6 +104,7 @@ const makeDeps = (rootDir: string): InitDeps => {
         name: fakeConfig.name,
         owner: fakeConfig.owner,
         language: fakeConfig.language,
+        languages: [fakeConfig.language],
         status: "active",
         repo: fakeConfig.repo,
       },

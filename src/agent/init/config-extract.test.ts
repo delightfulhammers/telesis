@@ -30,7 +30,7 @@ describe("extractConfig", () => {
       JSON.stringify({
         name: "myproject",
         owner: "Acme Corp",
-        language: "TypeScript",
+        languages: ["TypeScript"],
         repo: "github.com/acme/myproject",
       }),
     );
@@ -45,6 +45,7 @@ describe("extractConfig", () => {
     expect(config.project.name).toBe("myproject");
     expect(config.project.owner).toBe("Acme Corp");
     expect(config.project.language).toBe("TypeScript");
+    expect(config.project.languages).toEqual(["TypeScript"]);
     expect(config.project.repo).toBe("github.com/acme/myproject");
     expect(config.project.status).toBe("active");
   });
@@ -54,7 +55,7 @@ describe("extractConfig", () => {
       JSON.stringify({
         name: "myproject",
         owner: "",
-        language: "Go",
+        languages: ["Go"],
       }),
     );
 
@@ -62,6 +63,7 @@ describe("extractConfig", () => {
 
     expect(config.project.owner).toBe("");
     expect(config.project.repo).toBe("");
+    expect(config.project.languages).toEqual(["Go"]);
   });
 
   it("always sets status to active", async () => {
@@ -69,7 +71,7 @@ describe("extractConfig", () => {
       JSON.stringify({
         name: "test",
         owner: "",
-        language: "",
+        languages: [],
         status: "deprecated",
       }),
     );
@@ -77,6 +79,7 @@ describe("extractConfig", () => {
     const config = await extractConfig(client, makeState());
 
     expect(config.project.status).toBe("active");
+    expect(config.project.languages).toEqual([]);
   });
 
   it("throws if model returns invalid JSON", async () => {
@@ -91,7 +94,7 @@ describe("extractConfig", () => {
     const client = makeClient(
       JSON.stringify({
         owner: "Acme",
-        language: "Go",
+        languages: ["Go"],
       }),
     );
 
@@ -118,7 +121,7 @@ describe("extractConfig", () => {
 
   it("includes interview context in the system prompt", async () => {
     const client = makeClient(
-      JSON.stringify({ name: "test", owner: "", language: "" }),
+      JSON.stringify({ name: "test", owner: "", languages: [] }),
     );
     const state = makeState([
       { role: "assistant", content: "What are you building?" },
@@ -134,12 +137,13 @@ describe("extractConfig", () => {
 
   it("extracts JSON from markdown code blocks", async () => {
     const client = makeClient(
-      '```json\n{"name": "wrapped", "owner": "Test", "language": "Rust"}\n```',
+      '```json\n{"name": "wrapped", "owner": "Test", "languages": ["Rust"]}\n```',
     );
 
     const config = await extractConfig(client, makeState());
 
     expect(config.project.name).toBe("wrapped");
+    expect(config.project.languages).toEqual(["Rust"]);
   });
 
   it("coerces non-string fields to strings", async () => {
@@ -147,7 +151,7 @@ describe("extractConfig", () => {
       JSON.stringify({
         name: "test",
         owner: 42,
-        language: true,
+        languages: ["TypeScript"],
         repo: null,
       }),
     );
@@ -155,13 +159,14 @@ describe("extractConfig", () => {
     const config = await extractConfig(client, makeState());
 
     expect(config.project.owner).toBe("42");
-    expect(config.project.language).toBe("true");
+    expect(config.project.language).toBe("TypeScript");
+    expect(config.project.languages).toEqual(["TypeScript"]);
     expect(config.project.repo).toBe("");
   });
 
   it("rejects non-string name", async () => {
     const client = makeClient(
-      JSON.stringify({ name: 42, owner: "", language: "" }),
+      JSON.stringify({ name: 42, owner: "", languages: [] }),
     );
 
     await expect(extractConfig(client, makeState())).rejects.toThrow(
@@ -171,7 +176,7 @@ describe("extractConfig", () => {
 
   it("trims whitespace from name", async () => {
     const client = makeClient(
-      JSON.stringify({ name: "  myproject  ", owner: "", language: "" }),
+      JSON.stringify({ name: "  myproject  ", owner: "", languages: [] }),
     );
 
     const config = await extractConfig(client, makeState());
@@ -181,7 +186,7 @@ describe("extractConfig", () => {
 
   it("prompt instructs to extract languages not frameworks", async () => {
     const client = makeClient(
-      JSON.stringify({ name: "test", owner: "", language: "TypeScript" }),
+      JSON.stringify({ name: "test", owner: "", languages: ["TypeScript"] }),
     );
 
     await extractConfig(client, makeState());
@@ -189,5 +194,20 @@ describe("extractConfig", () => {
     const calls = (client.complete as ReturnType<typeof vi.fn>).mock.calls;
     const request = calls[0][0] as CompletionRequest;
     expect(request.system).toContain("not frameworks");
+  });
+
+  it("coerces string languages response to array", async () => {
+    const client = makeClient(
+      JSON.stringify({
+        name: "test",
+        owner: "",
+        languages: "Go",
+      }),
+    );
+
+    const config = await extractConfig(client, makeState());
+
+    expect(config.project.languages).toEqual(["Go"]);
+    expect(config.project.language).toBe("Go");
   });
 });

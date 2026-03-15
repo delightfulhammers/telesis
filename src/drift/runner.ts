@@ -1,4 +1,5 @@
 import { createScanContext } from "./scan-context.js";
+import { extensionsForLanguages } from "./scan.js";
 import type {
   DriftCheck,
   DriftFinding,
@@ -17,12 +18,26 @@ export const runChecks = (
   checks: readonly DriftCheck[],
   rootDir: string,
   filter?: readonly string[],
+  projectLanguages?: readonly string[],
 ): DriftReport => {
-  const selected = filter
+  let selected = filter
     ? checks.filter((c) => filter.includes(c.name))
-    : checks;
+    : [...checks];
 
-  const ctx = createScanContext(rootDir);
+  // Filter by language applicability
+  if (projectLanguages && projectLanguages.length > 0) {
+    selected = selected.filter(
+      (c) =>
+        !c.languages || c.languages.some((l) => projectLanguages.includes(l)),
+    );
+  }
+
+  // Empty/undefined projectLanguages = unknown language; default to TypeScript scan
+  const extensions =
+    projectLanguages && projectLanguages.length > 0
+      ? extensionsForLanguages(projectLanguages)
+      : undefined;
+  const ctx = createScanContext(rootDir, extensions);
 
   const findings: DriftFinding[] = selected.map((check) => {
     try {

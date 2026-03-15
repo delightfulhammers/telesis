@@ -5,17 +5,43 @@ import { join, relative, sep } from "node:path";
 const toPosix = (p: string): string =>
   sep === "/" ? p : p.split(sep).join("/");
 
+/** Maps language names to their source file extensions. */
+const LANGUAGE_EXTENSIONS: Record<string, readonly string[]> = {
+  TypeScript: [".ts", ".tsx"],
+  JavaScript: [".js", ".jsx"],
+  Go: [".go"],
+  Python: [".py"],
+  R: [".R", ".r"],
+  Ruby: [".rb"],
+  Rust: [".rs"],
+  Java: [".java"],
+  Kotlin: [".kt"],
+  Swift: [".swift"],
+  C: [".c", ".h"],
+  "C++": [".cpp", ".hpp", ".cc", ".hh"],
+};
+
+/** Returns deduplicated file extensions for the given language names. */
+export const extensionsForLanguages = (
+  languages: readonly string[],
+): readonly string[] => [
+  ...new Set(languages.flatMap((l) => LANGUAGE_EXTENSIONS[l] ?? [])),
+];
+
 /**
- * Recursively finds all TypeScript files under `dir`, returning paths
- * relative to `dir`. Directories matching any `exclude` pattern are skipped.
- * Symlinks are skipped to avoid loops and boundary escapes.
+ * Recursively finds source files under `dir` matching the given extensions,
+ * returning paths relative to `dir`. Directories matching any `exclude` pattern
+ * are skipped. Symlinks are skipped to avoid loops and boundary escapes.
  * Returns an empty array if `dir` does not exist.
  */
-export const findTypeScriptFiles = (
+export const findSourceFiles = (
   dir: string,
+  extensions: readonly string[] = [".ts"],
   exclude: readonly string[] = [],
 ): readonly string[] => {
   if (!existsSync(dir)) return [];
+
+  const skipDts = extensions.some((ext) => ext === ".ts");
 
   const results: string[] = [];
 
@@ -36,7 +62,10 @@ export const findTypeScriptFiles = (
           continue;
         }
         walk(fullPath);
-      } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
+      } else if (
+        extensions.some((ext) => entry.name.endsWith(ext)) &&
+        !(skipDts && entry.name.endsWith(".d.ts"))
+      ) {
         results.push(relPath);
       }
     }
@@ -45,6 +74,12 @@ export const findTypeScriptFiles = (
   walk(dir);
   return results.sort();
 };
+
+/** Backward-compatible wrapper: finds TypeScript files only. */
+export const findTypeScriptFiles = (
+  dir: string,
+  exclude: readonly string[] = [],
+): readonly string[] => findSourceFiles(dir, [".ts"], exclude);
 
 /**
  * Scans the given files for lines matching `pattern`, returning an array of

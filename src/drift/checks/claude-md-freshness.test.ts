@@ -17,6 +17,7 @@ describe("claude-md-freshness", () => {
         name: "TestProject",
         owner: "Test Owner",
         language: "TypeScript",
+        languages: ["TypeScript"],
         status: "active",
         repo: "github.com/test/project",
       },

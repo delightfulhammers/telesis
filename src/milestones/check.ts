@@ -1,6 +1,8 @@
 import { execSync } from "node:child_process";
 import { allChecks } from "../drift/checks/index.js";
 import { runChecks } from "../drift/runner.js";
+import { loadRawConfig, parsePipelineConfig, load } from "../config/config.js";
+import type { QualityGatesConfig } from "../config/config.js";
 import { parseActiveMilestone } from "./parse.js";
 import type { MilestoneInfo } from "./parse.js";
 
@@ -42,8 +44,11 @@ const runShellCheck = (
   }
 };
 
-const runDriftCheck = (rootDir: string): CheckResult => {
-  const report = runChecks(allChecks, rootDir);
+const runDriftCheck = (
+  rootDir: string,
+  projectLanguages?: readonly string[],
+): CheckResult => {
+  const report = runChecks(allChecks, rootDir, undefined, projectLanguages);
   return report.passed
     ? { name: "drift-clean", kind: "auto", passed: true, message: "PASS" }
     : {
@@ -72,19 +77,51 @@ export const checkMilestone = (rootDir: string): MilestoneCheckReport => {
     );
   }
 
-  return checkMilestoneFromInfo(info, rootDir);
+  // Load config after milestone check so missing-config errors don't
+  // shadow the more actionable "no milestone" message
+  const cfg = load(rootDir);
+  const raw = loadRawConfig(rootDir);
+  const pipelineConfig = parsePipelineConfig(raw);
+
+  return checkMilestoneFromInfo(
+    info,
+    rootDir,
+    pipelineConfig.qualityGates,
+    cfg.project.languages,
+  );
 };
 
 export const checkMilestoneFromInfo = (
   info: MilestoneInfo,
   rootDir: string,
+  qualityGates?: QualityGatesConfig,
+  projectLanguages?: readonly string[],
 ): MilestoneCheckReport => {
-  const autoResults: CheckResult[] = [
-    runDriftCheck(rootDir),
-    runShellCheck("tests-pass", "pnpm test", rootDir),
-    runShellCheck("build-succeeds", "pnpm run build", rootDir),
-    runShellCheck("lint-passes", "pnpm run lint", rootDir),
-  ];
+  const autoResults: CheckResult[] = [runDriftCheck(rootDir, projectLanguages)];
+
+  if (qualityGates) {
+    if (qualityGates.test)
+      autoResults.push(runShellCheck("tests-pass", qualityGates.test, rootDir));
+    if (qualityGates.build)
+      autoResults.push(
+        runShellCheck("build-succeeds", qualityGates.build, rootDir),
+      );
+    if (qualityGates.lint)
+      autoResults.push(
+        runShellCheck("lint-passes", qualityGates.lint, rootDir),
+      );
+    if (qualityGates.format)
+      autoResults.push(
+        runShellCheck("format-passes", qualityGates.format, rootDir),
+      );
+  } else {
+    autoResults.push({
+      name: "quality-gates",
+      kind: "auto",
+      passed: true,
+      message: "No quality gates configured — skipping test/build/lint checks",
+    });
+  }
 
   const manualResults = criteriaToManualResults(info.criteria);
   const results = [...autoResults, ...manualResults];

@@ -2,7 +2,8 @@
 project:
   name: Telesis
   owner: Delightful Hammers
-  language: TypeScript
+  languages:
+    - TypeScript
   status: active
   repo: github.com/delightfulhammers/telesis
 

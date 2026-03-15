@@ -176,7 +176,7 @@ export const assembleDispatchContext = (rootDir: string): DispatchContext => {
 
   return {
     projectName: cfg.project.name,
-    primaryLanguage: cfg.project.language,
+    primaryLanguage: cfg.project.languages.join(", ") || cfg.project.language,
     vision,
     architecture,
     conventions: extractConventions(rootDir),

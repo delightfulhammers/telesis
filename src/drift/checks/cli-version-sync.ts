@@ -9,6 +9,7 @@ export const cliVersionSyncCheck: DriftCheck = {
   name: "cli-version-sync",
   description: "CLI entrypoint version matches package.json",
   requiresModel: false,
+  languages: ["TypeScript"],
   run: (rootDir): DriftFinding => {
     const pkgPath = join(rootDir, "package.json");
     const entryPath = join(rootDir, "src", "index.ts");

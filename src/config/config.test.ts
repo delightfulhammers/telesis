@@ -34,6 +34,7 @@ describe("config", () => {
           name: "TestProject",
           owner: "Test Owner",
           language: "Go",
+          languages: ["Go"],
           status: "active",
           repo: "github.com/test/project",
         },
@@ -47,7 +48,8 @@ describe("config", () => {
       const loaded = load(rootDir);
       expect(loaded.project.name).toBe(cfg.project.name);
       expect(loaded.project.owner).toBe(cfg.project.owner);
-      expect(loaded.project.language).toBe(cfg.project.language);
+      expect(loaded.project.language).toBe("Go");
+      expect(loaded.project.languages).toEqual(["Go"]);
       expect(loaded.project.status).toBe(cfg.project.status);
       expect(loaded.project.repo).toBe(cfg.project.repo);
     });
@@ -91,6 +93,7 @@ describe("config", () => {
           name: "TestProject",
           owner: "",
           language: "",
+          languages: [],
           status: "",
           repo: "",
         },
@@ -152,6 +155,7 @@ describe("config", () => {
           name: "Test",
           owner: "",
           language: "",
+          languages: [],
           status: "",
           repo: "",
         },
@@ -159,6 +163,67 @@ describe("config", () => {
       save(rootDir, cfg);
       const loaded = load(rootDir);
       expect(loaded.review).toBeUndefined();
+    });
+  });
+
+  describe("languages array", () => {
+    it("loads languages array correctly", () => {
+      const rootDir = makeTempDir();
+      writeConfig(rootDir, [
+        "project:",
+        "  name: Test",
+        "  languages:",
+        "    - Go",
+        "    - Python",
+      ]);
+
+      const loaded = load(rootDir);
+      expect(loaded.project.languages).toEqual(["Go", "Python"]);
+      expect(loaded.project.language).toBe("Go");
+    });
+
+    it("handles missing languages as empty array", () => {
+      const rootDir = makeTempDir();
+      writeConfig(rootDir, ["project:", "  name: Test"]);
+
+      const loaded = load(rootDir);
+      expect(loaded.project.languages).toEqual([]);
+      expect(loaded.project.language).toBe("");
+    });
+
+    it("filters non-string values from languages array", () => {
+      const rootDir = makeTempDir();
+      writeConfig(rootDir, [
+        "project:",
+        "  name: Test",
+        "  languages:",
+        "    - Go",
+        "    - 42",
+        "    - true",
+        "    - Python",
+      ]);
+
+      const loaded = load(rootDir);
+      expect(loaded.project.languages).toEqual(["Go", "Python"]);
+    });
+
+    it("save writes languages array and round-trips", () => {
+      const rootDir = makeTempDir();
+      const cfg: Config = {
+        project: {
+          name: "Test",
+          owner: "Owner",
+          language: "Go",
+          languages: ["Go", "Python"],
+          status: "active",
+          repo: "",
+        },
+      };
+
+      save(rootDir, cfg);
+      const loaded = load(rootDir);
+      expect(loaded.project.languages).toEqual(["Go", "Python"]);
+      expect(loaded.project.language).toBe("Go");
     });
   });
 
@@ -502,6 +567,7 @@ describe("config", () => {
           name: "Test",
           owner: "",
           language: "",
+          languages: [],
           status: "",
           repo: "",
         },

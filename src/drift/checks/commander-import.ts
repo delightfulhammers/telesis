@@ -16,6 +16,7 @@ export const commanderImportCheck: DriftCheck = {
   name: "commander-import-containment",
   description: "commander imported only in src/cli/ and src/index.ts",
   requiresModel: false,
+  languages: ["TypeScript"],
   run: (rootDir, ctx) => {
     const srcDir = join(rootDir, "src");
     const allFiles = ctx ? ctx.srcFiles() : findTypeScriptFiles(srcDir);

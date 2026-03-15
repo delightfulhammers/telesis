@@ -17,7 +17,7 @@ const setupProject = (
 
   writeFileSync(
     join(dir, ".telesis", "config.yml"),
-    "project:\n  name: TestProject\n  owner: test\n  language: TypeScript\n  status: active\n  repo: test\n",
+    "project:\n  name: TestProject\n  owner: test\n  languages:\n  - TypeScript\n  status: active\n  repo: test\n",
   );
 
   for (const p of policies) {

@@ -195,7 +195,7 @@ export const generate = (rootDir: string): string => {
   return renderTemplate("claude.md.tmpl", {
     ProjectName: cfg.project.name,
     ProjectOwner: cfg.project.owner,
-    ProjectLanguage: cfg.project.language,
+    ProjectLanguage: cfg.project.languages.join(", ") || cfg.project.language,
     ProjectStatus: cfg.project.status,
     ProjectRepo: cfg.project.repo,
     GeneratedDate: generatedDate,

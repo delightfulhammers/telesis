@@ -43,7 +43,10 @@ const validateInput = (cfg: Config): void => {
   const fields: readonly { name: string; value: string }[] = [
     { name: "name", value: cfg.project.name },
     { name: "owner", value: cfg.project.owner },
-    { name: "language", value: cfg.project.language },
+    ...cfg.project.languages.map((l, i) => ({
+      name: `languages[${i}]`,
+      value: l,
+    })),
     { name: "status", value: cfg.project.status },
     { name: "repo", value: cfg.project.repo },
   ];

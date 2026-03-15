@@ -52,7 +52,7 @@ const setupProject = (
 
   writeFileSync(
     join(dir, ".telesis", "config.yml"),
-    "project:\n  name: test\n  owner: test\n  language: TypeScript\n  status: active\n  repo: test\n",
+    "project:\n  name: test\n  owner: test\n  languages:\n  - TypeScript\n  status: active\n  repo: test\n",
   );
 
   for (const num of opts?.tdds ?? []) {
@@ -192,7 +192,7 @@ describe("completeMilestoneFromInfo", () => {
     );
     writeFileSync(
       join(dir, ".telesis", "config.yml"),
-      "project:\n  name: test\n  owner: test\n  language: TypeScript\n  status: active\n  repo: test\n",
+      "project:\n  name: test\n  owner: test\n  languages:\n  - TypeScript\n  status: active\n  repo: test\n",
     );
     writeFileSync(
       join(dir, "docs", "tdd", "TDD-007-test.md"),

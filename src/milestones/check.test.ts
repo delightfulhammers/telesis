@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { checkMilestoneFromInfo } from "./check.js";
 import type { MilestoneInfo } from "./parse.js";
+import type { QualityGatesConfig } from "../config/config.js";
 
 vi.mock("node:child_process", () => ({
   execSync: vi.fn(),
@@ -30,12 +31,18 @@ const makeInfo = (overrides?: Partial<MilestoneInfo>): MilestoneInfo => ({
   ...overrides,
 });
 
+const allGates: QualityGatesConfig = {
+  test: "pnpm test",
+  build: "pnpm run build",
+  lint: "pnpm run lint",
+};
+
 describe("checkMilestoneFromInfo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("reports pass when drift/test/build/lint all succeed", () => {
+  it("reports pass when drift and quality gates all succeed", () => {
     mockRunChecks.mockReturnValue({
       checks: [],
       passed: true,
@@ -43,7 +50,7 @@ describe("checkMilestoneFromInfo", () => {
     });
     mockExecSync.mockReturnValue(Buffer.from(""));
 
-    const report = checkMilestoneFromInfo(makeInfo(), "/fake");
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake", allGates);
     expect(report.passed).toBe(true);
 
     const autoResults = report.results.filter((r) => r.kind === "auto");
@@ -59,7 +66,7 @@ describe("checkMilestoneFromInfo", () => {
     });
     mockExecSync.mockReturnValue(Buffer.from(""));
 
-    const report = checkMilestoneFromInfo(makeInfo(), "/fake");
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake", allGates);
     expect(report.passed).toBe(false);
 
     const driftResult = report.results.find((r) => r.name === "drift-clean");
@@ -79,7 +86,7 @@ describe("checkMilestoneFromInfo", () => {
       return Buffer.from("");
     });
 
-    const report = checkMilestoneFromInfo(makeInfo(), "/fake");
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake", allGates);
     expect(report.passed).toBe(false);
 
     const testResult = report.results.find((r) => r.name === "tests-pass");
@@ -99,7 +106,7 @@ describe("checkMilestoneFromInfo", () => {
       return Buffer.from("");
     });
 
-    const report = checkMilestoneFromInfo(makeInfo(), "/fake");
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake", allGates);
     expect(report.passed).toBe(false);
   });
 
@@ -116,8 +123,46 @@ describe("checkMilestoneFromInfo", () => {
       return Buffer.from("");
     });
 
-    const report = checkMilestoneFromInfo(makeInfo(), "/fake");
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake", allGates);
     expect(report.passed).toBe(false);
+  });
+
+  it("skips shell checks with info message when no quality gates", () => {
+    mockRunChecks.mockReturnValue({
+      checks: [],
+      passed: true,
+      summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
+    });
+
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake");
+    expect(report.passed).toBe(true);
+
+    const autoResults = report.results.filter((r) => r.kind === "auto");
+    expect(autoResults).toHaveLength(2);
+
+    const gatesResult = autoResults.find((r) => r.name === "quality-gates");
+    expect(gatesResult!.passed).toBe(true);
+    expect(gatesResult!.message).toContain("No quality gates configured");
+  });
+
+  it("runs only configured gates (partial config)", () => {
+    mockRunChecks.mockReturnValue({
+      checks: [],
+      passed: true,
+      summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
+    });
+    mockExecSync.mockReturnValue(Buffer.from(""));
+
+    const partialGates: QualityGatesConfig = { test: "pnpm test" };
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake", partialGates);
+
+    const autoResults = report.results.filter((r) => r.kind === "auto");
+    // drift + tests-pass only
+    expect(autoResults).toHaveLength(2);
+    expect(autoResults.map((r) => r.name)).toEqual([
+      "drift-clean",
+      "tests-pass",
+    ]);
   });
 
   it("lists acceptance criteria as manual items", () => {
@@ -126,7 +171,6 @@ describe("checkMilestoneFromInfo", () => {
       passed: true,
       summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
     });
-    mockExecSync.mockReturnValue(Buffer.from(""));
 
     const report = checkMilestoneFromInfo(
       makeInfo({ criteria: ["First", "Second", "Third"] }),
@@ -146,7 +190,6 @@ describe("checkMilestoneFromInfo", () => {
       passed: true,
       summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
     });
-    mockExecSync.mockReturnValue(Buffer.from(""));
 
     const report = checkMilestoneFromInfo(
       makeInfo({ criteria: ["Requires human judgment"] }),
@@ -165,9 +208,47 @@ describe("checkMilestoneFromInfo", () => {
       passed: true,
       summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
     });
-    mockExecSync.mockReturnValue(Buffer.from(""));
 
     const report = checkMilestoneFromInfo(makeInfo(), "/fake");
     expect(report.milestone).toBe("v0.9.0 — Milestone Validation");
+  });
+
+  it("passes projectLanguages through to runChecks", () => {
+    mockRunChecks.mockReturnValue({
+      checks: [],
+      passed: true,
+      summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
+    });
+
+    checkMilestoneFromInfo(makeInfo(), "/fake", undefined, ["Go", "Python"]);
+
+    expect(mockRunChecks).toHaveBeenCalledWith(
+      expect.anything(),
+      "/fake",
+      undefined,
+      ["Go", "Python"],
+    );
+  });
+
+  it("runs format gate when configured", () => {
+    mockRunChecks.mockReturnValue({
+      checks: [],
+      passed: true,
+      summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
+    });
+    mockExecSync.mockReturnValue(Buffer.from(""));
+
+    const gates: QualityGatesConfig = {
+      format: "pnpm run format",
+      test: "pnpm test",
+    };
+    const report = checkMilestoneFromInfo(makeInfo(), "/fake", gates);
+
+    const autoResults = report.results.filter((r) => r.kind === "auto");
+    expect(autoResults.map((r) => r.name)).toEqual([
+      "drift-clean",
+      "tests-pass",
+      "format-passes",
+    ]);
   });
 });

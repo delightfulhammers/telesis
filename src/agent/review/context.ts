@@ -234,7 +234,7 @@ export const assembleReviewContext = (rootDir: string): ReviewContext => {
   return {
     conventions: conventionsText,
     projectName: cfg.project.name,
-    primaryLanguage: cfg.project.language,
+    primaryLanguage: cfg.project.languages.join(", ") || cfg.project.language,
     conventionsTruncated: truncated,
   };
 };

@@ -34,6 +34,7 @@ export const commandRegistrationCheck: DriftCheck = {
   name: "command-registration",
   description: "PRD commands match registered CLI commands",
   requiresModel: false,
+  languages: ["TypeScript"],
   run: (rootDir): DriftFinding => {
     const prdPath = join(rootDir, "docs", "PRD.md");
     const indexPath = join(rootDir, "src", "index.ts");

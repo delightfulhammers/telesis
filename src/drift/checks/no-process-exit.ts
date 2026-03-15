@@ -10,6 +10,7 @@ export const noProcessExitCheck: DriftCheck = {
   name: "no-process-exit",
   description: "No process.exit calls outside src/cli/",
   requiresModel: false,
+  languages: ["TypeScript"],
   run: (rootDir, ctx) => {
     const srcDir = join(rootDir, "src");
     const allFiles = ctx

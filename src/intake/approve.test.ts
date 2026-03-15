@@ -49,7 +49,8 @@ const setupProject = (root: string): void => {
     `project:
   name: TestProject
   owner: TestOwner
-  language: TypeScript
+  languages:
+  - TypeScript
   status: active
   repo: github.com/test/test`,
   );

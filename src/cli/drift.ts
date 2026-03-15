@@ -5,6 +5,7 @@ import { runChecks } from "../drift/runner.js";
 import { formatDriftReport } from "../drift/format.js";
 import { handleAction } from "./handle-action.js";
 import { projectRoot } from "./project-root.js";
+import { load } from "../config/config.js";
 import type { DriftReport } from "../drift/types.js";
 import { extractPRContext } from "../github/environment.js";
 import { upsertDriftComment } from "../github/adapter.js";
@@ -34,7 +35,13 @@ export const driftCommand = new Command("drift")
           }
         }
 
-        const report = runChecks(allChecks, rootDir, opts.check);
+        const cfg = load(rootDir);
+        const report = runChecks(
+          allChecks,
+          rootDir,
+          opts.check,
+          cfg.project.languages,
+        );
 
         if (opts.json) {
           console.log(JSON.stringify(report, null, 2));

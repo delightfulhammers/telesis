@@ -14,7 +14,7 @@ const setupProject = (rootDir: string): void => {
   mkdirSync(join(rootDir, ".telesis"), { recursive: true });
   writeFileSync(
     join(rootDir, ".telesis", "config.yml"),
-    "project:\n  name: test-project\n  owner: test\n  language: TypeScript\n  status: active\n  repo: github.com/test/test\n",
+    "project:\n  name: test-project\n  owner: test\n  languages:\n  - TypeScript\n  status: active\n  repo: github.com/test/test\n",
   );
   mkdirSync(join(rootDir, "docs", "adr"), { recursive: true });
   mkdirSync(join(rootDir, "docs", "tdd"), { recursive: true });

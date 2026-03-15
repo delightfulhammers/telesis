@@ -11,6 +11,7 @@ export const rxjsImportCheck: DriftCheck = {
   name: "rxjs-import-containment",
   description: "rxjs imported only in src/daemon/bus.ts",
   requiresModel: false,
+  languages: ["TypeScript"],
   run: (rootDir, ctx) => {
     const srcDir = join(rootDir, "src");
     const allFiles = ctx ? ctx.srcFiles() : findTypeScriptFiles(srcDir);

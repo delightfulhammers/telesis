@@ -10,7 +10,7 @@ From the conversation below, extract these fields:
 
 - **name**: The project name (required). If the developer did not state an explicit name, infer a short, lowercase, hyphenated name from what the project does (e.g., "tic-tac-toe", "expense-tracker").
 - **owner**: The organization or individual who owns the project
-- **language**: The primary programming language(s), not frameworks. If the developer mentions a framework (e.g., React, Next.js, Express, Rails), record the underlying language (TypeScript, JavaScript, Ruby), not the framework name
+- **languages**: Array of programming languages used (e.g., ["TypeScript", "Go"]). Record underlying languages, not frameworks. If the developer mentions a framework (e.g., React, Next.js, Express, Rails), record the underlying language (TypeScript, JavaScript, Ruby), not the framework name
 - **repo**: The repository URL (if mentioned)
 
 ## Output format
@@ -18,7 +18,7 @@ From the conversation below, extract these fields:
 Return ONLY a JSON object with these fields. No explanation, no markdown formatting.
 
 Example:
-{"name": "myproject", "owner": "Acme Corp", "language": "TypeScript", "repo": "github.com/acme/myproject"}
+{"name": "myproject", "owner": "Acme Corp", "languages": ["TypeScript"], "repo": "github.com/acme/myproject"}
 
 If a field (other than name) was not mentioned in the conversation, use an empty string. The name field must always have a value.`;
 
@@ -72,11 +72,29 @@ export const extractConfig = async (
     throw new Error("Config extraction missing required field: name");
   }
 
+  // Parse as array; coerce single string; fall back to legacy field
+  const languages: readonly string[] = (() => {
+    if (Array.isArray(parsed.languages)) {
+      return parsed.languages.filter(
+        (l): l is string => typeof l === "string" && l.length > 0,
+      );
+    }
+    if (typeof parsed.languages === "string" && parsed.languages.length > 0) {
+      return [parsed.languages];
+    }
+    if (typeof parsed.language === "string" && parsed.language.length > 0) {
+      return [parsed.language];
+    }
+    return [];
+  })();
+  const language = languages[0] ?? "";
+
   return {
     project: {
       name,
       owner: coerceToString(parsed.owner),
-      language: coerceToString(parsed.language),
+      language,
+      languages,
       status: "active",
       repo: coerceToString(parsed.repo),
     },
