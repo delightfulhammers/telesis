@@ -78,6 +78,7 @@ telesis/
       notify.ts           ← macOS notifications via osascript
       preflight.ts        ← preflight checks for Claude Code hooks
       integration.ts      ← daemon ↔ orchestrator bridge (start/stop/bus subscription)
+      deps.ts             ← buildRunnerDeps factory (composition root, v0.23.0)
     config/               ← .telesis/config.yml read/write
     context/              ← CLAUDE.md generation from doc tree
     scaffold/             ← project initialization and file generation

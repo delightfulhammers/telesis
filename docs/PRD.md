@@ -301,11 +301,13 @@ Orchestrator state management and human decision interface.
   progress, and pending decisions
 - `telesis orchestrator approve <decision-id>` — approve a pending decision
 - `telesis orchestrator reject <decision-id> --reason "..."` — reject with feedback
+- `telesis orchestrator run` — advance the state machine until a decision point or idle
 - `telesis orchestrator preflight` — run preflight checks (used by Claude Code hooks to
   gate git commit/push operations)
 - Preflight checks: milestone entry exists, review has converged, quality gates pass,
   no blocking decisions pending
 - Exit code 1 on preflight failure (blocks the hook)
+- Claude Code hook installed: `PreToolUse(Bash)` gates git commit on preflight
 
 ### `telesis-mcp` (MCP Server)
 

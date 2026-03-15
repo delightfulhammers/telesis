@@ -57,45 +57,36 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.22.0 — Orchestrator Walking Skeleton
+## v0.23.0 — Orchestrator Activation
 
-**Goal:** Turn Telesis from a toolbox into a feedback and control system. The orchestrator is
-a deterministic state machine inside the daemon that enforces the full development lifecycle
-— from work item intake through shipped milestone — with targeted LLM calls for judgment and
-7 human decision points. Coding agents receive tasks; the orchestrator handles everything else.
+**Goal:** Connect the orchestrator walking skeleton to real business logic and install
+enforcement hooks. The state machine drives actual intake, planning, dispatch, review, and
+milestone completion. Claude Code hooks gate git operations on preflight checks.
 
 **Status:** Complete
 
 ### What Changes
 
-The daemon gains an orchestrator module — a persistent state machine that drives the complete
-lifecycle: intake → triage → milestone setup → planning → execution → quality gates → review
-convergence → milestone check → milestone completion. State is persisted to
-`.telesis/orchestrator.json` for crash recovery. The orchestrator makes targeted LLM calls
-(Haiku-class) for judgment at triage (suggest grouping) and milestone setup (does this need a
-TDD?). Human decisions are queued and surfaced via OS notifications; CLI commands
-(`telesis orchestrator status`, `approve`, `reject`) provide the interaction interface. Claude
-Code hooks gate git operations on preflight checks. Serial work item execution only — no
-parallelism in this milestone.
+A factory function (`buildRunnerDeps`) wires every RunnerDeps function to the real business
+logic modules — intake sync, work item loading, plan creation, task execution, quality gates,
+review convergence, milestone check/complete. A `telesis orchestrator run` command drives the
+state machine forward in a loop until it reaches a decision point or returns to idle. Claude
+Code hooks are installed to gate `git commit` on `telesis preflight` checks.
 
 ### Acceptance Criteria
 
-1. Orchestrator state machine implemented with all 10 states (INTAKE through DONE)
-2. Orchestrator runs inside the daemon process, subscribes to event bus
-3. State transitions enforce preconditions (cannot skip states)
-4. Orchestrator state persisted to `.telesis/orchestrator.json`, resumes after crash
-5. LLM judgment call at TRIAGE suggests work item grouping into milestone scope
-6. LLM judgment call at MILESTONE_SETUP determines whether a TDD is needed
-7. Human decisions queued in `.telesis/decisions/`, surfaced via OS notifications (macOS)
-8. `telesis orchestrator status` shows current state, pending decisions, active milestone
-9. `telesis orchestrator approve <id>` and `reject <id> --reason "..."` respond to decisions
-10. REVIEWING state runs review-fix-review loop until convergence (new + persistent ≤ 3)
-11. MILESTONE_COMPLETE state runs full completion workflow (version bump, doc updates, context regen)
-12. Claude Code hooks installed: `PreToolCall(git commit)` runs `telesis preflight`
-13. Orchestrator emits events on the daemon bus for all state transitions
-14. Walking skeleton tested end-to-end: work item → shipped milestone on the Telesis repo
-15. All new business logic has colocated unit tests
-16. Running `telesis drift` produces zero errors
+1. `buildRunnerDeps(rootDir, bus, modelClient)` factory constructs real deps from existing modules
+2. `telesis orchestrator run` advances the state machine until waiting or idle
+3. Intake dep calls `syncFromSource` / `listWorkItems` from `src/intake/`
+4. Planning dep calls `createPlanFromWorkItem` from `src/plan/create.ts`
+5. Execution dep calls `executePlan` from `src/plan/executor.ts`
+6. Quality gates dep calls `runQualityGates` from `src/pipeline/quality-gates.ts`
+7. Review convergence dep wires `runConvergenceLoop` to `runReview` and dispatch
+8. Milestone deps call `checkMilestone` and `completeMilestone` from `src/milestones/`
+9. Claude Code hook config: `PreToolCall(git commit)` runs `telesis preflight`
+10. End-to-end: orchestrator advances through at least intake → triage on the Telesis repo
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
 
 ---
 

@@ -278,11 +278,14 @@ Orchestrator lifecycle management.
 | Command | Description |
 |---|---|
 | `telesis orchestrator status` | Show orchestrator state, active milestone, and pending decisions |
+| `telesis orchestrator run` | Advance the state machine until a decision point or idle |
 | `telesis orchestrator approve <decision-id>` | Approve a pending decision |
 | `telesis orchestrator reject <decision-id> --reason <text>` | Reject a decision with feedback |
 | `telesis orchestrator preflight` | Run preflight checks (used by Claude Code hooks) |
 
 Preflight checks: milestone entry exists, review has converged, quality gates pass, no blocking decisions pending. Exits 1 on failure.
+
+A Claude Code hook is installed at `.claude/settings.json` that runs `telesis orchestrator preflight` before every `git commit`.
 
 ---
 
