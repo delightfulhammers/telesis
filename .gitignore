@@ -1,5 +1,6 @@
 # Binary output
 /telesis
+/telesis-mcp
 *.exe
 
 # Node
@@ -17,6 +18,10 @@ dist/
 .env
 .env.local
 .env.*.local
+
+# Claude Code local settings (user-specific, not shared)
+.claude/settings.local.json
+.claude/worktrees/
 
 # IDE
 .idea/

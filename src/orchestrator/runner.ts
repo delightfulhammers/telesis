@@ -46,7 +46,7 @@ export interface RunnerDeps {
     milestoneId: string,
     milestoneName: string,
   ) => void;
-  readonly createPlan: (workItemIds: readonly string[]) => Promise<string>;
+  readonly createPlan: (workItemId: string) => Promise<string>;
   readonly executeTasks: (planId: string) => Promise<{
     allComplete: boolean;
     error?: string;
@@ -302,7 +302,8 @@ const advancePlanning = async (
   }
 
   // Create plan and decision atomically (single saveContext call via createAndWait)
-  const planId = await deps.createPlan(ctx.workItemIds);
+  // v0.23.0: plan the first work item only; multi-item planning is future work
+  const planId = await deps.createPlan(ctx.workItemIds[0]);
 
   return createAndWait(
     ctx,

@@ -1220,6 +1220,39 @@ parallelism in this milestone.
 
 ---
 
+## v0.23.0 — Orchestrator Activation
+
+**Goal:** Connect the orchestrator walking skeleton to real business logic and install
+enforcement hooks. The state machine drives actual intake, planning, dispatch, review, and
+milestone completion. Claude Code hooks gate git operations on preflight checks.
+
+**Status:** In Progress
+
+### What Changes
+
+A factory function (`buildRunnerDeps`) wires every RunnerDeps function to the real business
+logic modules — intake sync, work item loading, plan creation, task execution, quality gates,
+review convergence, milestone check/complete. A `telesis orchestrator run` command drives the
+state machine forward in a loop until it reaches a decision point or returns to idle. Claude
+Code hooks are installed to gate `git commit` on `telesis preflight` checks.
+
+### Acceptance Criteria
+
+1. `buildRunnerDeps(rootDir, bus, modelClient)` factory constructs real deps from existing modules
+2. `telesis orchestrator run` advances the state machine until waiting or idle
+3. Intake dep calls `syncFromSource` / `listWorkItems` from `src/intake/`
+4. Planning dep calls `createPlanFromWorkItem` from `src/plan/create.ts`
+5. Execution dep calls `executePlan` from `src/plan/executor.ts`
+6. Quality gates dep calls `runQualityGates` from `src/pipeline/quality-gates.ts`
+7. Review convergence dep wires `runConvergenceLoop` to `runReview` and dispatch
+8. Milestone deps call `checkMilestone` and `completeMilestone` from `src/milestones/`
+9. Claude Code hook config: `PreToolCall(git commit)` runs `telesis preflight`
+10. End-to-end: orchestrator advances through at least intake → triage on the Telesis repo
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,
