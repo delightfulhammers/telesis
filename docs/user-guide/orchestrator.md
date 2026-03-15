@@ -36,6 +36,26 @@ There are 7 decision points per milestone:
 | Criteria confirmation | `milestone_check` | Manual acceptance criteria met? |
 | Ship confirmation | `milestone_complete` | Commit, tag, push? |
 
+## Running the Orchestrator
+
+To advance the orchestrator manually:
+
+```
+telesis orchestrator run
+```
+
+This drives the state machine forward in a loop — calling intake, planning, dispatch,
+review, and milestone operations as needed — until it reaches a decision point that
+requires human input, or returns to idle. Output shows each state transition as it happens.
+
+The typical workflow:
+
+1. Run `telesis orchestrator run` — it advances and creates a decision
+2. Review the pending decision with `telesis orchestrator status`
+3. Approve or reject: `telesis orchestrator approve <id>`
+4. Run again: `telesis orchestrator run` — it picks up from where it stopped
+5. Repeat until the milestone is complete
+
 ## Interacting with Decisions
 
 When the orchestrator needs your input, it sends a macOS notification and queues the
@@ -81,6 +101,16 @@ Checks:
 - No blocking decisions pending
 
 Exits with code 1 on failure, which blocks the hook.
+
+### Claude Code Hook
+
+A hook is installed at `.claude/settings.json` that automatically runs preflight before
+every `git commit` in Claude Code. If preflight fails, the commit is blocked and Claude
+receives the failure message as feedback.
+
+The hook script is at `.claude/hooks/git-preflight.sh`. It only intercepts `git commit`
+commands (not other git operations), using an anchored regex to avoid false positives on
+commands like `git commit-graph`.
 
 ## LLM Judgment Calls
 
