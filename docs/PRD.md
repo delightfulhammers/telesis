@@ -31,7 +31,7 @@ docs/
   adr/               ← architectural decision records (ADR-NNN-slug.md)
   tdd/               ← technical design docs per component (TDD-NNN-slug.md)
 .telesis/
-  config.yml         ← project metadata (name, owner, language, status)
+  config.yml         ← project metadata (name, owner, languages, status)
 CLAUDE.md            ← generated; stitches context together for Claude Code
 ```
 

@@ -14,7 +14,8 @@ All Telesis configuration lives in `.telesis/config.yml`. This file is created d
 project:
   name: "Your Project"
   owner: "Your Name or Team"
-  language: "TypeScript"
+  languages:
+    - "TypeScript"
   status: "active"
   repo: "github.com/you/your-project"
 ```
@@ -23,7 +24,7 @@ project:
 |---|---|
 | `name` | Project name, used in generated docs and context |
 | `owner` | Owner or team name |
-| `language` | Primary programming language |
+| `languages` | Programming languages used (array) |
 | `status` | Project status: `active`, `paused`, `archived` |
 | `repo` | Repository URL (used for GitHub integration) |
 
@@ -209,7 +210,8 @@ A working config needs only the project block. Everything else has sensible defa
 project:
   name: "My Project"
   owner: "Me"
-  language: "TypeScript"
+  languages:
+    - "TypeScript"
   status: "active"
   repo: "github.com/me/my-project"
 ```
@@ -220,7 +222,8 @@ project:
 project:
   name: "My Project"
   owner: "My Team"
-  language: "TypeScript"
+  languages:
+    - "TypeScript"
   status: "active"
   repo: "github.com/myteam/my-project"
 

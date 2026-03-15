@@ -288,9 +288,9 @@ If any of those questions can't be answered from the docs, the docs need updatin
 
 ## Recent Journal Entries
 
-- 2026-03-14 — Claude Code as a daemon client
-- 2026-03-14 — Quality gates: from named slots to arbitrary gate chains
-- 2026-03-13 — Dispatch show: reconstruct agent narrative
+- 2026-03-14 — LLM Provider Abstraction: Audit & Coupling Analysis
+- 2026-03-14 — Roadmap: Polyglot → MCP → Cost Optimization → Daemon Orchestrator
+- 2026-03-14 — Milestone Prioritization: MCP Connector Before Polyglot
 
 ---
 

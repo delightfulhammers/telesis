@@ -12,7 +12,7 @@ weight: 340
 
 The generated file includes:
 
-- **Project metadata** — name, owner, status, language, repository
+- **Project metadata** — name, owner, status, languages, repository
 - **About section** — extracted from VISION.md, explaining what the project is and why it exists
 - **Quick start navigation** — pointers to key documents
 - **Active milestone** — current milestone with acceptance criteria and build sequence

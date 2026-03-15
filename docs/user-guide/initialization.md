@@ -68,7 +68,8 @@ Telesis also creates `.telesis/config.yml` with your project metadata:
 project:
   name: "Your Project"
   owner: "Your Name"
-  language: "TypeScript"
+  languages:
+    - "TypeScript"
   status: "active"
   repo: "github.com/you/your-project"
 ```
