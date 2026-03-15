@@ -1,5 +1,4 @@
 import type { EventBus } from "../daemon/bus.js";
-import type { Subscription } from "rxjs";
 import { createContext } from "./machine.js";
 import { saveContext, loadContext } from "./persistence.js";
 import type { OrchestratorContext, OrchestratorState } from "./types.js";
@@ -10,7 +9,7 @@ export interface OrchestratorHandle {
   /** Get current orchestrator context (read-only snapshot) */
   readonly getContext: () => OrchestratorContext;
   /** Internal — used by stopOrchestrator */
-  readonly _subscription: Subscription;
+  readonly _unsubscribe: () => void;
   readonly _rootDir: string;
 }
 
@@ -43,7 +42,7 @@ export const startOrchestrator = (
 
   return {
     getContext: () => ctx,
-    _subscription: subscription,
+    _unsubscribe: () => subscription.unsubscribe(),
     _rootDir: rootDir,
   };
 };
@@ -52,6 +51,6 @@ export const startOrchestrator = (
  * Stops the orchestrator — unsubscribes from bus and persists final state.
  */
 export const stopOrchestrator = (handle: OrchestratorHandle): void => {
-  handle._subscription.unsubscribe();
+  handle._unsubscribe();
   saveContext(handle._rootDir, handle.getContext());
 };
