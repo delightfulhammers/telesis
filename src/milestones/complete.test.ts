@@ -153,6 +153,45 @@ describe("completeMilestoneFromInfo", () => {
     ]);
   });
 
+  it("returns modifiedFiles with base files", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    const result = completeMilestoneFromInfo(makeInfo(), dir);
+
+    expect(result.modifiedFiles).toContain("docs/MILESTONES.md");
+    expect(result.modifiedFiles).toContain("package.json");
+    expect(result.modifiedFiles).toContain("CLAUDE.md");
+  });
+
+  it("includes TDD files in modifiedFiles", () => {
+    const dir = makeTempDir();
+    setupProject(dir, { tdds: [7] });
+
+    const result = completeMilestoneFromInfo(
+      makeInfo({ tddReferences: [7] }),
+      dir,
+    );
+
+    expect(result.modifiedFiles).toContain("docs/tdd/TDD-007-test.md");
+  });
+
+  it("returns only base files when no TDD references", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    const result = completeMilestoneFromInfo(
+      makeInfo({ tddReferences: [] }),
+      dir,
+    );
+
+    expect(result.modifiedFiles).toEqual([
+      "docs/MILESTONES.md",
+      "package.json",
+      "CLAUDE.md",
+    ]);
+  });
+
   it("handles already-correct package version", () => {
     const dir = makeTempDir();
     setupProject(dir, { packageVersion: "0.9.0" });

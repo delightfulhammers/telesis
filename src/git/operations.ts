@@ -124,6 +124,43 @@ export const push = (
   return { branch, remote: "origin" };
 };
 
+/** Stage specific files (no-op when the list is empty) */
+export const stageFiles = (rootDir: string, files: readonly string[]): void => {
+  if (files.length === 0) return;
+  execFileSync("git", ["add", ...files], { cwd: rootDir, encoding: "utf-8" });
+};
+
+/** Create a lightweight tag */
+export const createTag = (rootDir: string, tag: string): void => {
+  execFileSync("git", ["tag", tag], { cwd: rootDir, encoding: "utf-8" });
+};
+
+/** Check whether a local tag exists */
+export const tagExists = (rootDir: string, tag: string): boolean => {
+  const result = execFileSync("git", ["tag", "-l", tag], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  }).trim();
+  return result.length > 0;
+};
+
+/** Push a tag to the remote */
+export const pushTag = (rootDir: string, tag: string): void => {
+  execFileSync("git", ["push", "origin", tag], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  });
+};
+
+/** Check whether specific files have uncommitted changes (staged or unstaged) */
+export const fileHasChanges = (rootDir: string, filePath: string): boolean => {
+  const status = execFileSync("git", ["status", "--porcelain", filePath], {
+    cwd: rootDir,
+    encoding: "utf-8",
+  }).trim();
+  return status.length > 0;
+};
+
 /** Check whether a remote branch exists */
 export const remoteBranchExists = (
   rootDir: string,

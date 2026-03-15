@@ -14,6 +14,8 @@ export interface CompletionResult {
   readonly milestone: string;
   readonly version: string;
   readonly steps: readonly CompletionStep[];
+  /** Files that the completion steps intended to modify (may include files whose step failed) */
+  readonly modifiedFiles: readonly string[];
 }
 
 const TDD_FILENAME_RE = /^TDD-0*(\d+)\b/;
@@ -101,6 +103,7 @@ const buildTddIndex = (tddDir: string): ReadonlyMap<number, string> => {
 const updateTddStatuses = (
   rootDir: string,
   tddNumbers: readonly number[],
+  index: ReadonlyMap<number, string>,
 ): CompletionStep => {
   if (tddNumbers.length === 0) {
     return {
@@ -111,7 +114,6 @@ const updateTddStatuses = (
   }
 
   const tddDir = join(rootDir, "docs", "tdd");
-  const index = buildTddIndex(tddDir);
   const updated: string[] = [];
   const errors: string[] = [];
 
@@ -193,12 +195,28 @@ export const completeMilestoneFromInfo = (
     );
   }
 
+  const tddDir = join(rootDir, "docs", "tdd");
+  const tddIndex = buildTddIndex(tddDir);
+
   const steps: CompletionStep[] = [
     updateMilestonesStatus(rootDir),
     bumpPackageVersion(rootDir, info.version),
-    updateTddStatuses(rootDir, info.tddReferences),
+    updateTddStatuses(rootDir, info.tddReferences, tddIndex),
     regenerateClaudeMd(rootDir),
   ];
 
-  return { milestone: info.name, version: info.version, steps };
+  const modifiedFiles: string[] = [
+    "docs/MILESTONES.md",
+    "package.json",
+    "CLAUDE.md",
+  ];
+
+  for (const num of info.tddReferences) {
+    const filename = tddIndex.get(num);
+    if (filename) {
+      modifiedFiles.push(`docs/tdd/${filename}`);
+    }
+  }
+
+  return { milestone: info.name, version: info.version, steps, modifiedFiles };
 };
