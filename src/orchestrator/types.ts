@@ -19,6 +19,7 @@ export interface OrchestratorContext {
   readonly state: OrchestratorState;
   readonly milestoneId?: string;
   readonly milestoneName?: string;
+  readonly milestoneGoal?: string;
   readonly workItemIds: readonly string[];
   readonly planId?: string;
   readonly currentTaskIndex?: number;
@@ -27,6 +28,11 @@ export interface OrchestratorContext {
   readonly startedAt?: string;
   readonly updatedAt: string;
   readonly error?: string;
+  /** Tracks which decision kinds have been created in the current state.
+   *  Cleared on state transition via entry effects where appropriate. */
+  readonly pendingDecisionKind?: DecisionKind;
+  /** Set to true after milestone completion steps have run (before ship confirmation) */
+  readonly completionRan?: boolean;
 }
 
 /** Decision kinds — one per human gate in the lifecycle */

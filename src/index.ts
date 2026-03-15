@@ -19,6 +19,7 @@ import { dispatchCommand } from "./cli/dispatch.js";
 import { intakeCommand } from "./cli/intake.js";
 import { planCommand } from "./cli/plan.js";
 import { runCommand } from "./cli/run.js";
+import { orchestratorCommand } from "./cli/orchestrator.js";
 
 const readVersion = (): string => {
   try {
@@ -51,6 +52,7 @@ const program = new Command("telesis")
   .addCommand(dispatchCommand)
   .addCommand(intakeCommand)
   .addCommand(planCommand)
-  .addCommand(runCommand);
+  .addCommand(runCommand)
+  .addCommand(orchestratorCommand);
 
 program.parse();
