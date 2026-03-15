@@ -1,12 +1,12 @@
 {
   "name": "telesis",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "Development intelligence platform",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --compile --outfile telesis",
+    "build": "bun build src/index.ts --compile --outfile telesis && bun build src/mcp-server.ts --compile --outfile telesis-mcp",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "commander": "^13.1.0",
     "js-yaml": "^4.1.0",
     "mustache": "^4.2.0",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

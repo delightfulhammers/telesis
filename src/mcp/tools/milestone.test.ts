@@ -1,0 +1,8 @@
+import { describe, it, expect } from "vitest";
+import { register } from "./milestone.js";
+
+describe("milestone tool registration", () => {
+  it("exports a register function", () => {
+    expect(typeof register).toBe("function");
+  });
+});

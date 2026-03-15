@@ -102,3 +102,19 @@ export const loadEntries = (rootDir: string): LoadEntriesResult => {
 
   return { items, invalidLineCount };
 };
+
+/**
+ * Finds a journal entry by exact ID, date (YYYY-MM-DD), or title substring.
+ * Returns the first match (most recent for date matches).
+ */
+export const findEntry = (
+  entries: readonly JournalEntry[],
+  query: string,
+): JournalEntry | undefined => {
+  const q = query.toLowerCase();
+  const byId = entries.find((e) => e.id === query);
+  if (byId) return byId;
+  const byDate = entries.filter((e) => e.date === query);
+  if (byDate.length > 0) return byDate[byDate.length - 1];
+  return entries.find((e) => e.title.toLowerCase().includes(q));
+};

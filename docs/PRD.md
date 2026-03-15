@@ -293,6 +293,25 @@ Milestone validation and completion.
   update referenced TDD statuses to Accepted, regenerate CLAUDE.md
 - Does not auto-commit; prints remaining manual steps (PRD/ARCHITECTURE updates, commit, tag)
 
+### `telesis-mcp` (MCP Server)
+
+Separate binary that exposes all Telesis capabilities as MCP (Model Context Protocol) tools
+and resources over stdio.
+
+- Compiled alongside the CLI: `bun build src/mcp-server.ts --compile --outfile telesis-mcp`
+- 22 MCP tools covering all operations: status, drift, context, ADR, TDD, journal, notes,
+  milestone, intake, plan, dispatch, review
+- 6 MCP resources for project documents: VISION.md, PRD.md, ARCHITECTURE.md, MILESTONES.md,
+  CLAUDE.md, config
+- Configure in Claude Code's `.mcp.json`:
+  ```json
+  { "mcpServers": { "telesis": { "command": "/path/to/telesis-mcp" } } }
+  ```
+- All tools accept an optional `projectRoot` parameter to override the working directory
+- LLM-powered tools (`telesis_review`) note cost/duration in their descriptions
+- `telesis_milestone_complete` performs local file updates only — git operations are manual
+- Input validation via Zod schemas (slug patterns, length caps, path traversal prevention)
+
 ---
 
 ## CLAUDE.md Format

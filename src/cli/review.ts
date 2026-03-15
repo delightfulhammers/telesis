@@ -5,11 +5,7 @@ import { handleAction } from "./handle-action.js";
 import { projectRoot } from "./project-root.js";
 import { createModelClient, createSdk } from "../agent/model/client.js";
 import { createTelemetryLogger } from "../agent/telemetry/logger.js";
-import { resolveDiff } from "../agent/review/diff.js";
-import { assembleReviewContext } from "../agent/review/context.js";
-import { reviewDiff, reviewWithPersonas } from "../agent/review/agent.js";
 import {
-  saveReviewSession,
   loadReviewSession,
   listReviewSessions,
 } from "../agent/review/store.js";
@@ -19,42 +15,13 @@ import {
   formatSessionList,
   filterBySeverity,
 } from "../agent/review/format.js";
-import { deriveCostFromSession } from "../agent/review/cost.js";
 import {
   SEVERITIES,
-  DEFAULT_CONFIDENCE_THRESHOLDS,
   type Severity,
   type ReviewSession,
   type ReviewFinding,
-  type ThemeConclusion,
   type FilterStats,
 } from "../agent/review/types.js";
-import { selectPersonas } from "../agent/review/orchestrator.js";
-import {
-  resolvePersonaSlugs,
-  applyPersonaOverrides,
-} from "../agent/review/personas.js";
-import { deduplicateFindings } from "../agent/review/dedup.js";
-import {
-  extractThemes,
-  filterByAntiPatterns,
-  filterActiveThemes,
-} from "../agent/review/themes.js";
-import { verifyFindings } from "../agent/review/verify.js";
-import {
-  filterByConfidence,
-  escalateThresholds,
-} from "../agent/review/agent.js";
-import {
-  filterNoise,
-  buildDismissalNoisePatterns,
-  filterWithPatterns,
-  type NoisePattern,
-} from "../agent/review/noise-filter.js";
-import { filterDismissedReRaises } from "../agent/review/dismissal/matcher.js";
-import { filterWithJudge } from "../agent/review/dismissal/judge.js";
-import type { ModelClient } from "../agent/model/client.js";
-import { load as loadConfig } from "../config/config.js";
 import {
   extractPRContext,
   buildLocalPRContext,
@@ -69,7 +36,6 @@ import type { Dismissal } from "../agent/review/dismissal/types.js";
 import {
   appendDismissal,
   loadDismissals,
-  loadRecentDismissals,
 } from "../agent/review/dismissal/store.js";
 import {
   computeDismissalStats,
@@ -86,13 +52,7 @@ import {
   BRACKET_TAG_RE,
 } from "../github/dismissals.js";
 import { FINDING_MARKER_RE } from "../github/format.js";
-import {
-  labelFindings,
-  loadPriorFindings,
-  listPriorSessions,
-  summarizeConvergence,
-  formatConvergenceSummary,
-} from "../agent/review/convergence.js";
+import { formatConvergenceSummary } from "../agent/review/convergence.js";
 import type {
   ConvergenceSummary,
   FindingLabel,
@@ -102,125 +62,7 @@ import {
   replyToReviewComment,
   listPullRequestReviewComments,
 } from "../github/client.js";
-
-/** Default model for the LLM judge that detects semantic re-raises. */
-const DEFAULT_JUDGE_MODEL = "claude-haiku-4-5-20251001";
-
-const addTokenUsage = (
-  a: { inputTokens: number; outputTokens: number },
-  b: { inputTokens: number; outputTokens: number },
-): { inputTokens: number; outputTokens: number } => ({
-  inputTokens: a.inputTokens + b.inputTokens,
-  outputTokens: a.outputTokens + b.outputTokens,
-});
-
-/**
- * Shared filtering pipeline:
- *   confidence (round-escalated) → noise → dismissal → anti-pattern.
- * Applied to both single-pass and persona review paths.
- */
-const applyFilters = (
-  findings: readonly ReviewFinding[],
-  dismissals: readonly Dismissal[],
-  dynamicNoisePatterns: readonly NoisePattern[] = [],
-  round: number = 1,
-  conclusions: readonly ThemeConclusion[] = [],
-): { findings: readonly ReviewFinding[]; stats: FilterStats } => {
-  const thresholds = escalateThresholds(DEFAULT_CONFIDENCE_THRESHOLDS, round);
-  const confidenceResult = filterByConfidence(findings, thresholds);
-  if (confidenceResult.filteredCount > 0) {
-    console.error(
-      `Filtered ${confidenceResult.filteredCount} low-confidence findings` +
-        (round > 1 ? ` (round ${round}, escalated thresholds)` : ""),
-    );
-  }
-
-  const noiseResult =
-    dynamicNoisePatterns.length > 0
-      ? filterWithPatterns(confidenceResult.findings, dynamicNoisePatterns)
-      : filterNoise(confidenceResult.findings);
-  if (noiseResult.filteredCount > 0) {
-    const reasons = Object.entries(noiseResult.filteredReasons)
-      .map(([reason, count]) => `${count} ${reason}`)
-      .join(", ");
-    console.error(
-      `Filtered ${noiseResult.filteredCount} low-signal findings (${reasons})`,
-    );
-  }
-
-  const dismissalResult = filterDismissedReRaises(
-    noiseResult.findings,
-    dismissals,
-  );
-  if (dismissalResult.filteredCount > 0) {
-    console.error(
-      `Filtered ${dismissalResult.filteredCount} dismissed re-raises`,
-    );
-  }
-
-  const antiPatternResult = filterByAntiPatterns(
-    dismissalResult.findings,
-    conclusions,
-  );
-  if (antiPatternResult.filteredCount > 0) {
-    console.error(
-      `Filtered ${antiPatternResult.filteredCount} theme anti-pattern matches`,
-    );
-  }
-
-  return {
-    findings: antiPatternResult.findings,
-    stats: {
-      dismissalFilteredCount: dismissalResult.filteredCount,
-      noiseFilteredCount: noiseResult.filteredCount,
-      antiPatternFilteredCount: antiPatternResult.filteredCount,
-      totalFilteredCount:
-        confidenceResult.filteredCount +
-        noiseResult.filteredCount +
-        dismissalResult.filteredCount +
-        antiPatternResult.filteredCount,
-    },
-  };
-};
-
-/**
- * Runs the LLM judge on post-filter findings and combines stats.
- * Shared between single-pass and persona review paths.
- */
-const applyJudgeFilter = async (
-  client: ModelClient,
-  filterResult: { findings: readonly ReviewFinding[]; stats: FilterStats },
-  dismissals: readonly Dismissal[],
-  judgeModel: string = DEFAULT_JUDGE_MODEL,
-): Promise<{
-  findings: readonly ReviewFinding[];
-  stats: FilterStats;
-  tokenUsage?: { inputTokens: number; outputTokens: number };
-}> => {
-  const judgeResult = await filterWithJudge(
-    client,
-    judgeModel,
-    filterResult.findings,
-    dismissals,
-  );
-  if (judgeResult.filteredCount > 0) {
-    console.error(
-      `LLM judge filtered ${judgeResult.filteredCount} semantic re-raises`,
-    );
-  }
-  return {
-    findings: judgeResult.findings,
-    stats: {
-      dismissalFilteredCount:
-        filterResult.stats.dismissalFilteredCount + judgeResult.filteredCount,
-      noiseFilteredCount: filterResult.stats.noiseFilteredCount,
-      antiPatternFilteredCount: filterResult.stats.antiPatternFilteredCount,
-      totalFilteredCount:
-        filterResult.stats.totalFilteredCount + judgeResult.filteredCount,
-    },
-    tokenUsage: judgeResult.tokenUsage,
-  };
-};
+import { runReview } from "../agent/review/pipeline.js";
 
 export const reviewCommand = new Command("review")
   .enablePositionalOptions()
@@ -322,7 +164,7 @@ export const reviewCommand = new Command("review")
           return;
         }
 
-        // Review mode
+        // Review mode — construct client, delegate to extracted pipeline
         if (!process.env.ANTHROPIC_API_KEY) {
           throw new Error(
             "ANTHROPIC_API_KEY environment variable is not set. " +
@@ -330,26 +172,6 @@ export const reviewCommand = new Command("review")
           );
         }
 
-        // Resolve diff
-        const resolved = resolveDiff(rootDir, opts.ref, opts.all);
-        if (resolved.diff.length === 0) {
-          console.log(`No changes to review (${resolved.ref}).`);
-          return;
-        }
-
-        // Assemble context
-        const context = assembleReviewContext(rootDir);
-        if (context.conventionsTruncated) {
-          console.error(
-            `Warning: review conventions truncated from ${context.conventionsTruncated.originalLength} to ${context.conventionsTruncated.truncatedLength} characters.`,
-          );
-        }
-
-        // Load config for review settings
-        const config = loadConfig(rootDir);
-        const reviewConfig = config.review;
-
-        // Create client
         const sessionId = randomUUID();
         const telemetry = createTelemetryLogger(rootDir);
         const sdk = createSdk();
@@ -359,351 +181,67 @@ export const reviewCommand = new Command("review")
           sessionId,
           component: "review",
         });
-        const model = reviewConfig?.model ?? "claude-sonnet-4-6";
 
-        // Load dismissed findings for suppression
-        const dismissedFindings = loadRecentDismissals(rootDir);
-        if (dismissedFindings.length > 0) {
-          console.error(
-            `Injecting ${dismissedFindings.length} dismissed findings for suppression`,
-          );
-        }
+        const result = await runReview(client, rootDir, {
+          ref: opts.ref,
+          all: opts.all,
+          single: opts.single,
+          personas: opts.personas,
+          dedup: opts.dedup,
+          themes: opts.themes,
+          verify: opts.verify,
+          sessionId,
+        });
 
-        // Build dynamic noise patterns from dismissal history
-        const candidatePatterns = findCandidateNoisePatterns(dismissedFindings);
-        const dynamicNoisePatterns =
-          buildDismissalNoisePatterns(candidatePatterns);
-        if (dynamicNoisePatterns.length > 0) {
-          console.error(
-            `${dynamicNoisePatterns.length} dynamic noise pattern(s) from dismissal history`,
-          );
-        }
-
-        // Single-pass mode
-        if (opts.single) {
-          // Theme + prior findings extraction (same as persona path)
-          const singleThemeResult =
-            opts.themes !== false
-              ? await extractThemes(rootDir, client, model)
-              : {
-                  themes: [] as readonly string[],
-                  conclusions: [] as readonly ThemeConclusion[],
-                  recentFindings: [] as readonly ReviewFinding[],
-                };
-          const singlePriorFindings = singleThemeResult.recentFindings;
-
-          const result = await reviewDiff(
-            client,
-            resolved.diff,
-            resolved.files,
-            context,
-            sessionId,
-            model,
-            singleThemeResult.themes,
-            singleThemeResult.conclusions,
-            singlePriorFindings,
-            dismissedFindings,
-          );
-
-          // Verification pass (same as persona path)
-          const singleVerifyResult =
-            opts.verify !== false
-              ? await verifyFindings(client, model, rootDir, result.findings)
-              : { findings: result.findings, filteredCount: 0 };
-
-          if (singleVerifyResult.filteredCount > 0) {
-            console.error(
-              `Verification filtered ${singleVerifyResult.filteredCount} false positive findings`,
-            );
-          }
-
-          // Pre-compute prior sessions for both round escalation and convergence
-          const singlePriorSessions = listPriorSessions(
-            rootDir,
-            resolved.ref,
-            sessionId,
-            undefined,
-            resolved.files,
-          );
-          const singleRound = singlePriorSessions.length + 1;
-
-          const rawFindingCount = singleVerifyResult.findings.length;
-          const filterResult = applyFilters(
-            singleVerifyResult.findings,
-            dismissedFindings,
-            dynamicNoisePatterns,
-            singleRound,
-            singleThemeResult.conclusions,
-          );
-
-          const judged = await applyJudgeFilter(
-            client,
-            filterResult,
-            dismissedFindings,
-            reviewConfig?.judgeModel,
-          );
-          const finalFindings = judged.findings;
-          const combinedFilterStats = judged.stats;
-
-          // Aggregate token usage
-          let singleTokens = result.tokenUsage;
-          if (singleThemeResult.tokenUsage) {
-            singleTokens = addTokenUsage(
-              singleTokens,
-              singleThemeResult.tokenUsage,
-            );
-          }
-          if (singleVerifyResult.tokenUsage) {
-            singleTokens = addTokenUsage(
-              singleTokens,
-              singleVerifyResult.tokenUsage,
-            );
-          }
-          if (judged.tokenUsage) {
-            singleTokens = addTokenUsage(singleTokens, judged.tokenUsage);
-          }
-
-          const session: ReviewSession = {
-            id: sessionId,
-            timestamp: new Date().toISOString(),
-            ref: resolved.ref,
-            files: resolved.files,
-            findingCount: finalFindings.length,
-            model: result.model,
-            durationMs: result.durationMs,
-            tokenUsage: singleTokens,
-            mode: "single",
-          };
-
-          saveSessionSafe(rootDir, session, finalFindings);
-
-          // Convergence detection — reuses singlePriorSessions from above
-          const singlePriors = loadPriorFindings(
-            rootDir,
-            resolved.ref,
-            sessionId,
-            undefined,
-            resolved.files,
-          );
-          const singleLabeled = labelFindings(finalFindings, singlePriors);
-          const singleConvergence = summarizeConvergence(
-            singleLabeled,
-            singlePriorSessions,
-          );
-
-          const singleActiveThemes = session.themes
-            ? filterActiveThemes(session.themes, finalFindings)
-            : undefined;
-          const singleCost = deriveCostFromSession(session, rootDir);
-          displayFindings(session, finalFindings, opts, {
-            rawFindingCount,
-            filterStats: combinedFilterStats,
-            cost: singleCost,
-            convergence: singleConvergence,
-            labeledFindings: singleLabeled,
-            activeThemes: singleActiveThemes,
-          });
-          if (opts.githubPr) {
-            await postToGitHubSafe(session, finalFindings, {
-              filterStats: combinedFilterStats,
-              estimatedCost: singleCost,
-            });
-          }
+        if (result.noChanges) {
+          console.log(`No changes to review (${result.noChangesRef}).`);
           return;
         }
 
-        // Persona mode (default)
-        const startTime = Date.now();
-
-        // Theme extraction (unless disabled)
-        const themeResult =
-          opts.themes !== false
-            ? await extractThemes(rootDir, client, model)
-            : {
-                themes: [] as readonly string[],
-                conclusions: [] as readonly ThemeConclusion[],
-                recentFindings: [] as readonly ReviewFinding[],
-              };
-
-        // Prior findings come from the same session load that themes used
-        const priorFindings = themeResult.recentFindings;
-
-        // Resolve personas (config overrides applied to built-in definitions)
-        const configOverrides = reviewConfig?.personas ?? [];
-        const basePersonas = opts.personas
-          ? resolvePersonaSlugs(opts.personas.split(",").map((s) => s.trim()))
-          : selectPersonas(resolved.diff, resolved.files).personas;
-        const personaDefs =
-          configOverrides.length > 0
-            ? applyPersonaOverrides(basePersonas, configOverrides)
-            : basePersonas;
-
-        const personaSlugs = personaDefs.map((p) => p.slug);
-
-        // Parallel persona calls
-        if (priorFindings.length > 0) {
+        if (result.conventionsTruncated) {
           console.error(
-            `Injecting ${priorFindings.length} prior findings for suppression`,
+            `Warning: review conventions truncated from ${result.conventionsTruncated.originalLength} to ${result.conventionsTruncated.truncatedLength} characters.`,
           );
         }
 
-        const personaResults = await reviewWithPersonas(
-          client,
-          resolved.diff,
-          resolved.files,
-          context,
-          sessionId,
-          model,
-          personaDefs,
-          themeResult.themes,
-          themeResult.conclusions,
-          priorFindings,
-          dismissedFindings,
-        );
-
-        // Deduplication (unless disabled)
-        const dedupResult =
-          opts.dedup !== false
-            ? await deduplicateFindings(personaResults, client, model)
-            : {
-                findings: personaResults.flatMap((r) => [...r.findings]),
-                mergedCount: 0,
-              };
-
-        // Verification pass (unless disabled)
-        const verifyResult =
-          opts.verify !== false
-            ? await verifyFindings(client, model, rootDir, dedupResult.findings)
-            : { findings: dedupResult.findings, filteredCount: 0 };
-
-        if (verifyResult.filteredCount > 0) {
+        // Log filter stats to stderr (visibility into why findings were filtered)
+        const fs = result.filterStats;
+        if (fs.totalFilteredCount > 0) {
+          const parts: string[] = [];
+          if (fs.dismissalFilteredCount > 0) {
+            parts.push(`${fs.dismissalFilteredCount} dismissed`);
+          }
+          if (fs.noiseFilteredCount > 0) {
+            parts.push(`${fs.noiseFilteredCount} noise`);
+          }
+          if (fs.antiPatternFilteredCount > 0) {
+            parts.push(`${fs.antiPatternFilteredCount} anti-pattern`);
+          }
           console.error(
-            `Verification filtered ${verifyResult.filteredCount} false positive findings`,
+            `Filtered ${fs.totalFilteredCount} findings (${parts.join(", ")})`,
           );
         }
 
-        // Pre-compute prior sessions for both round escalation and convergence.
-        // Safe to reuse after saveSessionSafe: listPriorSessions excludes
-        // the current sessionId, so the saved session won't appear.
-        const personaPriorSessions = listPriorSessions(
-          rootDir,
-          resolved.ref,
-          sessionId,
-          undefined,
-          resolved.files,
-        );
-        const personaRound = personaPriorSessions.length + 1;
-
-        const rawFindingCount = verifyResult.findings.length;
-        const filterResult = applyFilters(
-          verifyResult.findings,
-          dismissedFindings,
-          dynamicNoisePatterns,
-          personaRound,
-          themeResult.conclusions,
-        );
-
-        const judged = await applyJudgeFilter(
-          client,
-          filterResult,
-          dismissedFindings,
-          reviewConfig?.judgeModel,
-        );
-        const finalFindings = judged.findings;
-        const combinedFilterStats = judged.stats;
-
-        // Aggregate token usage across persona calls + dedup + themes + verify + judge
-        let totalTokens = personaResults.reduce(
-          (acc, r) => addTokenUsage(acc, r.tokenUsage),
-          { inputTokens: 0, outputTokens: 0 },
-        );
-        if (dedupResult.tokenUsage) {
-          totalTokens = addTokenUsage(totalTokens, dedupResult.tokenUsage);
-        }
-        if (themeResult.tokenUsage) {
-          totalTokens = addTokenUsage(totalTokens, themeResult.tokenUsage);
-        }
-        if (verifyResult.tokenUsage) {
-          totalTokens = addTokenUsage(totalTokens, verifyResult.tokenUsage);
-        }
-        if (judged.tokenUsage) {
-          totalTokens = addTokenUsage(totalTokens, judged.tokenUsage);
-        }
-
-        const durationMs = Date.now() - startTime;
-
-        const session: ReviewSession = {
-          id: sessionId,
-          timestamp: new Date().toISOString(),
-          ref: resolved.ref,
-          files: resolved.files,
-          findingCount: finalFindings.length,
-          model,
-          durationMs,
-          tokenUsage: totalTokens,
-          mode: "personas",
-          personas: personaSlugs,
-          themes:
-            themeResult.themes.length > 0 ? [...themeResult.themes] : undefined,
-        };
-
-        saveSessionSafe(rootDir, session, finalFindings);
-
-        // Convergence detection — reuses personaPriorSessions from above
-        const convergencePriors = loadPriorFindings(
-          rootDir,
-          resolved.ref,
-          sessionId,
-          undefined,
-          resolved.files,
-        );
-        const convergenceLabeled = labelFindings(
-          finalFindings,
-          convergencePriors,
-        );
-        const convergence = summarizeConvergence(
-          convergenceLabeled,
-          personaPriorSessions,
-        );
-
-        const activeThemes = session.themes
-          ? filterActiveThemes(session.themes, finalFindings)
-          : undefined;
-        const personaCost = deriveCostFromSession(session, rootDir);
-        displayFindings(session, finalFindings, opts, {
-          mergedCount: dedupResult.mergedCount,
-          rawFindingCount,
-          filterStats: combinedFilterStats,
-          cost: personaCost,
-          convergence,
-          labeledFindings: convergenceLabeled,
-          activeThemes,
+        displayFindings(result.session, result.findings, opts, {
+          mergedCount: result.mergedCount,
+          rawFindingCount: result.rawFindingCount,
+          filterStats: result.filterStats,
+          cost: result.cost,
+          convergence: result.convergence,
+          labeledFindings: result.labeledFindings,
+          activeThemes: result.activeThemes,
         });
+
         if (opts.githubPr) {
-          await postToGitHubSafe(session, finalFindings, {
-            mergedCount: dedupResult.mergedCount,
-            filterStats: combinedFilterStats,
-            estimatedCost: personaCost,
+          await postToGitHubSafe(result.session, result.findings, {
+            mergedCount: result.mergedCount,
+            filterStats: result.filterStats,
+            estimatedCost: result.cost,
           });
         }
       },
     ),
   );
-
-const saveSessionSafe = (
-  rootDir: string,
-  session: ReviewSession,
-  findings: readonly ReviewFinding[],
-): void => {
-  try {
-    saveReviewSession(rootDir, session, findings);
-  } catch (err) {
-    console.error(
-      "Warning: could not save review session:",
-      err instanceof Error ? err.message : err,
-    );
-  }
-};
 
 const displayFindings = (
   session: ReviewSession,
@@ -724,7 +262,6 @@ const displayFindings = (
 ): void => {
   // "No new findings" message when all findings were filtered.
   // Intentionally exits 0: dismissed/noise-filtered findings are considered resolved.
-  // The user has already triaged these — re-failing the build would defeat the purpose.
   if (
     findings.length === 0 &&
     extra?.rawFindingCount !== undefined &&

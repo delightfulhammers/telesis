@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { appendEntry, loadEntries } from "../journal/store.js";
+import { appendEntry, loadEntries, findEntry } from "../journal/store.js";
 import { formatEntryList, formatEntryDetail } from "../journal/format.js";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
@@ -62,26 +62,6 @@ const showCommand = new Command("show")
       console.log(formatEntryDetail(match));
     }),
   );
-
-import type { JournalEntry } from "../journal/types.js";
-
-const findEntry = (
-  entries: readonly JournalEntry[],
-  query: string,
-): JournalEntry | undefined => {
-  const q = query.toLowerCase();
-
-  // Exact ID match
-  const byId = entries.find((e) => e.id === query);
-  if (byId) return byId;
-
-  // Date match (returns most recent entry on that date)
-  const byDate = entries.filter((e) => e.date === query);
-  if (byDate.length > 0) return byDate[byDate.length - 1];
-
-  // Title substring match (returns first match)
-  return entries.find((e) => e.title.toLowerCase().includes(q));
-};
 
 export const journalCommand = new Command("journal")
   .description("Manage the design journal")

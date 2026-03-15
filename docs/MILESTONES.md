@@ -1,6 +1,6 @@
 # Telesis — Milestones
 *By Delightful Hammers*
-*Last updated: 2026-03-14*
+*Last updated: 2026-03-15*
 
 ---
 
@@ -1138,6 +1138,43 @@ config instead of hardcoding `pnpm`.
 12. `telesis drift` on a non-TS project skips TS-specific checks
 13. All new business logic has colocated unit tests
 14. Running `telesis drift` produces zero errors
+
+---
+
+## v0.21.0 — MCP Server
+
+**Goal:** Expose all Telesis capabilities as MCP tools so Claude Code (or any MCP client)
+can act as the orchestrator. The business logic is already CLI-framework-agnostic; the MCP
+server is a new adapter layer, not a rewrite.
+
+**Status:** Complete
+
+### What Changes
+
+A separate `telesis-mcp` binary exposes 22 MCP tools and 6 MCP resources over stdio. Every
+business logic function gets its own tool with a Zod schema. Project documents (VISION.md,
+MILESTONES.md, etc.) are exposed as readable MCP resources. The review pipeline (~360 lines)
+is extracted from `src/cli/review.ts` into `src/agent/review/pipeline.ts` so both CLI and
+MCP share the same orchestration. Input validation (slug regex, length caps, path traversal
+prevention) hardens the MCP adapter layer against untrusted input.
+
+### Acceptance Criteria
+
+1. `pnpm run build` compiles both `telesis` and `telesis-mcp` binaries
+2. `telesis-mcp` starts a stdio MCP server with all tools registered
+3. MCP client can list 22 tools via `listTools()`
+4. MCP client can list 6 resources via `listResources()`
+5. `telesis_status` returns project metadata as structured JSON
+6. `telesis_drift` returns drift report with pass/fail per check
+7. `telesis_context_generate` atomically regenerates CLAUDE.md
+8. `telesis_review` runs the full multi-persona review pipeline and returns structured results
+9. `runReview()` in `src/agent/review/pipeline.ts` is called by both CLI and MCP
+10. CLI `telesis review` behavior unchanged after pipeline extraction
+11. All Zod schemas enforce input constraints (slug patterns, length caps)
+12. `telesis_milestone_complete` does NOT perform git operations (returns next steps)
+13. `ModelClient` constructed at server level, injected into tools via factory
+14. All new business logic has colocated unit tests
+15. Running `telesis drift` produces zero errors
 
 ---
 

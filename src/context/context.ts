@@ -1,4 +1,14 @@
-import { readFileSync, readdirSync, type Dirent } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  renameSync,
+  unlinkSync,
+  openSync,
+  closeSync,
+  constants,
+  type Dirent,
+} from "node:fs";
 import { join, basename } from "node:path";
 import { load } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
@@ -209,4 +219,50 @@ export const generate = (rootDir: string): string => {
     JournalSection: journalSection || false,
     NotesSection: notesSection || false,
   });
+};
+
+/**
+ * Generates CLAUDE.md and atomically writes it to the project root.
+ * Uses temp file + rename to avoid partial writes.
+ */
+export const generateAndWrite = (rootDir: string): void => {
+  const output = generate(rootDir);
+  const claudePath = join(rootDir, "CLAUDE.md");
+  const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const tmpPath = join(rootDir, `.CLAUDE-${suffix}.md`);
+
+  const fd = openSync(
+    tmpPath,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+    0o666,
+  );
+
+  try {
+    writeFileSync(fd, output);
+  } catch (err) {
+    try {
+      closeSync(fd);
+    } catch {
+      /* best-effort */
+    }
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      /* best-effort */
+    }
+    throw err;
+  }
+
+  closeSync(fd);
+
+  try {
+    renameSync(tmpPath, claudePath);
+  } catch (err) {
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      /* cleanup best-effort */
+    }
+    throw err;
+  }
 };

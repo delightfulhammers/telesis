@@ -1,6 +1,6 @@
 # Telesis — Architecture
 *By Delightful Hammers*
-*Last updated: 2026-03-14*
+*Last updated: 2026-03-15*
 
 ---
 
@@ -26,6 +26,7 @@ See ADR-002 for why the original Go CLI was rewritten in TypeScript.
 telesis/
   src/
     index.ts              ← CLI entrypoint; wires Commander commands
+    mcp-server.ts         ← MCP server entrypoint; stdio transport (v0.21.0)
     cli/                  ← Commander command definitions
       init.ts             ← invokes agent layer for v0.2.0+
       context.ts
@@ -43,7 +44,28 @@ telesis/
       plan.ts             ← plan create/list/show/approve/execute commands (v0.16.0)
       run.ts              ← full pipeline run command (v0.18.0)
       handle-action.ts    ← shared error handling for CLI actions
-      project-root.ts     ← project root detection
+      project-root.ts     ← project root detection (delegates to mcp/root-resolver.ts)
+    mcp/                  ← MCP adapter layer (v0.21.0)
+      server.ts           ← McpServer factory: createServer(resolveRoot, createClient)
+      root-resolver.ts    ← parameterized project root walk (shared with CLI)
+      types.ts            ← ModelClientFactory type
+      tools/
+        index.ts          ← registerAllTools aggregator
+        status.ts         ← telesis_status
+        drift.ts          ← telesis_drift
+        context.ts        ← telesis_context_generate
+        adr.ts            ← telesis_adr_new
+        tdd.ts            ← telesis_tdd_new
+        journal.ts        ← telesis_journal_add, _list, _show
+        notes.ts          ← telesis_note_add, _list
+        milestone.ts      ← telesis_milestone_check, _complete
+        intake.ts         ← telesis_intake_list, _show
+        plan.ts           ← telesis_plan_list, _show, _approve
+        dispatch.ts       ← telesis_dispatch_list, _show
+        review.ts         ← telesis_review, _list, _show
+      resources/
+        index.ts          ← registerResources aggregator
+        docs.ts           ← telesis:// document and config resources
     config/               ← .telesis/config.yml read/write
     context/              ← CLAUDE.md generation from doc tree
     scaffold/             ← project initialization and file generation
@@ -169,6 +191,7 @@ telesis/
         json-parse.ts     ← shared JSON response parser (fence extraction)
         similarity.ts     ← shared word bag + Jaccard similarity utilities (v0.14.1)
         convergence.ts    ← cross-round finding matcher, convergence detection (v0.14.1)
+        pipeline.ts       ← extracted review orchestration, shared by CLI + MCP (v0.21.0)
         store.ts          ← per-session JSONL storage in .telesis/reviews/
         format.ts         ← terminal report formatting (flat + persona-grouped)
         dismissal/        ← review triage feedback loop (v0.10.0, v0.10.1)
@@ -222,6 +245,10 @@ telesis/
 **Agent layer (v0.2.0+):**
 - **`@anthropic-ai/sdk`** — primary model provider (imported only in `agent/model/client.ts`)
 
+**MCP layer (v0.21.0+):**
+- **`@modelcontextprotocol/sdk`** — MCP server, stdio transport, tool/resource registration
+- **`zod`** — schema validation for MCP tool parameters
+
 **Daemon layer (v0.12.0+):**
 - **`rxjs`** — reactive event backbone (imported only in `daemon/bus.ts`)
 
@@ -253,6 +280,9 @@ telesis/
   All other code uses the adapter and format modules. Same containment pattern as the model client.
 - **`src/agent/`** packages (`interview/`, `generate/`, `telemetry/`) know nothing about the
   CLI entrypoint. `src/cli/init.ts` wires them together.
+- **`src/mcp/`** is the MCP adapter layer. Like `src/cli/`, it calls into business logic
+  packages and knows nothing about Commander. `src/mcp/tools/` contains one file per tool
+  group; each is a thin wrapper over business logic. `src/mcp/resources/` exposes documents.
 - **`src/templates/`** contains Mustache templates imported at build time via Bun file imports.
   No runtime file I/O for templates.
 
