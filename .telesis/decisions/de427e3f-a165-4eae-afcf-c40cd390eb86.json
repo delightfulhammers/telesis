@@ -3,5 +3,7 @@
   "kind": "criteria_confirmation",
   "createdAt": "2026-03-15T20:10:06.969Z",
   "summary": "Confirm acceptance criteria met for Telemetry Streaming",
-  "detail": "{\"milestoneId\":\"0.24.0\"}"
+  "detail": "{\"milestoneId\":\"0.24.0\"}",
+  "resolvedAt": "2026-03-15T20:22:26.955Z",
+  "resolution": "approved"
 }

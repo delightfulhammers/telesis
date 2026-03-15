@@ -1,14 +1,6 @@
 {
-  "state": "milestone_check",
-  "workItemIds": [
-    "e65d76c5-83c8-4290-ab13-d22e1790389e"
-  ],
-  "milestoneId": "0.24.0",
-  "milestoneName": "Telemetry Streaming",
+  "state": "idle",
+  "workItemIds": [],
   "milestoneGoal": "Migrate telemetry reader to streaming for large JSONL files",
-  "updatedAt": "2026-03-15T20:10:06.969Z",
-  "planId": "cc5a447f-0355-4d1a-aa4b-d9b6118f5f72",
-  "pendingDecisionKind": "criteria_confirmation",
-  "reviewRound": 1,
-  "reviewFindings": 0
+  "updatedAt": "2026-03-15T20:24:05.258Z"
 }

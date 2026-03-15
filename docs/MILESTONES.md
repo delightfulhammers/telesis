@@ -1259,7 +1259,7 @@ Code hooks are installed to gate `git commit` on `telesis preflight` checks.
 Currently `loadTelemetryRecords` reads the entire `.telesis/telemetry.jsonl` into memory,
 which becomes a bottleneck as the file grows over months of usage.
 
-**Status:** In Progress
+**Status:** Complete
 
 ### What Changes
 

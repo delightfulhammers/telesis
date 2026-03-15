@@ -57,36 +57,30 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.23.0 — Orchestrator Activation
+## v0.24.0 — Telemetry Streaming
 
-**Goal:** Connect the orchestrator walking skeleton to real business logic and install
-enforcement hooks. The state machine drives actual intake, planning, dispatch, review, and
-milestone completion. Claude Code hooks gate git operations on preflight checks.
+**Goal:** Migrate the telemetry reader from batch loading to streaming for large JSONL files.
+Currently `loadTelemetryRecords` reads the entire `.telesis/telemetry.jsonl` into memory,
+which becomes a bottleneck as the file grows over months of usage.
 
 **Status:** Complete
 
 ### What Changes
 
-A factory function (`buildRunnerDeps`) wires every RunnerDeps function to the real business
-logic modules — intake sync, work item loading, plan creation, task execution, quality gates,
-review convergence, milestone check/complete. A `telesis orchestrator run` command drives the
-state machine forward in a loop until it reaches a decision point or returns to idle. Claude
-Code hooks are installed to gate `git commit` on `telesis preflight` checks.
+The telemetry reader (`src/agent/telemetry/reader.ts`) gains a streaming mode that processes
+records line-by-line instead of loading the entire file. Callers that need aggregates (token
+counts, cost) use a streaming reducer. The `telesis status` command and cost derivation adapt
+to use the streaming API.
 
 ### Acceptance Criteria
 
-1. `buildRunnerDeps(rootDir, bus, modelClient)` factory constructs real deps from existing modules
-2. `telesis orchestrator run` advances the state machine until waiting or idle
-3. Intake dep calls `syncFromSource` / `listWorkItems` from `src/intake/`
-4. Planning dep calls `createPlanFromWorkItem` from `src/plan/create.ts`
-5. Execution dep calls `executePlan` from `src/plan/executor.ts`
-6. Quality gates dep calls `runQualityGates` from `src/pipeline/quality-gates.ts`
-7. Review convergence dep wires `runConvergenceLoop` to `runReview` and dispatch
-8. Milestone deps call `checkMilestone` and `completeMilestone` from `src/milestones/`
-9. Claude Code hook config: `PreToolCall(git commit)` runs `telesis preflight`
-10. End-to-end: orchestrator advances through at least intake → triage on the Telesis repo
-11. All new business logic has colocated unit tests
-12. Running `telesis drift` produces zero errors
+1. Streaming reader processes telemetry.jsonl line-by-line without loading entire file
+2. `getStatus()` produces the same results using streaming reader
+3. Cost derivation works with streaming reader
+4. Existing batch `loadTelemetryRecords` retained for backward compatibility
+5. Performance improvement measurable on files with >10k records
+6. All new business logic has colocated unit tests
+7. Running `telesis drift` produces zero errors
 
 ---
 
@@ -103,7 +97,7 @@ Code hooks are installed to gate `git commit` on `telesis preflight` checks.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (16 component designs)
+- TDDs: `docs/tdd/` (17 component designs)
 
 ---
 

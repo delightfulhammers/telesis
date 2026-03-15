@@ -1,0 +1,9 @@
+{
+  "id": "2de380af-dfcf-47a2-9167-9f27503fd245",
+  "kind": "ship_confirmation",
+  "createdAt": "2026-03-15T20:22:39.998Z",
+  "summary": "Ship Telemetry Streaming? (commit, tag, push)",
+  "detail": "{\"milestoneId\":\"0.24.0\"}",
+  "resolvedAt": "2026-03-15T20:23:56.544Z",
+  "resolution": "approved"
+}
