@@ -1106,6 +1106,41 @@ Dispatch gains `--text` mode for reconstructing readable agent narratives from s
 
 ---
 
+## v0.20.0 — Polyglot Support
+
+**Goal:** Remove TypeScript-specific assumptions so Telesis can manage projects in any language.
+The config schema, drift checks, file scanning, and milestone validation all become language-aware.
+
+**Status:** Complete
+
+### What Changes
+
+The config schema replaces `language` (singular string) with `languages` (array), enabling
+multi-language projects. Drift checks gain a `languages` metadata field — 8 TypeScript-specific
+checks are skipped for non-TS projects while 6 language-agnostic checks run unconditionally.
+File scanning generalizes from `findTypeScriptFiles` to `findSourceFiles` with a configurable
+extension map covering 12 languages. Milestone validation reads quality gate commands from
+config instead of hardcoding `pnpm`.
+
+### Acceptance Criteria
+
+1. Config with `languages: ["Go", "Python"]` loads correctly; `language` computed as first entry
+2. `save()` writes `languages` array
+3. Config extraction prompt requests and parses `languages` array from LLM
+4. Drift checks have `languages?: string[]` metadata (`undefined` = all languages)
+5. `runChecks` filters checks by project languages when provided
+6. `findSourceFiles` accepts configurable extensions; `findTypeScriptFiles` is a thin wrapper
+7. `extensionsForLanguages` maps language names to file extensions (12 languages)
+8. `ScanContext` accepts optional extensions parameter
+9. Milestone checks use quality gates from config instead of hardcoded `pnpm` commands
+10. Without quality gates configured, milestone check skips with info message
+11. `telesis drift` on a TypeScript project runs all 14 checks
+12. `telesis drift` on a non-TS project skips TS-specific checks
+13. All new business logic has colocated unit tests
+14. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

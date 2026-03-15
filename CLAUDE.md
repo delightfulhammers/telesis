@@ -57,43 +57,38 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.19.0 — Pipeline Hardening & Review Intelligence
+## v0.20.0 — Polyglot Support
 
-**Goal:** Harden the full loop pipeline with quality gates, LLM-generated commit messages,
-pipeline resumability, and commit squashing. Improve review convergence with plateau
-detection, new/recurring labels, and active theme filtering. Add dispatch session
-narrative reconstruction.
+**Goal:** Remove TypeScript-specific assumptions so Telesis can manage projects in any language.
+The config schema, drift checks, file scanning, and milestone validation all become language-aware.
 
 **Status:** Complete
 
 ### What Changes
 
-The pipeline gains several reliability and intelligence improvements: configurable quality
-gates that run format/lint/test/build/drift/review checks before push, LLM-generated commit
-messages and PR body descriptions, pipeline state persistence for crash recovery and
-resumability, and squashing of agent commits into a single pipeline commit.
-
-The review convergence system becomes smarter: plateau detection recommends stopping when
-80%+ of findings are recurring across 3+ rounds, each finding is labeled `[new]` or
-`[recurring]` in output, and stale themes that no longer match current findings are filtered
-from display.
-
-Dispatch gains `--text` mode for reconstructing readable agent narratives from session events.
+The config schema replaces `language` (singular string) with `languages` (array), enabling
+multi-language projects. Drift checks gain a `languages` metadata field — 8 TypeScript-specific
+checks are skipped for non-TS projects while 6 language-agnostic checks run unconditionally.
+File scanning generalizes from `findTypeScriptFiles` to `findSourceFiles` with a configurable
+extension map covering 12 languages. Milestone validation reads quality gate commands from
+config instead of hardcoding `pnpm`.
 
 ### Acceptance Criteria
 
-1. Quality gates run configurable checks (format, lint, test, build, drift, review) before push
-2. Quality gates amend the commit when formatters modify files
-3. LLM-generated commit messages from diff + plan context
-4. LLM-generated PR body descriptions
-5. Pipeline state persisted to `.telesis/pipeline-state/` for resumability
-6. Agent commits squashed into a single pipeline commit
-7. Plateau detection when round >= 3 and recurring ratio >= 80%
-8. Findings labeled `[new]` or `[recurring]` in review output (round 2+)
-9. Stale themes filtered from display based on current findings
-10. `telesis dispatch show <id> --text` reconstructs readable agent narrative
-11. All new business logic has colocated unit tests
-12. Running `telesis drift` produces zero errors
+1. Config with `languages: ["Go", "Python"]` loads correctly; `language` computed as first entry
+2. `save()` writes `languages` array
+3. Config extraction prompt requests and parses `languages` array from LLM
+4. Drift checks have `languages?: string[]` metadata (`undefined` = all languages)
+5. `runChecks` filters checks by project languages when provided
+6. `findSourceFiles` accepts configurable extensions; `findTypeScriptFiles` is a thin wrapper
+7. `extensionsForLanguages` maps language names to file extensions (12 languages)
+8. `ScanContext` accepts optional extensions parameter
+9. Milestone checks use quality gates from config instead of hardcoded `pnpm` commands
+10. Without quality gates configured, milestone check skips with info message
+11. `telesis drift` on a TypeScript project runs all 14 checks
+12. `telesis drift` on a non-TS project skips TS-specific checks
+13. All new business logic has colocated unit tests
+14. Running `telesis drift` produces zero errors
 
 ---
 
