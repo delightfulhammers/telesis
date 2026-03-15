@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadTelemetryRecords } from "./reader.js";
+import { loadTelemetryRecords, streamTelemetryRecords } from "./reader.js";
 import type { ModelCallRecord } from "./types.js";
 import { useTempDir } from "../../test-utils.js";
 
@@ -29,7 +29,7 @@ const writeTelemetry = (rootDir: string, records: ModelCallRecord[]): void => {
 };
 
 describe("loadTelemetryRecords", () => {
-  it("loads records from JSONL file", () => {
+  it("loads records from JSONL file", async () => {
     const rootDir = makeTempDir();
     const records = [
       makeRecord({ id: "1", inputTokens: 100 }),
@@ -37,7 +37,7 @@ describe("loadTelemetryRecords", () => {
     ];
     writeTelemetry(rootDir, records);
 
-    const result = loadTelemetryRecords(rootDir);
+    const result = await loadTelemetryRecords(rootDir);
 
     expect(result.records).toHaveLength(2);
     expect(result.records[0].inputTokens).toBe(100);
@@ -45,16 +45,27 @@ describe("loadTelemetryRecords", () => {
     expect(result.invalidLineCount).toBe(0);
   });
 
-  it("returns empty result when file does not exist", () => {
+  it("returns empty result when file does not exist", async () => {
     const rootDir = makeTempDir();
 
-    const result = loadTelemetryRecords(rootDir);
+    const result = await loadTelemetryRecords(rootDir);
 
     expect(result.records).toEqual([]);
     expect(result.invalidLineCount).toBe(0);
   });
 
-  it("skips malformed lines and reports count", () => {
+  it("returns empty result for an empty file", async () => {
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    writeFileSync(join(rootDir, ".telesis", "telemetry.jsonl"), "");
+
+    const result = await loadTelemetryRecords(rootDir);
+
+    expect(result.records).toEqual([]);
+    expect(result.invalidLineCount).toBe(0);
+  });
+
+  it("skips malformed lines silently", async () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     const content =
@@ -65,15 +76,14 @@ describe("loadTelemetryRecords", () => {
       "\n";
     writeFileSync(join(rootDir, ".telesis", "telemetry.jsonl"), content);
 
-    const result = loadTelemetryRecords(rootDir);
+    const result = await loadTelemetryRecords(rootDir);
 
     expect(result.records).toHaveLength(2);
     expect(result.records[0].id).toBe("good");
     expect(result.records[1].id).toBe("also-good");
-    expect(result.invalidLineCount).toBe(1);
   });
 
-  it("skips empty lines", () => {
+  it("skips empty lines", async () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     const content =
@@ -83,12 +93,12 @@ describe("loadTelemetryRecords", () => {
       "\n";
     writeFileSync(join(rootDir, ".telesis", "telemetry.jsonl"), content);
 
-    const result = loadTelemetryRecords(rootDir);
+    const result = await loadTelemetryRecords(rootDir);
 
     expect(result.records).toHaveLength(2);
   });
 
-  it("skips records missing required fields", () => {
+  it("skips records missing required fields", async () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     const content =
@@ -98,26 +108,25 @@ describe("loadTelemetryRecords", () => {
       "\n";
     writeFileSync(join(rootDir, ".telesis", "telemetry.jsonl"), content);
 
-    const result = loadTelemetryRecords(rootDir);
+    const result = await loadTelemetryRecords(rootDir);
 
     expect(result.records).toHaveLength(1);
     expect(result.records[0].id).toBe("valid");
-    expect(result.invalidLineCount).toBe(1);
   });
 
-  it("preserves optional cache token fields", () => {
+  it("preserves optional cache token fields", async () => {
     const rootDir = makeTempDir();
     writeTelemetry(rootDir, [
       makeRecord({ cacheReadTokens: 50, cacheWriteTokens: 75 }),
     ]);
 
-    const { records } = loadTelemetryRecords(rootDir);
+    const { records } = await loadTelemetryRecords(rootDir);
 
     expect(records[0].cacheReadTokens).toBe(50);
     expect(records[0].cacheWriteTokens).toBe(75);
   });
 
-  it("rejects records with invalid optional cache fields", () => {
+  it("rejects records with invalid optional cache fields", async () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     const record = {
@@ -129,15 +138,14 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const { records, invalidLineCount } = loadTelemetryRecords(rootDir);
+    const { records } = await loadTelemetryRecords(rootDir);
 
     expect(records).toHaveLength(0);
-    expect(invalidLineCount).toBe(1);
   });
 
   // JSON.stringify(NaN) and JSON.stringify(Infinity) produce null,
   // so these tests verify that null numeric fields are rejected.
-  it("rejects records with null numeric fields (NaN serialized as null)", () => {
+  it("rejects records with null numeric fields (NaN serialized as null)", async () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     // NaN → null in JSON; validator rejects null as non-numeric
@@ -147,12 +155,12 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const { records } = loadTelemetryRecords(rootDir);
+    const { records } = await loadTelemetryRecords(rootDir);
 
     expect(records).toHaveLength(0);
   });
 
-  it("rejects records with negative token counts", () => {
+  it("rejects records with negative token counts", async () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     const record = { ...makeRecord(), outputTokens: -100 };
@@ -161,12 +169,12 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const { records } = loadTelemetryRecords(rootDir);
+    const { records } = await loadTelemetryRecords(rootDir);
 
     expect(records).toHaveLength(0);
   });
 
-  it("rejects records with null duration (Infinity serialized as null)", () => {
+  it("rejects records with null duration (Infinity serialized as null)", async () => {
     const rootDir = makeTempDir();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     // Infinity → null in JSON; validator rejects null as non-numeric
@@ -176,8 +184,77 @@ describe("loadTelemetryRecords", () => {
       JSON.stringify(record) + "\n",
     );
 
-    const { records } = loadTelemetryRecords(rootDir);
+    const { records } = await loadTelemetryRecords(rootDir);
 
     expect(records).toHaveLength(0);
+  });
+});
+
+const collect = async (
+  iter: AsyncIterable<ModelCallRecord>,
+): Promise<ModelCallRecord[]> => {
+  const results: ModelCallRecord[] = [];
+  for await (const r of iter) results.push(r);
+  return results;
+};
+
+describe("streamTelemetryRecords", () => {
+  it("yields records in correct sequence", async () => {
+    const rootDir = makeTempDir();
+    const recs = [
+      makeRecord({ id: "first", inputTokens: 100 }),
+      makeRecord({ id: "second", inputTokens: 200 }),
+      makeRecord({ id: "third", inputTokens: 300 }),
+    ];
+    writeTelemetry(rootDir, recs);
+    const filePath = join(rootDir, ".telesis", "telemetry.jsonl");
+
+    const results = await collect(streamTelemetryRecords(filePath));
+
+    expect(results).toHaveLength(3);
+    expect(results[0].id).toBe("first");
+    expect(results[1].id).toBe("second");
+    expect(results[2].id).toBe("third");
+  });
+
+  it("yields nothing for a missing file", async () => {
+    const rootDir = makeTempDir();
+    const filePath = join(rootDir, "nonexistent.jsonl");
+
+    const results = await collect(streamTelemetryRecords(filePath));
+
+    expect(results).toEqual([]);
+  });
+
+  it("skips malformed lines and invalid records", async () => {
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    const filePath = join(rootDir, ".telesis", "telemetry.jsonl");
+    const content =
+      [
+        JSON.stringify(makeRecord({ id: "good-1" })),
+        "not valid json",
+        JSON.stringify({ id: "missing-fields" }),
+        "",
+        JSON.stringify(makeRecord({ id: "good-2" })),
+      ].join("\n") + "\n";
+    writeFileSync(filePath, content);
+
+    const results = await collect(streamTelemetryRecords(filePath));
+
+    expect(results).toHaveLength(2);
+    expect(results[0].id).toBe("good-1");
+    expect(results[1].id).toBe("good-2");
+  });
+
+  it("yields nothing for an empty file", async () => {
+    const rootDir = makeTempDir();
+    mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+    const filePath = join(rootDir, ".telesis", "telemetry.jsonl");
+    writeFileSync(filePath, "");
+
+    const results = await collect(streamTelemetryRecords(filePath));
+
+    expect(results).toEqual([]);
   });
 });

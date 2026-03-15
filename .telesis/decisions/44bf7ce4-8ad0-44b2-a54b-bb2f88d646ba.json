@@ -1,0 +1,9 @@
+{
+  "id": "44bf7ce4-8ad0-44b2-a54b-bb2f88d646ba",
+  "kind": "plan_approval",
+  "createdAt": "2026-03-15T19:48:53.593Z",
+  "summary": "Approve task plan for Telemetry Streaming",
+  "detail": "{\"planId\":\"cc5a447f-0355-4d1a-aa4b-d9b6118f5f72\"}",
+  "resolvedAt": "2026-03-15T19:53:20.628Z",
+  "resolution": "approved"
+}

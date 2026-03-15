@@ -1,0 +1,7 @@
+{
+  "id": "de427e3f-a165-4eae-afcf-c40cd390eb86",
+  "kind": "criteria_confirmation",
+  "createdAt": "2026-03-15T20:10:06.969Z",
+  "summary": "Confirm acceptance criteria met for Telemetry Streaming",
+  "detail": "{\"milestoneId\":\"0.24.0\"}"
+}

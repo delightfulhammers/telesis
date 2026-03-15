@@ -1,0 +1,9 @@
+{
+  "id": "fcd59fcd-c5d7-48ab-952d-5043b618d540",
+  "kind": "milestone_approval",
+  "createdAt": "2026-03-15T19:41:01.225Z",
+  "summary": "Approve milestone \"Telemetry Streaming\" definition (TDD recommended)",
+  "detail": "{\"milestoneId\":\"0.24.0\",\"needsTdd\":true,\"rationale\":\"Could not parse LLM response; defaulting to TDD required (safe side)\"}",
+  "resolvedAt": "2026-03-15T19:47:10.440Z",
+  "resolution": "approved"
+}

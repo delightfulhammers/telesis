@@ -28,9 +28,9 @@ const setupProject = (): string => {
 };
 
 describe("status", () => {
-  it("returns basic status", () => {
+  it("returns basic status", async () => {
     const rootDir = setupProject();
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
 
     expect(s.projectName).toBe("TestProject");
     expect(s.projectStatus).toBe("active");
@@ -39,7 +39,7 @@ describe("status", () => {
     expect(s.contextGeneratedAt).toBeNull();
   });
 
-  it("counts ADRs", () => {
+  it("counts ADRs", async () => {
     const rootDir = setupProject();
     const adrDir = join(rootDir, "docs", "adr");
 
@@ -51,11 +51,11 @@ describe("status", () => {
     }
     writeFileSync(join(adrDir, "README.md"), "# ADRs\n");
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.adrCount).toBe(3);
   });
 
-  it("counts TDDs", () => {
+  it("counts TDDs", async () => {
     const rootDir = setupProject();
     const tddDir = join(rootDir, "docs", "tdd");
 
@@ -66,11 +66,11 @@ describe("status", () => {
       );
     }
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.tddCount).toBe(2);
   });
 
-  it("reads context timestamp", () => {
+  it("reads context timestamp", async () => {
     const rootDir = setupProject();
     const claudePath = join(rootDir, "CLAUDE.md");
     writeFileSync(claudePath, "# Test\n");
@@ -78,12 +78,12 @@ describe("status", () => {
     const knownTime = new Date("2026-01-15T10:30:00.000Z");
     utimesSync(claudePath, knownTime, knownTime);
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.contextGeneratedAt).not.toBeNull();
     expect(s.contextGeneratedAt!.getTime()).toBe(knownTime.getTime());
   });
 
-  it("extracts active (In Progress) milestone", () => {
+  it("extracts active (In Progress) milestone", async () => {
     const rootDir = setupProject();
     writeFileSync(
       join(rootDir, "docs", "MILESTONES.md"),
@@ -117,14 +117,14 @@ More stuff here.
 `,
     );
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.activeMilestone).toContain("v0.2.0");
     expect(s.activeMilestone).toContain("Second milestone");
     expect(s.activeMilestone).not.toContain("First milestone");
     expect(s.activeMilestone).not.toContain("More stuff here");
   });
 
-  it("falls back to last completed milestone", () => {
+  it("falls back to last completed milestone", async () => {
     const rootDir = setupProject();
     writeFileSync(
       join(rootDir, "docs", "MILESTONES.md"),
@@ -146,12 +146,12 @@ Upcoming stuff.
 `,
     );
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.activeMilestone).toContain("Build the first version");
     expect(s.activeMilestone).not.toContain("Upcoming stuff");
   });
 
-  it("returns empty when no status markers present", () => {
+  it("returns empty when no status markers present", async () => {
     const rootDir = setupProject();
     writeFileSync(
       join(rootDir, "docs", "MILESTONES.md"),
@@ -163,53 +163,53 @@ No status marker here.
 `,
     );
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.activeMilestone).toBe("");
   });
 
-  it("handles missing optional files", () => {
+  it("handles missing optional files", async () => {
     const rootDir = setupProject();
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.activeMilestone).toBe("");
     expect(s.contextGeneratedAt).toBeNull();
     expect(s.adrCount).toBe(0);
     expect(s.tddCount).toBe(0);
   });
 
-  it("counts notes", () => {
+  it("counts notes", async () => {
     const rootDir = setupProject();
 
     appendNote(rootDir, "first note", ["git"]);
     appendNote(rootDir, "second note", []);
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.noteCount).toBe(2);
   });
 
-  it("reports zero note count when no notes exist", () => {
+  it("reports zero note count when no notes exist", async () => {
     const rootDir = setupProject();
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.noteCount).toBe(0);
   });
 
-  it("fails without config", () => {
+  it("fails without config", async () => {
     const rootDir = makeTempDir();
-    expect(() => getStatus(rootDir)).toThrow("telesis init");
+    await expect(getStatus(rootDir)).rejects.toThrow("telesis init");
   });
 
-  it("reports zero tokens when no telemetry exists", () => {
+  it("reports zero tokens when no telemetry exists", async () => {
     const rootDir = setupProject();
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.totalInputTokens).toBe(0);
     expect(s.totalOutputTokens).toBe(0);
     expect(s.modelCallCount).toBe(0);
     expect(s.estimatedCost).toBeNull();
   });
 
-  it("aggregates token counts from telemetry", () => {
+  it("aggregates token counts from telemetry", async () => {
     const rootDir = setupProject();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
     const records = [
@@ -241,13 +241,13 @@ No status marker here.
       records.map((r) => JSON.stringify(r)).join("\n") + "\n",
     );
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.totalInputTokens).toBe(3000);
     expect(s.totalOutputTokens).toBe(1500);
     expect(s.modelCallCount).toBe(2);
   });
 
-  it("computes estimated cost when pricing is available", () => {
+  it("computes estimated cost when pricing is available", async () => {
     const rootDir = setupProject();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
 
@@ -279,12 +279,12 @@ No status marker here.
     ].join("\n");
     writeFileSync(join(rootDir, ".telesis", "pricing.yml"), pricingYml);
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     // 1M input * $3/M + 100K output * $15/M = $3 + $1.50 = $4.50
     expect(s.estimatedCost).toBeCloseTo(4.5, 2);
   });
 
-  it("returns null cost when pricing is unavailable", () => {
+  it("returns null cost when pricing is unavailable", async () => {
     const rootDir = setupProject();
     mkdirSync(join(rootDir, ".telesis"), { recursive: true });
 
@@ -304,7 +304,7 @@ No status marker here.
       JSON.stringify(record) + "\n",
     );
 
-    const s = getStatus(rootDir);
+    const s = await getStatus(rootDir);
     expect(s.totalInputTokens).toBe(1000);
     expect(s.estimatedCost).toBeNull();
   });

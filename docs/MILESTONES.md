@@ -1253,6 +1253,33 @@ Code hooks are installed to gate `git commit` on `telesis preflight` checks.
 
 ---
 
+## v0.24.0 — Telemetry Streaming
+
+**Goal:** Migrate the telemetry reader from batch loading to streaming for large JSONL files.
+Currently `loadTelemetryRecords` reads the entire `.telesis/telemetry.jsonl` into memory,
+which becomes a bottleneck as the file grows over months of usage.
+
+**Status:** In Progress
+
+### What Changes
+
+The telemetry reader (`src/agent/telemetry/reader.ts`) gains a streaming mode that processes
+records line-by-line instead of loading the entire file. Callers that need aggregates (token
+counts, cost) use a streaming reducer. The `telesis status` command and cost derivation adapt
+to use the streaming API.
+
+### Acceptance Criteria
+
+1. Streaming reader processes telemetry.jsonl line-by-line without loading entire file
+2. `getStatus()` produces the same results using streaming reader
+3. Cost derivation works with streaming reader
+4. Existing batch `loadTelemetryRecords` retained for backward compatibility
+5. Performance improvement measurable on files with >10k records
+6. All new business logic has colocated unit tests
+7. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

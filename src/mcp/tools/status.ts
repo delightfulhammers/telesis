@@ -19,7 +19,7 @@ export const register = (
     async ({ projectRoot }) => {
       try {
         const rootDir = resolveRoot(projectRoot);
-        const status = getStatus(rootDir);
+        const status = await getStatus(rootDir);
         return {
           content: [
             {

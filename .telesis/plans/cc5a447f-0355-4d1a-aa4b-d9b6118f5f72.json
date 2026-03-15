@@ -1,0 +1,57 @@
+{
+  "id": "cc5a447f-0355-4d1a-aa4b-d9b6118f5f72",
+  "workItemId": "e65d76c5-83c8-4290-ab13-d22e1790389e",
+  "title": "Migrate telemetry reader to streaming for large JSONL files",
+  "status": "completed",
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Migrate loadTelemetryRecords to streaming readline implementation",
+      "description": "Rewrite `loadTelemetryRecords` in `src/agent/telemetry/reader.ts` to use `fs.createReadStream` and Node's `readline` module instead of reading the entire file into memory.\n\nSpecifics:\n- Replace the current `fs.readFile` / `readFileSync` + split implementation with an async generator or a promise-based readline approach\n- Use `readline.createInterface({ input: fs.createReadStream(filePath), crlfDelay: Infinity })` to iterate line by line\n- Each non-empty line should be JSON-parsed and yielded/collected as before\n- Preserve the existing return type of `loadTelemetryRecords` (array of telemetry records) so callers do not need to change their consumption pattern — internally stream, but resolve to the same shape\n- Handle edge cases: file does not exist (return empty array, same as current behavior), empty file, lines that fail JSON.parse (skip and log to stderr, same as any current error handling)\n- The function signature should remain `async` and return `Promise<TelemetryRecord[]>` to keep the change backward-compatible with all callers\n- Add or update unit tests in `src/agent/telemetry/reader.test.ts` (or colocated test file) covering: normal multi-record file, empty file, missing file, file with a malformed JSON line interspersed among valid lines",
+      "dependsOn": [],
+      "status": "completed",
+      "sessionId": "6093be7f-1288-47b6-baaa-f37f0f1bf11f",
+      "completedAt": "2026-03-15T20:00:01.502Z",
+      "validationAttempts": 1
+    },
+    {
+      "id": "task-2",
+      "title": "Expose an async-generator streaming API for callers that need incremental processing",
+      "description": "Add a new exported function `streamTelemetryRecords(filePath: string): AsyncGenerator<TelemetryRecord>` (or `AsyncIterable`) in `src/agent/telemetry/reader.ts` that yields records one at a time without buffering the full array.\n\nSpecifics:\n- Implement as an `async function*` that opens a readline interface over a read stream and yields each parsed record\n- This gives future callers (e.g. aggregation commands, cost derivation) a flat-memory path without waiting for all records\n- `loadTelemetryRecords` should be refactored to delegate to `streamTelemetryRecords` internally: `const records: TelemetryRecord[] = []; for await (const r of streamTelemetryRecords(path)) records.push(r); return records;`\n- Export `streamTelemetryRecords` from `src/agent/telemetry/index.ts` (or wherever the package barrel export lives)\n- Add unit tests for `streamTelemetryRecords` covering: yields correct sequence, handles missing file gracefully, skips malformed lines",
+      "dependsOn": [
+        "task-1"
+      ],
+      "status": "completed",
+      "validationAttempts": 2,
+      "validationErrors": [
+        "`loadTelemetryRecords` should be refactored to delegate to `streamTelemetryRecords` internally",
+        "Export `streamTelemetryRecords` from the package barrel export (`src/agent/telemetry/index.ts` or equivalent)"
+      ],
+      "sessionId": "5dd981d8-983f-4ce5-934d-c0d18f79e464",
+      "completedAt": "2026-03-15T20:06:45.167Z",
+      "correctionSessionIds": [
+        "9452ba41-a986-46a8-8ac6-03b3e3366957"
+      ]
+    },
+    {
+      "id": "task-3",
+      "title": "Audit and update callers of loadTelemetryRecords",
+      "description": "Search the codebase for all direct callers of `loadTelemetryRecords` and verify they work correctly with the now-async streaming-backed implementation. Migrate any caller that would benefit from the streaming API to use `streamTelemetryRecords` instead.\n\nSpecifics:\n- Run `grep -r 'loadTelemetryRecords' src/` to find all call sites\n- For each caller, confirm it already awaits the result (since the function was already async, this should be a no-op change for most)\n- Identify any caller that iterates over all records only to compute an aggregate (e.g. total tokens, cost derivation for `telesis status`) — migrate those to use `streamTelemetryRecords` with an accumulator loop to avoid materializing the full array\n- Do not change the public contract of commands; only change internal data-access patterns\n- Ensure all affected files compile cleanly (`bun run tsc --noEmit` or equivalent)\n- Update or add tests for any caller whose internal logic changed",
+      "dependsOn": [
+        "task-2"
+      ],
+      "status": "completed",
+      "sessionId": "9ac07837-3a4b-4e88-8177-a62edfcf6ac6",
+      "completedAt": "2026-03-15T20:09:41.032Z",
+      "validationAttempts": 1
+    }
+  ],
+  "createdAt": "2026-03-15T19:48:53.593Z",
+  "tokenUsage": {
+    "inputTokens": 2713,
+    "outputTokens": 1012
+  },
+  "approvedAt": "2026-03-15T19:54:25.419Z",
+  "startedAt": "2026-03-15T19:55:23.864Z",
+  "completedAt": "2026-03-15T20:09:41.033Z"
+}

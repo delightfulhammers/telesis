@@ -1,0 +1,9 @@
+{
+  "id": "586ff1bf-f58e-4977-a3a8-72726113e8cb",
+  "kind": "triage_approval",
+  "createdAt": "2026-03-15T19:33:59.638Z",
+  "summary": "Approve milestone scope and grouping",
+  "detail": "{\"workItemIds\":[\"74751561-edc5-4f40-a18d-2fc198a3caea\",\"5847df1e-3fb8-4387-ab81-fd3ff2f5b151\",\"271964b1-a741-4e3b-a985-990ba3d9409c\",\"e65d76c5-83c8-4290-ab13-d22e1790389e\",\"9265f0fd-6cde-4720-87ed-7445f99021c8\"]}",
+  "resolvedAt": "2026-03-15T19:39:27.826Z",
+  "resolution": "approved"
+}

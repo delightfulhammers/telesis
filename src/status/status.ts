@@ -1,9 +1,14 @@
 import { readdirSync, statSync as fsStatSync, type Dirent } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { load } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
-import { loadTelemetryRecords } from "../agent/telemetry/reader.js";
-import { loadPricing, calculateCost } from "../agent/telemetry/pricing.js";
+import { streamTelemetryRecords } from "../agent/telemetry/reader.js";
+import {
+  loadPricing,
+  costForRecord,
+  type PricingConfig,
+} from "../agent/telemetry/pricing.js";
+import type { ModelCallRecord } from "../agent/telemetry/types.js";
 import { loadNotes } from "../notes/store.js";
 
 export interface Status {
@@ -43,7 +48,7 @@ const contextTimestamp = (path: string): Date | null => {
   }
 };
 
-export const getStatus = (rootDir: string): Status => {
+export const getStatus = async (rootDir: string): Promise<Status> => {
   const cfg = load(rootDir);
 
   const adrCount = countFiles(join(rootDir, "docs", "adr"), /^ADR-.*\.md$/);
@@ -56,14 +61,28 @@ export const getStatus = (rootDir: string): Status => {
 
   const contextGeneratedAt = contextTimestamp(join(rootDir, "CLAUDE.md"));
 
-  const { records } = loadTelemetryRecords(rootDir);
-  const totalInputTokens = records.reduce((sum, r) => sum + r.inputTokens, 0);
-  const totalOutputTokens = records.reduce((sum, r) => sum + r.outputTokens, 0);
+  const telemetryPath = join(resolve(rootDir), ".telesis", "telemetry.jsonl");
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let modelCallCount = 0;
+
+  const pricing: PricingConfig | null = loadPricing(rootDir);
+
+  const recordCost = (record: ModelCallRecord): number => {
+    if (!pricing) return 0;
+    const mp = pricing.models[record.provider]?.[record.model];
+    return mp ? costForRecord(record, mp) : 0;
+  };
+
+  let totalCost = 0;
+  for await (const record of streamTelemetryRecords(telemetryPath)) {
+    totalInputTokens += record.inputTokens;
+    totalOutputTokens += record.outputTokens;
+    totalCost += recordCost(record);
+    modelCallCount++;
+  }
 
   const noteCount = loadNotes(rootDir).items.length;
-
-  const pricing = records.length > 0 ? loadPricing(rootDir) : null;
-  const estimatedCost = pricing ? calculateCost(records, pricing) : null;
 
   return {
     projectName: cfg.project.name,
@@ -75,7 +94,7 @@ export const getStatus = (rootDir: string): Status => {
     totalInputTokens,
     totalOutputTokens,
     noteCount,
-    modelCallCount: records.length,
-    estimatedCost,
+    modelCallCount,
+    estimatedCost: modelCallCount > 0 && pricing ? totalCost : null,
   };
 };

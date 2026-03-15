@@ -76,14 +76,21 @@ export const startSocketServer = (
     }
   };
 
-  const handleCommand = (client: ClientState, req: SocketRequest): void => {
+  const handleCommand = async (
+    client: ClientState,
+    req: SocketRequest,
+  ): Promise<void> => {
     switch (req.command) {
       case "ping":
         send(client.socket, { id: req.id, ok: true, data: "pong" });
         break;
 
       case "status":
-        send(client.socket, { id: req.id, ok: true, data: getStatus() });
+        send(client.socket, {
+          id: req.id,
+          ok: true,
+          data: await getStatus(),
+        });
         break;
 
       case "subscribe":

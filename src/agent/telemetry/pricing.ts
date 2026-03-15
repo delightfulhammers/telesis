@@ -124,7 +124,7 @@ export const loadPricing = (rootDir: string): PricingConfig | null => {
   return validatePricing(raw);
 };
 
-const costForRecord = (
+export const costForRecord = (
   record: ModelCallRecord,
   modelPricing: ModelPricing,
 ): number => {

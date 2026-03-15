@@ -18,9 +18,9 @@ const formatDate = (d: Date): string => {
 export const statusCommand = new Command("status")
   .description("Print current project state")
   .action(
-    handleAction(() => {
+    handleAction(async () => {
       const rootDir = projectRoot();
-      const s = getStatus(rootDir);
+      const s = await getStatus(rootDir);
 
       console.log(`Project:    ${s.projectName}`);
       console.log(`Status:     ${s.projectStatus}`);

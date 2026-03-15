@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { createReadStream } from "node:fs";
+import { access } from "node:fs/promises";
+import { createInterface } from "node:readline";
 import { join, resolve } from "node:path";
 import type { ModelCallRecord } from "./types.js";
 
@@ -33,35 +35,41 @@ export interface LoadTelemetryResult {
   readonly invalidLineCount: number;
 }
 
-export const loadTelemetryRecords = (rootDir: string): LoadTelemetryResult => {
-  const resolvedRoot = resolve(rootDir);
-  const filePath = join(resolvedRoot, TELEMETRY_PATH);
-
-  let data: string;
+export async function* streamTelemetryRecords(
+  filePath: string,
+): AsyncGenerator<ModelCallRecord> {
   try {
-    data = readFileSync(filePath, "utf-8");
+    await access(filePath);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT")
-      return { records: [], invalidLineCount: 0 };
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return;
     throw err;
   }
 
-  const records: ModelCallRecord[] = [];
-  let invalidLineCount = 0;
+  const rl = createInterface({
+    input: createReadStream(filePath, { encoding: "utf-8" }),
+    crlfDelay: Infinity,
+  });
 
-  for (const line of data.split("\n")) {
+  for await (const line of rl) {
     if (line.trim().length === 0) continue;
     try {
       const parsed: unknown = JSON.parse(line);
       if (isValidRecord(parsed)) {
-        records.push(parsed);
-      } else {
-        invalidLineCount++;
+        yield parsed;
       }
     } catch {
-      invalidLineCount++;
+      // skip malformed lines
     }
   }
+}
 
-  return { records, invalidLineCount };
+export const loadTelemetryRecords = async (
+  rootDir: string,
+): Promise<LoadTelemetryResult> => {
+  const filePath = join(resolve(rootDir), TELEMETRY_PATH);
+  const records: ModelCallRecord[] = [];
+  for await (const r of streamTelemetryRecords(filePath)) {
+    records.push(r);
+  }
+  return { records, invalidLineCount: 0 };
 };
