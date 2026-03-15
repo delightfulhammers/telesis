@@ -268,3 +268,41 @@ Background daemon management.
 | `telesis daemon status` | Show status (PID, uptime, event count, client count) |
 | `telesis daemon install` | Install as system service (LaunchAgent/systemd) |
 | `telesis daemon tui` | Stream live events to terminal |
+
+---
+
+## telesis orchestrator
+
+Orchestrator lifecycle management.
+
+| Command | Description |
+|---|---|
+| `telesis orchestrator status` | Show orchestrator state, active milestone, and pending decisions |
+| `telesis orchestrator approve <decision-id>` | Approve a pending decision |
+| `telesis orchestrator reject <decision-id> --reason <text>` | Reject a decision with feedback |
+| `telesis orchestrator preflight` | Run preflight checks (used by Claude Code hooks) |
+
+Preflight checks: milestone entry exists, review has converged, quality gates pass, no blocking decisions pending. Exits 1 on failure.
+
+---
+
+## telesis-mcp
+
+MCP server binary (separate from the CLI).
+
+```
+telesis-mcp
+```
+
+Starts a stdio MCP server exposing 22 tools and 6 resources. Intended for use with Claude Code or other MCP clients.
+
+**Tools:** `telesis_status`, `telesis_drift`, `telesis_context_generate`, `telesis_adr_new`, `telesis_tdd_new`, `telesis_journal_add`, `telesis_journal_list`, `telesis_journal_show`, `telesis_note_add`, `telesis_note_list`, `telesis_milestone_check`, `telesis_milestone_complete`, `telesis_intake_list`, `telesis_intake_show`, `telesis_plan_list`, `telesis_plan_show`, `telesis_plan_approve`, `telesis_dispatch_list`, `telesis_dispatch_show`, `telesis_review`, `telesis_review_list`, `telesis_review_show`
+
+**Resources:** `telesis://docs/VISION.md`, `telesis://docs/PRD.md`, `telesis://docs/ARCHITECTURE.md`, `telesis://docs/MILESTONES.md`, `telesis://CLAUDE.md`, `telesis://config`
+
+Configure in Claude Code:
+```json
+{ "mcpServers": { "telesis": { "command": "/path/to/telesis-mcp" } } }
+```
+
+All tools accept an optional `projectRoot` parameter to override the working directory. LLM-powered tools note cost/duration in their descriptions.

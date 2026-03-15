@@ -293,6 +293,20 @@ Milestone validation and completion.
   update referenced TDD statuses to Accepted, regenerate CLAUDE.md
 - Does not auto-commit; prints remaining manual steps (PRD/ARCHITECTURE updates, commit, tag)
 
+### `telesis orchestrator`
+
+Orchestrator state management and human decision interface.
+
+- `telesis orchestrator status` — shows current orchestrator state, active milestone,
+  progress, and pending decisions
+- `telesis orchestrator approve <decision-id>` — approve a pending decision
+- `telesis orchestrator reject <decision-id> --reason "..."` — reject with feedback
+- `telesis orchestrator preflight` — run preflight checks (used by Claude Code hooks to
+  gate git commit/push operations)
+- Preflight checks: milestone entry exists, review has converged, quality gates pass,
+  no blocking decisions pending
+- Exit code 1 on preflight failure (blocks the hook)
+
 ### `telesis-mcp` (MCP Server)
 
 Separate binary that exposes all Telesis capabilities as MCP (Model Context Protocol) tools

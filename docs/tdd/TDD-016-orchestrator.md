@@ -1,6 +1,6 @@
 # TDD-016 — Orchestrator
 
-**Status:** Draft
+**Status:** Accepted
 **Date:** 2026-03-15
 **Author:** Delightful Hammers
 **Related:** v0.22.0 milestone, orchestrator-state-machine.md spec

@@ -138,3 +138,12 @@ Every significant action in Telesis emits a typed event through the daemon event
 |---|---|---|
 | `github:pr_created` | `{ prNumber, prUrl }` | Pull request created |
 | `github:issue_closed` | `{ issueNumber }` | Issue closed |
+
+## Orchestrator Events
+
+| Event | Payload | Description |
+|---|---|---|
+| `orchestrator:state_changed` | `{ fromState, toState, milestoneId? }` | Orchestrator transitioned between lifecycle states |
+| `orchestrator:decision_created` | `{ decisionId, kind, summary }` | Human decision queued for approval |
+| `orchestrator:decision_resolved` | `{ decisionId, kind, summary }` | Human decision approved or rejected |
+| `orchestrator:error` | `{ error, state }` | Orchestrator encountered an error in state |

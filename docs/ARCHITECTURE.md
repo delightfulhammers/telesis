@@ -1,6 +1,6 @@
 # Telesis — Architecture
 *By Delightful Hammers*
-*Last updated: 2026-03-15*
+*Last updated: 2026-03-16*
 
 ---
 
@@ -43,6 +43,7 @@ telesis/
       intake.ts           ← intake github/list/show/approve/skip commands (v0.15.0)
       plan.ts             ← plan create/list/show/approve/execute commands (v0.16.0)
       run.ts              ← full pipeline run command (v0.18.0)
+      orchestrator.ts     ← orchestrator status/approve/reject/preflight commands (v0.22.0)
       handle-action.ts    ← shared error handling for CLI actions
       project-root.ts     ← project root detection (delegates to mcp/root-resolver.ts)
     mcp/                  ← MCP adapter layer (v0.21.0)
@@ -66,6 +67,17 @@ telesis/
       resources/
         index.ts          ← registerResources aggregator
         docs.ts           ← telesis:// document and config resources
+    orchestrator/         ← orchestrator state machine, decisions, runner (v0.22.0)
+      types.ts            ← OrchestratorState, OrchestratorContext, Decision types
+      machine.ts          ← state machine: transitions, preconditions, entry effects
+      persistence.ts      ← atomic save/load of orchestrator state
+      decisions.ts        ← decision queue: create, resolve, list
+      judgment.ts         ← LLM calls: triage grouping, TDD necessity
+      convergence.ts      ← automated review-fix-review loop
+      runner.ts           ← advance() function: drives state machine through lifecycle
+      notify.ts           ← macOS notifications via osascript
+      preflight.ts        ← preflight checks for Claude Code hooks
+      integration.ts      ← daemon ↔ orchestrator bridge (start/stop/bus subscription)
     config/               ← .telesis/config.yml read/write
     context/              ← CLAUDE.md generation from doc tree
     scaffold/             ← project initialization and file generation

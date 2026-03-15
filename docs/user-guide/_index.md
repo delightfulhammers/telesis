@@ -31,6 +31,7 @@ This guide covers everything you need to use Telesis effectively, from initial s
 - [Development Notes & Journal]({{< relref "notes-and-journal" >}}) — lightweight memory tools
 - [The Daemon]({{< relref "daemon" >}}) — background process, event backbone, and live monitoring
 - [Agent Dispatch]({{< relref "dispatch" >}}) — running coding agents with oversight
+- [The Orchestrator]({{< relref "orchestrator" >}}) — automated lifecycle from work item to shipped milestone
 
 ### Reference
 
@@ -43,6 +44,7 @@ This guide covers everything you need to use Telesis effectively, from initial s
 
 - [Oversight & Observers]({{< relref "oversight" >}}) — autonomous review, architecture, and chronicler agents
 - [GitHub Integration]({{< relref "github-integration" >}}) — PR comments, issue management, and dismissal sync
+- [MCP Server]({{< relref "mcp" >}}) — exposing Telesis to Claude Code and other MCP clients
 - [Telemetry & Cost Tracking]({{< relref "telemetry" >}}) — understanding model usage and cost
 - [ADRs & TDDs]({{< relref "adrs-and-tdds" >}}) — architectural decision records and technical design documents
 - [Context Generation]({{< relref "context-generation" >}}) — how `CLAUDE.md` works and why it matters
