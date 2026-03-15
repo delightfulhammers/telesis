@@ -9,6 +9,10 @@ import {
   DEFAULT_IGNORE_PATTERNS,
   type DaemonConfig,
 } from "./types.js";
+import {
+  startOrchestrator,
+  stopOrchestrator,
+} from "../orchestrator/integration.js";
 
 /** Run the daemon main loop — this is the __run entrypoint */
 export const runDaemon = async (
@@ -27,6 +31,9 @@ export const runDaemon = async (
   bus.subscribe(() => {
     eventCount++;
   });
+
+  // Start orchestrator (subscribes to bus, loads/creates persisted state)
+  const orchestrator = startOrchestrator(resolvedRoot, bus);
 
   // Merge ignore patterns
   const ignorePatterns = [
@@ -53,6 +60,9 @@ export const runDaemon = async (
     shuttingDown = true;
 
     bus.publish(createEvent("daemon:stopping", {}));
+
+    // Stop orchestrator (persists final state)
+    stopOrchestrator(orchestrator);
 
     // Close watcher
     watcher.close();

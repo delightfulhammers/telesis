@@ -10,7 +10,8 @@ export type EventSource =
   | "validation"
   | "pipeline"
   | "git"
-  | "github";
+  | "github"
+  | "orchestrator";
 
 /** All event type literals */
 export type EventType =
@@ -69,7 +70,11 @@ export type EventType =
   | "git:committed"
   | "git:pushed"
   | "github:pr_created"
-  | "github:issue_closed";
+  | "github:issue_closed"
+  | "orchestrator:state_changed"
+  | "orchestrator:decision_created"
+  | "orchestrator:decision_resolved"
+  | "orchestrator:error";
 
 /** Base event shape — all events extend this */
 export interface BaseEvent<T extends EventType, P> {
@@ -234,6 +239,24 @@ export interface GitHubIssueClosedPayload {
   readonly repo: string;
 }
 
+/** Orchestrator payload types */
+export interface OrchestratorStatePayload {
+  readonly fromState: string;
+  readonly toState: string;
+  readonly milestoneId?: string;
+}
+
+export interface OrchestratorDecisionPayload {
+  readonly decisionId: string;
+  readonly kind: string;
+  readonly summary: string;
+}
+
+export interface OrchestratorErrorPayload {
+  readonly error: string;
+  readonly state: string;
+}
+
 /** Full discriminated union of all daemon events */
 export type TelesisDaemonEvent =
   | BaseEvent<"daemon:started", DaemonStartedPayload>
@@ -291,7 +314,11 @@ export type TelesisDaemonEvent =
   | BaseEvent<"git:committed", GitCommitPayload>
   | BaseEvent<"git:pushed", GitPushPayload>
   | BaseEvent<"github:pr_created", GitHubPRCreatedPayload>
-  | BaseEvent<"github:issue_closed", GitHubIssueClosedPayload>;
+  | BaseEvent<"github:issue_closed", GitHubIssueClosedPayload>
+  | BaseEvent<"orchestrator:state_changed", OrchestratorStatePayload>
+  | BaseEvent<"orchestrator:decision_created", OrchestratorDecisionPayload>
+  | BaseEvent<"orchestrator:decision_resolved", OrchestratorDecisionPayload>
+  | BaseEvent<"orchestrator:error", OrchestratorErrorPayload>;
 
 /** Map from EventType to the event source it belongs to */
 const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
@@ -351,6 +378,10 @@ const EVENT_SOURCE_MAP: Record<EventType, EventSource> = {
   "git:pushed": "git",
   "github:pr_created": "github",
   "github:issue_closed": "github",
+  "orchestrator:state_changed": "orchestrator",
+  "orchestrator:decision_created": "orchestrator",
+  "orchestrator:decision_resolved": "orchestrator",
+  "orchestrator:error": "orchestrator",
 };
 
 /** Factory for creating typed events with automatic timestamp and source */
