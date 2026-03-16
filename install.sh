@@ -6,8 +6,9 @@ set -euo pipefail
 #
 # Works with both public and private repos:
 #   Public:  curl -fsSL https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
-#   Private: GITHUB_TOKEN=... curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
-#              https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
+#   Private: GITHUB_TOKEN=ghp_... bash <(curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
+#              -H "Accept: application/vnd.github.v3.raw" \
+#              "https://api.github.com/repos/delightfulhammers/telesis/contents/install.sh")
 #
 # Options (via environment variables):
 #   TELESIS_VERSION=v0.27.0  Install a specific version (default: latest)
@@ -18,10 +19,12 @@ REPO="delightfulhammers/telesis"
 VERSION="${TELESIS_VERSION:-}"
 INSTALL_DIR="${TELESIS_INSTALL_DIR:-}"
 
-# Build auth args array for curl (empty if no token)
-build_auth_args() {
+# Authenticated curl — passes token if available
+auth_curl() {
   if [ -n "${GITHUB_TOKEN:-}" ]; then
-    echo "-H" "Authorization: token $GITHUB_TOKEN"
+    curl -H "Authorization: token $GITHUB_TOKEN" "$@"
+  else
+    curl "$@"
   fi
 }
 
@@ -77,7 +80,7 @@ get_latest_version() {
   fi
 
   local tag
-  tag=$(curl -fsSL $(build_auth_args) "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+  tag=$(auth_curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
   if [ -z "$tag" ]; then
     echo "Failed to determine latest version" >&2
     exit 1
@@ -96,16 +99,16 @@ download_asset() {
 
   local direct_url="https://github.com/$REPO/releases/download/${version}/${archive_name}"
 
-  # Try direct download first (works for public repos, and some private configs)
-  if curl -fSL $(build_auth_args) -o "$dest" "$direct_url" 2>/dev/null; then
+  # Try direct download (works for public repos)
+  if auth_curl -fSL -o "$dest" "$direct_url" 2>/dev/null; then
     return 0
   fi
 
   # Fall back to API-based download (required for private repos).
-  # Look up the asset ID, then download via the API with Accept: application/octet-stream.
+  # Look up the asset URL from the release, then download with Accept: application/octet-stream.
   if [ -n "${GITHUB_TOKEN:-}" ]; then
     local asset_url
-    asset_url=$(curl -fsSL $(build_auth_args) \
+    asset_url=$(auth_curl -fsSL \
       "https://api.github.com/repos/$REPO/releases/tags/${version}" \
       | grep -B3 "\"name\": \"${archive_name}\"" \
       | grep '"url"' \
@@ -141,7 +144,9 @@ main() {
   echo ""
 
   tmp_dir=$(mktemp -d)
-  trap 'rm -rf "$tmp_dir"' EXIT
+  trap 'rm -rf "${tmp_dir:-}"' EXIT
+
+  mkdir -p "$install_dir"
 
   # Download
   echo "Downloading..."
