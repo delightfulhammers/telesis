@@ -244,14 +244,21 @@ const advanceTriage = async (
 
   // No decision yet — suggest grouping and create decision
   const workItems = deps.loadWorkItems(ctx.workItemIds);
-  await deps.suggestGrouping(workItems);
+  const groupingResult = await deps.suggestGrouping(workItems);
 
   return createAndWait(
     ctx,
     deps,
     "triage_approval",
     "Approve milestone scope and grouping",
-    JSON.stringify({ workItemIds: ctx.workItemIds }),
+    JSON.stringify({
+      workItemIds: [...ctx.workItemIds],
+      workItems: workItems.map((wi) => ({
+        id: wi.id,
+        title: wi.title,
+      })),
+      suggestedGroupings: groupingResult?.milestones ?? [],
+    }),
     "Decision needed",
   );
 };

@@ -1280,6 +1280,36 @@ to use the streaming API.
 
 ---
 
+## v0.25.0 — Orchestrator Triage UX
+
+**Goal:** Make the orchestrator's triage and milestone setup flow usable without manual JSON
+editing. The human can see LLM grouping suggestions, select work items, and provide milestone
+metadata — all through the CLI.
+
+**Status:** Complete
+
+### What Changes
+
+The `telesis orchestrator approve` command gains structured input for triage decisions:
+`--items` to select work items, `--milestone-name`, `--milestone-id`, `--goal` to set
+milestone metadata. The triage grouping LLM suggestion is included in the decision detail
+and displayed in status output. Decision details are formatted for human readability in
+`telesis orchestrator status`.
+
+### Acceptance Criteria
+
+1. `advanceTriage` stores LLM grouping suggestion in the decision detail
+2. `telesis orchestrator status` formats decision details readably (not raw JSON)
+3. `telesis orchestrator approve <id> --items wi-1,wi-2` selects work item subset
+4. `telesis orchestrator approve <id> --milestone-name "..." --milestone-id "0.25.0" --goal "..."` sets milestone metadata
+5. Approved triage metadata carries into orchestrator context (milestoneId/name/goal)
+6. Approving without `--items` includes all items (backward compatible)
+7. User guide updated with new approve flags and triage workflow
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

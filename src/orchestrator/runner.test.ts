@@ -72,8 +72,18 @@ describe("advance", () => {
   });
 
   describe("triage", () => {
-    it("creates decision and waits on first call", async () => {
+    it("creates decision with grouping suggestion and waits", async () => {
       const deps = noopDeps();
+      deps.suggestGrouping = vi.fn().mockResolvedValue({
+        milestones: [
+          { name: "Auth Fix", goal: "Fix auth bugs", workItemIds: ["wi-1"] },
+        ],
+      });
+      deps.loadWorkItems = vi
+        .fn()
+        .mockReturnValue([
+          { id: "wi-1", title: "Fix login", body: "Login is broken" },
+        ]);
       const ctx = makeContext({
         state: "triage",
         workItemIds: ["wi-1"],
@@ -84,6 +94,14 @@ describe("advance", () => {
       expect(deps.createDecision).toHaveBeenCalledWith(
         expect.objectContaining({ kind: "triage_approval" }),
       );
+      // Verify the decision detail includes the grouping suggestion
+      const decisionCall = (deps.createDecision as any).mock.calls[0][0];
+      const detail = JSON.parse(decisionCall.detail);
+      expect(detail.suggestedGroupings).toBeDefined();
+      expect(detail.suggestedGroupings[0].name).toBe("Auth Fix");
+      expect(detail.workItems).toBeDefined();
+      expect(detail.workItems[0].title).toBe("Fix login");
+
       expect(result.waiting).toBe(true);
       expect(result.context.pendingDecisionKind).toBe("triage_approval");
     });

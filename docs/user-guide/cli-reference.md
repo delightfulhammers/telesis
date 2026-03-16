@@ -279,9 +279,11 @@ Orchestrator lifecycle management.
 |---|---|
 | `telesis orchestrator status` | Show orchestrator state, active milestone, and pending decisions |
 | `telesis orchestrator run` | Advance the state machine until a decision point or idle |
-| `telesis orchestrator approve <decision-id>` | Approve a pending decision |
+| `telesis orchestrator approve <id> [--items ...] [--milestone-name ...] [--milestone-id ...] [--goal ...]` | Approve a decision (triage flags set milestone metadata) |
 | `telesis orchestrator reject <decision-id> --reason <text>` | Reject a decision with feedback |
 | `telesis orchestrator preflight` | Run preflight checks (used by Claude Code hooks) |
+
+Decision IDs support prefix matching (8+ characters). Triage approval accepts `--items` (comma-separated IDs), `--milestone-name`, `--milestone-id`, and `--goal` to configure the milestone scope.
 
 Preflight checks: milestone entry exists, review has converged, quality gates pass, no blocking decisions pending. Exits 1 on failure.
 

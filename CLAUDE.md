@@ -57,30 +57,33 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.24.0 — Telemetry Streaming
+## v0.25.0 — Orchestrator Triage UX
 
-**Goal:** Migrate the telemetry reader from batch loading to streaming for large JSONL files.
-Currently `loadTelemetryRecords` reads the entire `.telesis/telemetry.jsonl` into memory,
-which becomes a bottleneck as the file grows over months of usage.
+**Goal:** Make the orchestrator's triage and milestone setup flow usable without manual JSON
+editing. The human can see LLM grouping suggestions, select work items, and provide milestone
+metadata — all through the CLI.
 
 **Status:** Complete
 
 ### What Changes
 
-The telemetry reader (`src/agent/telemetry/reader.ts`) gains a streaming mode that processes
-records line-by-line instead of loading the entire file. Callers that need aggregates (token
-counts, cost) use a streaming reducer. The `telesis status` command and cost derivation adapt
-to use the streaming API.
+The `telesis orchestrator approve` command gains structured input for triage decisions:
+`--items` to select work items, `--milestone-name`, `--milestone-id`, `--goal` to set
+milestone metadata. The triage grouping LLM suggestion is included in the decision detail
+and displayed in status output. Decision details are formatted for human readability in
+`telesis orchestrator status`.
 
 ### Acceptance Criteria
 
-1. Streaming reader processes telemetry.jsonl line-by-line without loading entire file
-2. `getStatus()` produces the same results using streaming reader
-3. Cost derivation works with streaming reader
-4. Existing batch `loadTelemetryRecords` retained for backward compatibility
-5. Performance improvement measurable on files with >10k records
-6. All new business logic has colocated unit tests
-7. Running `telesis drift` produces zero errors
+1. `advanceTriage` stores LLM grouping suggestion in the decision detail
+2. `telesis orchestrator status` formats decision details readably (not raw JSON)
+3. `telesis orchestrator approve <id> --items wi-1,wi-2` selects work item subset
+4. `telesis orchestrator approve <id> --milestone-name "..." --milestone-id "0.25.0" --goal "..."` sets milestone metadata
+5. Approved triage metadata carries into orchestrator context (milestoneId/name/goal)
+6. Approving without `--items` includes all items (backward compatible)
+7. User guide updated with new approve flags and triage workflow
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
 
 ---
 

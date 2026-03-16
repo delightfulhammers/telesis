@@ -1,7 +1,8 @@
 import { Command } from "commander";
 import { projectRoot } from "./project-root.js";
 import { handleAction } from "./handle-action.js";
-import { loadContext } from "../orchestrator/persistence.js";
+import { loadContext, saveContext } from "../orchestrator/persistence.js";
+import type { OrchestratorContext } from "../orchestrator/types.js";
 import { createContext } from "../orchestrator/machine.js";
 import { advance } from "../orchestrator/runner.js";
 import { buildRunnerDeps } from "../orchestrator/deps.js";
@@ -13,6 +14,7 @@ import {
   resolveDecision,
 } from "../orchestrator/decisions.js";
 import { runPreflight } from "../orchestrator/preflight.js";
+import { formatDecisionDetail } from "../orchestrator/format.js";
 import { randomUUID } from "node:crypto";
 
 const statusCommand = new Command("status")
@@ -52,6 +54,10 @@ const statusCommand = new Command("status")
         console.log(`Pending decisions (${pending.length}):`);
         for (const d of pending) {
           console.log(`  [${d.id.slice(0, 8)}] ${d.kind} — ${d.summary}`);
+          const detail = formatDecisionDetail(d);
+          if (detail !== null) {
+            console.log(detail);
+          }
         }
       }
     }),
@@ -60,14 +66,67 @@ const statusCommand = new Command("status")
 const approveCommand = new Command("approve")
   .description("Approve a pending decision")
   .argument("<decision-id>", "Decision ID or prefix")
+  .option(
+    "--items <ids>",
+    "Comma-separated work item IDs to include (triage decisions only)",
+  )
+  .option("--milestone-name <name>", "Milestone name (triage decisions only)")
+  .option(
+    "--milestone-id <version>",
+    "Milestone version (triage decisions only)",
+  )
+  .option("--goal <text>", "Milestone goal (triage decisions only)")
   .action(
-    handleAction((decisionId: string) => {
-      const rootDir = projectRoot();
-      const resolved = resolveDecision(rootDir, decisionId, "approved");
-      console.log(
-        `Approved: [${resolved.id.slice(0, 8)}] ${resolved.kind} — ${resolved.summary}`,
-      );
-    }),
+    handleAction(
+      (
+        decisionId: string,
+        opts: {
+          items?: string;
+          milestoneName?: string;
+          milestoneId?: string;
+          goal?: string;
+        },
+      ) => {
+        const rootDir = projectRoot();
+
+        // For triage decisions with metadata, save context BEFORE resolving
+        // the decision to ensure atomicity (if save fails, decision stays pending)
+        const hasTriageMetadata =
+          opts.items || opts.milestoneName || opts.milestoneId || opts.goal;
+
+        if (hasTriageMetadata) {
+          const ctx = loadContext(rootDir);
+          if (!ctx) {
+            console.error(
+              "Warning: orchestrator context not found — triage metadata flags were ignored.",
+            );
+          } else {
+            const updated: OrchestratorContext = {
+              ...ctx,
+              ...(opts.items && {
+                workItemIds: opts.items
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter((s) => s.length > 0),
+              }),
+              ...(opts.milestoneName && {
+                milestoneName: opts.milestoneName,
+              }),
+              ...(opts.milestoneId && { milestoneId: opts.milestoneId }),
+              ...(opts.goal && { milestoneGoal: opts.goal }),
+              updatedAt: new Date().toISOString(),
+            };
+            saveContext(rootDir, updated);
+          }
+        }
+
+        const resolved = resolveDecision(rootDir, decisionId, "approved");
+
+        console.log(
+          `Approved: [${resolved.id.slice(0, 8)}] ${resolved.kind} — ${resolved.summary}`,
+        );
+      },
+    ),
   );
 
 const rejectCommand = new Command("reject")

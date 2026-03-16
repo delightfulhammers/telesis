@@ -75,7 +75,30 @@ Shows current state, active milestone, progress, and any pending decisions.
 telesis orchestrator approve <decision-id>
 ```
 
-The decision ID is shown in the status output. Prefix matching is supported.
+The decision ID is shown in the status output. Prefix matching is supported (8+ characters).
+
+#### Triage approval with metadata
+
+When approving a triage decision, you can provide milestone metadata and select which
+work items to include:
+
+```
+telesis orchestrator approve <id> \
+  --items wi-abc123,wi-def456 \
+  --milestone-name "Auth Improvements" \
+  --milestone-id "0.25.0" \
+  --goal "Strengthen authentication and fix password reset"
+```
+
+| Flag | Description |
+|------|-------------|
+| `--items <ids>` | Comma-separated work item IDs to include (default: all) |
+| `--milestone-name <name>` | Milestone name |
+| `--milestone-id <version>` | Milestone version (e.g., "0.25.0") |
+| `--goal <text>` | Milestone goal description |
+
+If you omit `--items`, all work items from intake are included. The status output shows
+the LLM's suggested groupings to help you decide the scope.
 
 ### Reject a decision
 
