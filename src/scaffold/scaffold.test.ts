@@ -86,6 +86,27 @@ describe("scaffold", () => {
     }
   });
 
+  it("creates Claude Code hooks", () => {
+    const rootDir = makeTempDir();
+    scaffold(rootDir, testConfig());
+
+    const settingsPath = join(rootDir, ".claude", "settings.json");
+    expect(existsSync(settingsPath)).toBe(true);
+    const settings = readFileSync(settingsPath, "utf-8");
+    expect(settings).toContain("PreToolUse");
+    expect(settings).toContain("git-preflight.sh");
+
+    const hookPath = join(rootDir, ".claude", "hooks", "git-preflight.sh");
+    expect(existsSync(hookPath)).toBe(true);
+    const hook = readFileSync(hookPath, "utf-8");
+    expect(hook).toContain("telesis orchestrator preflight");
+
+    // Hook should be executable
+    const stat = statSync(hookPath);
+    const isExecutable = (stat.mode & 0o111) !== 0;
+    expect(isExecutable).toBe(true);
+  });
+
   it("fails when already initialized", () => {
     const rootDir = makeTempDir();
     scaffold(rootDir, testConfig());

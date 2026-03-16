@@ -134,7 +134,7 @@ const createAndWait = (
   notifyTitle?: string,
   extraUpdates?: Partial<OrchestratorContext>,
 ): AdvanceResult => {
-  deps.createDecision({ kind, summary, detail });
+  const decision = deps.createDecision({ kind, summary, detail });
 
   const updated: OrchestratorContext = {
     ...ctx,
@@ -145,7 +145,11 @@ const createAndWait = (
   deps.saveContext(updated);
 
   if (notifyTitle) {
-    deps.notify(notifyTitle, summary);
+    const shortId = decision.id.slice(0, 8);
+    deps.notify(
+      notifyTitle,
+      `${summary} — approve: telesis orchestrator approve ${shortId}`,
+    );
   }
 
   return waitForDecision(updated);

@@ -1,10 +1,6 @@
 #!/bin/bash
 # Telesis preflight hook for Claude Code
-# Runs before git commit to enforce process consistency:
-# - Milestone entry exists
-# - Review has converged (if orchestrator is active)
-# - Quality gates pass
-# - No blocking decisions pending
+# Gates git commit on orchestrator preflight checks.
 # Also blocks git commit --amend on pushed commits.
 
 # Require jq for JSON parsing
@@ -17,7 +13,9 @@ INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 
 # Extract the first line of the command (before any heredoc/pipe)
-# to avoid matching git commit inside message bodies
+# to avoid matching git commit inside message bodies.
+# Known limitation: multi-line command blocks with git commit on line 2+
+# bypass this check. Claude Code typically sends single-line git commands.
 FIRST_LINE=$(printf '%s' "$COMMAND" | head -1)
 
 # Only intercept commands that start with git commit (anchored pattern)
@@ -38,7 +36,7 @@ if [[ "$FIRST_LINE" =~ (^|[[:space:]]|&&|;)git[[:space:]]+commit([[:space:]]|$) 
     fi
   fi
 
-  # Run telesis preflight if the binary exists
+  # Only use telesis on PATH — never execute relative-path binaries
   if command -v telesis &>/dev/null; then
     telesis orchestrator preflight 2>&1
     RESULT=$?
@@ -46,15 +44,6 @@ if [[ "$FIRST_LINE" =~ (^|[[:space:]]|&&|;)git[[:space:]]+commit([[:space:]]|$) 
     if [ $RESULT -ne 0 ]; then
       echo "Telesis preflight checks failed. The commit has been blocked." >&2
       echo "Run 'telesis orchestrator preflight' to see details." >&2
-      exit 2
-    fi
-  elif [ -f "./telesis" ]; then
-    ./telesis orchestrator preflight 2>&1
-    RESULT=$?
-
-    if [ $RESULT -ne 0 ]; then
-      echo "Telesis preflight checks failed. The commit has been blocked." >&2
-      echo "Run './telesis orchestrator preflight' to see details." >&2
       exit 2
     fi
   fi
