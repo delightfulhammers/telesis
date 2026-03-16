@@ -13,6 +13,8 @@ import {
   startOrchestrator,
   stopOrchestrator,
 } from "../orchestrator/integration.js";
+import { checkForUpdate } from "../update/update.js";
+import { notify } from "../orchestrator/notify.js";
 
 /** Run the daemon main loop — this is the __run entrypoint */
 export const runDaemon = async (
@@ -117,6 +119,30 @@ export const runDaemon = async (
     );
   }, heartbeatMs);
   heartbeatTimer.unref();
+
+  // Daily update check — empty init so the first heartbeat triggers a check
+  let lastCheckDate = "";
+  const dailyUpdateCheck = async (): Promise<void> => {
+    const today = new Date().toDateString();
+    if (today === lastCheckDate) return;
+
+    try {
+      const result = await checkForUpdate();
+      // Only advance the date after a successful check —
+      // transient failures retry on the next heartbeat
+      lastCheckDate = today;
+      if (result.updateAvailable) {
+        notify(
+          "Telesis update available",
+          `v${result.currentVersion} → v${result.latestVersion} — run: telesis update`,
+        );
+      }
+    } catch {
+      // best-effort — don't crash daemon on update check failure
+    }
+  };
+  const updateCheckTimer = setInterval(dailyUpdateCheck, heartbeatMs);
+  updateCheckTimer.unref();
 
   // Emit started event
   bus.publish(

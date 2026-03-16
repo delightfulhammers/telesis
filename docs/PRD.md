@@ -309,6 +309,16 @@ Orchestrator state management and human decision interface.
 - Exit code 1 on preflight failure (blocks the hook)
 - Claude Code hook installed: `PreToolUse(Bash)` gates git commit on preflight
 
+### `telesis update`
+
+Self-update mechanism.
+
+- `telesis update` — check for latest release and install if available
+- `telesis update --check` — check for updates without installing
+- Downloads platform-specific binary from GitHub Releases
+- Replaces both `telesis` and `telesis-mcp` binaries
+- Daemon checks for updates daily and notifies via OS notification
+
 ### `telesis-mcp` (MCP Server)
 
 Separate binary that exposes all Telesis capabilities as MCP (Model Context Protocol) tools

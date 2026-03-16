@@ -291,6 +291,19 @@ A Claude Code hook is installed at `.claude/settings.json` that runs `telesis or
 
 ---
 
+## telesis update
+
+Self-update.
+
+| Command | Description |
+|---|---|
+| `telesis update` | Download and install the latest version |
+| `telesis update --check` | Check for updates without installing |
+
+Downloads platform-specific binaries from GitHub Releases. Replaces both `telesis` and `telesis-mcp`.
+
+---
+
 ## telesis-mcp
 
 MCP server binary (separate from the CLI).

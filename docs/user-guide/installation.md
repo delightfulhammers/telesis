@@ -21,6 +21,46 @@ Optional, depending on your workflow:
 - **A GitHub personal access token** — Required for `telesis intake github`, PR creation, and issue management. Set the `GITHUB_TOKEN` environment variable.
 - **An ACP-compatible agent** — Required for `telesis dispatch` and `telesis run`. The default agent is Claude Code (`claude`), but any ACP-compatible agent works.
 
+## Quick Install
+
+The fastest way to install Telesis:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
+```
+
+This detects your platform (macOS/Linux, arm64/x64), downloads the latest release from
+GitHub, and installs both `telesis` and `telesis-mcp` to your PATH.
+
+To install a specific version:
+
+```bash
+TELESIS_VERSION=v0.27.0 curl -fsSL https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
+```
+
+To install to a custom directory:
+
+```bash
+TELESIS_INSTALL_DIR=~/bin curl -fsSL https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
+```
+
+## Updating
+
+Check for updates:
+
+```bash
+telesis update --check
+```
+
+Install the latest version:
+
+```bash
+telesis update
+```
+
+The daemon also checks for updates daily and sends an OS notification when a new version
+is available.
+
 ## Installing from Source
 
 Clone the repository and build:

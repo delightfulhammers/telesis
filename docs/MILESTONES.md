@@ -1340,6 +1340,36 @@ approve command. Resources signal updates when CLAUDE.md is regenerated.
 
 ---
 
+## v0.27.0 — Distribution & Auto-Update
+
+**Goal:** Make Telesis installable by anyone with a single command, publish platform binaries
+to GitHub Releases, and provide a self-update mechanism.
+
+**Status:** Complete
+
+### What Changes
+
+A `telesis release` command cross-compiles for 4 targets (darwin-arm64, darwin-x64, linux-x64,
+linux-arm64), creates a GitHub Release, and uploads the binaries. An `install.sh` script
+detects the platform and downloads the right binary. A `telesis update` command checks for
+new releases and replaces the running binary. The daemon checks for updates daily on its first
+heartbeat after midnight and notifies via OS notification if an update is available.
+
+### Acceptance Criteria
+
+1. `telesis release` builds both binaries for all 4 platform targets
+2. `telesis release` creates a GitHub Release with all assets attached
+3. `install.sh` detects OS and architecture, downloads correct binary, installs to PATH
+4. `telesis update` checks GitHub Releases API for latest version
+5. `telesis update` downloads and replaces both binaries when update is available
+6. `telesis update` reports "already up to date" when current
+7. Daemon checks for updates on first heartbeat after midnight, notifies if available
+8. User guide updated with installation and update documentation
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,
