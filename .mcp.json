@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "telesis": {
+      "command": "telesis-mcp"
+    }
+  }
+}
