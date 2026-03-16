@@ -15,6 +15,21 @@ REPO="delightfulhammers/telesis"
 VERSION="${TELESIS_VERSION:-}"
 INSTALL_DIR="${TELESIS_INSTALL_DIR:-}"
 
+# Auth header for private repos — pass GITHUB_TOKEN to authenticate
+AUTH_HEADER=""
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
+fi
+
+# Wrapper for authenticated curl calls
+auth_curl() {
+  if [ -n "$AUTH_HEADER" ]; then
+    curl -fsSL -H "$AUTH_HEADER" "$@"
+  else
+    curl -fsSL "$@"
+  fi
+}
+
 # Detect OS
 detect_os() {
   local os
@@ -68,7 +83,7 @@ get_latest_version() {
   fi
 
   local tag
-  tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+  tag=$(auth_curl "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
   if [ -z "$tag" ]; then
     echo "Failed to determine latest version" >&2
     exit 1
@@ -101,9 +116,16 @@ main() {
 
   # Download
   echo "Downloading..."
-  if ! curl -fSL "$url" -o "$tmp_dir/$archive_name"; then
+  local curl_args=("-fSL" "-o" "$tmp_dir/$archive_name")
+  if [ -n "$AUTH_HEADER" ]; then
+    curl_args+=("-H" "$AUTH_HEADER" "-H" "Accept: application/octet-stream")
+  fi
+  if ! curl "${curl_args[@]}" "$url"; then
     echo ""
     echo "Download failed. Check that version ${version} exists and has a ${os}-${arch} binary." >&2
+    if [ -z "${GITHUB_TOKEN:-}" ]; then
+      echo "For private repos, set GITHUB_TOKEN." >&2
+    fi
     echo "Available releases: https://github.com/$REPO/releases" >&2
     exit 1
   fi
