@@ -7,7 +7,13 @@ Telesis is the operating layer between the human who defines what to build and t
 ## Install
 
 ```bash
+# Public repo (once published):
 curl -fsSL https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
+
+# Private repo (requires GITHUB_TOKEN):
+GITHUB_TOKEN=ghp_... bash <(curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github.v3.raw" \
+  "https://api.github.com/repos/delightfulhammers/telesis/contents/install.sh")
 ```
 
 Requires macOS or Linux (arm64/x64). Downloads both `telesis` and `telesis-mcp` binaries.
