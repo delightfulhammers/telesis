@@ -57,31 +57,31 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.25.0 — Orchestrator Triage UX
+## v0.26.0 — MCP Orchestrator Integration
 
-**Goal:** Make the orchestrator's triage and milestone setup flow usable without manual JSON
-editing. The human can see LLM grouping suggestions, select work items, and provide milestone
-metadata — all through the CLI.
+**Goal:** Expose orchestrator capabilities as MCP tools and push decision notifications into
+Claude Code's context via logging messages. Claude Code becomes a first-class orchestrator
+client — it can drive the lifecycle, approve decisions, and receive state updates without
+shelling out to the CLI.
 
 **Status:** Complete
 
 ### What Changes
 
-The `telesis orchestrator approve` command gains structured input for triage decisions:
-`--items` to select work items, `--milestone-name`, `--milestone-id`, `--goal` to set
-milestone metadata. The triage grouping LLM suggestion is included in the decision detail
-and displayed in status output. Decision details are formatted for human readability in
-`telesis orchestrator status`.
+Five new MCP tools expose the orchestrator: status, run, approve, reject, preflight. The MCP
+server gains a logging message push channel — when the orchestrator creates a decision, it
+pushes a notification into connected Claude Code sessions with the decision summary and
+approve command. Resources signal updates when CLAUDE.md is regenerated.
 
 ### Acceptance Criteria
 
-1. `advanceTriage` stores LLM grouping suggestion in the decision detail
-2. `telesis orchestrator status` formats decision details readably (not raw JSON)
-3. `telesis orchestrator approve <id> --items wi-1,wi-2` selects work item subset
-4. `telesis orchestrator approve <id> --milestone-name "..." --milestone-id "0.25.0" --goal "..."` sets milestone metadata
-5. Approved triage metadata carries into orchestrator context (milestoneId/name/goal)
-6. Approving without `--items` includes all items (backward compatible)
-7. User guide updated with new approve flags and triage workflow
+1. `telesis_orchestrator_status` MCP tool returns current state and pending decisions
+2. `telesis_orchestrator_run` MCP tool advances the state machine
+3. `telesis_orchestrator_approve` MCP tool approves with optional triage metadata
+4. `telesis_orchestrator_reject` MCP tool rejects with reason
+5. `telesis_orchestrator_preflight` MCP tool returns preflight check results
+6. When a decision is created, `sendLoggingMessage` pushes notification to connected clients
+7. User guide MCP page updated with new tools
 8. All new business logic has colocated unit tests
 9. Running `telesis drift` produces zero errors
 

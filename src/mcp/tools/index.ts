@@ -13,6 +13,7 @@ import { register as registerIntake } from "./intake.js";
 import { register as registerPlan } from "./plan.js";
 import { register as registerDispatch } from "./dispatch.js";
 import { register as registerReview } from "./review.js";
+import { register as registerOrchestrator } from "./orchestrator.js";
 
 export const registerAllTools = (
   server: McpServer,
@@ -31,4 +32,5 @@ export const registerAllTools = (
   registerPlan(server, resolveRoot);
   registerDispatch(server, resolveRoot);
   registerReview(server, resolveRoot, createClient);
+  registerOrchestrator(server, resolveRoot, createClient);
 };

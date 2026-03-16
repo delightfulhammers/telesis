@@ -30,7 +30,7 @@ for `.telesis/config.yml`, just like the CLI.
 
 ## Tools
 
-The MCP server exposes 22 tools:
+The MCP server exposes 27 tools:
 
 ### Project State
 - **telesis_status** — project metadata, ADR/TDD counts, token usage, cost
@@ -56,6 +56,13 @@ The MCP server exposes 22 tools:
 - **telesis_review** — run multi-persona code review (LLM-powered)
 - **telesis_review_list** / **_show** — past review sessions
 
+### Orchestrator
+- **telesis_orchestrator_status** — current state, milestone, pending decisions
+- **telesis_orchestrator_run** — advance state machine until decision point or idle
+- **telesis_orchestrator_approve** — approve a decision (with optional triage metadata)
+- **telesis_orchestrator_reject** — reject with reason
+- **telesis_orchestrator_preflight** — preflight checks for commit gating
+
 All tools accept an optional `projectRoot` parameter to override the working directory.
 Input validation is enforced via Zod schemas (slug patterns, length caps).
 
@@ -79,3 +86,6 @@ Six project documents are exposed as readable MCP resources:
 - LLM-powered tools note cost and duration in their descriptions
 - The `ModelClient` is constructed once at server startup and injected into tools
   via a factory pattern
+- When `telesis_orchestrator_run` creates a decision, it pushes a logging message
+  to connected clients via `sendLoggingMessage` — Claude Code sees the decision
+  in its conversation context without polling

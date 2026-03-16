@@ -1310,6 +1310,36 @@ and displayed in status output. Decision details are formatted for human readabi
 
 ---
 
+## v0.26.0 — MCP Orchestrator Integration
+
+**Goal:** Expose orchestrator capabilities as MCP tools and push decision notifications into
+Claude Code's context via logging messages. Claude Code becomes a first-class orchestrator
+client — it can drive the lifecycle, approve decisions, and receive state updates without
+shelling out to the CLI.
+
+**Status:** Complete
+
+### What Changes
+
+Five new MCP tools expose the orchestrator: status, run, approve, reject, preflight. The MCP
+server gains a logging message push channel — when the orchestrator creates a decision, it
+pushes a notification into connected Claude Code sessions with the decision summary and
+approve command. Resources signal updates when CLAUDE.md is regenerated.
+
+### Acceptance Criteria
+
+1. `telesis_orchestrator_status` MCP tool returns current state and pending decisions
+2. `telesis_orchestrator_run` MCP tool advances the state machine
+3. `telesis_orchestrator_approve` MCP tool approves with optional triage metadata
+4. `telesis_orchestrator_reject` MCP tool rejects with reason
+5. `telesis_orchestrator_preflight` MCP tool returns preflight check results
+6. When a decision is created, `sendLoggingMessage` pushes notification to connected clients
+7. User guide MCP page updated with new tools
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,
