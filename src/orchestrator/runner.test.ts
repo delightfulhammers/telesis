@@ -9,6 +9,7 @@ const noopDeps = (): RunnerDeps => ({
   assessTdd: vi.fn().mockResolvedValue({ needsTdd: false, rationale: "" }),
   createMilestoneEntry: vi.fn(),
   createPlan: vi.fn().mockResolvedValue("plan-1"),
+  approvePlan: vi.fn(),
   executeTasks: vi.fn().mockResolvedValue({ allComplete: true }),
   runQualityGates: vi.fn().mockResolvedValue({ passed: true }),
   runReviewConvergence: vi
@@ -179,7 +180,7 @@ describe("advance", () => {
       expect(result.context.planId).toBe("plan-1");
     });
 
-    it("advances to executing when decision approved", async () => {
+    it("advances to executing and approves plan in store when decision approved", async () => {
       const deps = noopDeps();
       const ctx = makeContext({
         state: "planning",
@@ -192,6 +193,7 @@ describe("advance", () => {
       const result = await advance(ctx, deps);
 
       expect(result.context.state).toBe("executing");
+      expect(deps.approvePlan).toHaveBeenCalledWith("plan-1");
     });
   });
 

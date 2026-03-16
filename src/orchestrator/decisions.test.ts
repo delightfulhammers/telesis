@@ -117,6 +117,38 @@ describe("decisions", () => {
     expect(resolved.reason).toBe("Tasks are too coarse-grained");
   });
 
+  it("resolves a decision by ID prefix", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    const created = createDecision(dir, {
+      kind: "plan_approval",
+      summary: "Approve plan",
+      detail: "{}",
+    });
+
+    const prefix = created.id.slice(0, 8);
+    const resolved = resolveDecision(dir, prefix, "approved");
+    expect(resolved.resolution).toBe("approved");
+    expect(resolved.id).toBe(created.id);
+  });
+
+  it("loads a decision by prefix", () => {
+    const dir = makeTempDir();
+    setupProject(dir);
+
+    const created = createDecision(dir, {
+      kind: "triage_approval",
+      summary: "Approve triage",
+      detail: "{}",
+    });
+
+    const prefix = created.id.slice(0, 8);
+    const loaded = loadDecision(dir, prefix);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.id).toBe(created.id);
+  });
+
   it("throws when resolving nonexistent decision", () => {
     const dir = makeTempDir();
     setupProject(dir);

@@ -5,7 +5,7 @@ import type { ModelClient } from "../agent/model/client.js";
 import { listWorkItems, loadWorkItem } from "../intake/store.js";
 import { checkMilestone } from "../milestones/check.js";
 import { completeMilestone } from "../milestones/complete.js";
-import { loadPlan } from "../plan/store.js";
+import { loadPlan, updatePlan } from "../plan/store.js";
 import { createPlanFromWorkItem } from "../plan/create.js";
 import { executePlan } from "../plan/executor.js";
 import { createAcpxAdapter } from "../dispatch/acpx-adapter.js";
@@ -91,6 +91,17 @@ export const buildRunnerDeps = (
     }
     const plan = await createPlanFromWorkItem(client, rootDir, item);
     return plan.id;
+  },
+
+  approvePlan: (planId) => {
+    const plan = loadPlan(rootDir, planId);
+    if (plan && plan.status === "draft") {
+      updatePlan(rootDir, {
+        ...plan,
+        status: "approved" as const,
+        approvedAt: new Date().toISOString(),
+      });
+    }
   },
 
   executeTasks: async (planId) => {

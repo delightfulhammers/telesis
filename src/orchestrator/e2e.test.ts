@@ -57,6 +57,7 @@ describe("orchestrator end-to-end lifecycle", () => {
       }),
       createMilestoneEntry: vi.fn(),
       createPlan: vi.fn().mockResolvedValue("plan-1"),
+      approvePlan: vi.fn(),
       executeTasks: vi.fn().mockResolvedValue({ allComplete: true }),
       runQualityGates: vi.fn().mockResolvedValue({ passed: true }),
       runReviewConvergence: vi.fn().mockResolvedValue({

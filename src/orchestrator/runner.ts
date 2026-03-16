@@ -47,6 +47,7 @@ export interface RunnerDeps {
     milestoneName: string,
   ) => void;
   readonly createPlan: (workItemId: string) => Promise<string>;
+  readonly approvePlan: (planId: string) => void;
   readonly executeTasks: (planId: string) => Promise<{
     allComplete: boolean;
     error?: string;
@@ -298,6 +299,9 @@ const advancePlanning = async (
   }
 
   if (decisionWasApproved(ctx, deps, "plan_approval")) {
+    if (ctx.planId) {
+      deps.approvePlan(ctx.planId);
+    }
     return doTransition(ctx, "executing", deps);
   }
 

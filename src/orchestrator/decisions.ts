@@ -44,8 +44,47 @@ export const createDecision = (
   return decision;
 };
 
-/** Loads a decision by ID, or null if not found. */
-export const loadDecision = (rootDir: string, id: string): Decision | null => {
+/** Resolves a decision ID or prefix to the full ID. */
+const resolveDecisionId = (
+  rootDir: string,
+  idOrPrefix: string,
+): string | null => {
+  if (idOrPrefix.length === 0) return null;
+  const dir = decisionsDir(rootDir);
+
+  let entries: string[];
+  try {
+    entries = readdirSync(dir).filter((f) => f.endsWith(".json"));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+
+  // Exact match first
+  if (entries.includes(`${idOrPrefix}.json`)) return idOrPrefix;
+
+  // Prefix match
+  const matches = entries
+    .map((f) => f.replace(".json", ""))
+    .filter((id) => id.startsWith(idOrPrefix));
+
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) {
+    throw new Error(
+      `Ambiguous decision prefix "${idOrPrefix}" matches ${matches.length} decisions`,
+    );
+  }
+  return null;
+};
+
+/** Loads a decision by ID or prefix, or null if not found. */
+export const loadDecision = (
+  rootDir: string,
+  idOrPrefix: string,
+): Decision | null => {
+  const id = resolveDecisionId(rootDir, idOrPrefix);
+  if (!id) return null;
+
   try {
     const data = readFileSync(decisionPath(rootDir, id), "utf-8");
     return JSON.parse(data) as Decision;
@@ -126,7 +165,7 @@ export const resolveDecision = (
     reason,
   };
 
-  const filePath = decisionPath(rootDir, id);
+  const filePath = decisionPath(rootDir, existing.id);
   const tmpPath = `${filePath}.tmp`;
   writeFileSync(tmpPath, JSON.stringify(resolved, null, 2) + "\n");
   renameSync(tmpPath, filePath);
