@@ -4,29 +4,24 @@ set -euo pipefail
 # Telesis installer
 # Detects platform, downloads the latest release from GitHub, installs to PATH.
 #
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
+# Works with both public and private repos:
+#   Public:  curl -fsSL https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
+#   Private: GITHUB_TOKEN=... curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
+#              https://raw.githubusercontent.com/delightfulhammers/telesis/main/install.sh | sh
 #
 # Options (via environment variables):
 #   TELESIS_VERSION=v0.27.0  Install a specific version (default: latest)
 #   TELESIS_INSTALL_DIR=/usr/local/bin  Install directory (default: auto-detect)
+#   GITHUB_TOKEN=ghp_...  Required for private repos
 
 REPO="delightfulhammers/telesis"
 VERSION="${TELESIS_VERSION:-}"
 INSTALL_DIR="${TELESIS_INSTALL_DIR:-}"
 
-# Auth header for private repos — pass GITHUB_TOKEN to authenticate
-AUTH_HEADER=""
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
-fi
-
-# Wrapper for authenticated curl calls
-auth_curl() {
-  if [ -n "$AUTH_HEADER" ]; then
-    curl -fsSL -H "$AUTH_HEADER" "$@"
-  else
-    curl -fsSL "$@"
+# Build auth args array for curl (empty if no token)
+build_auth_args() {
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    echo "-H" "Authorization: token $GITHUB_TOKEN"
   fi
 }
 
@@ -65,7 +60,6 @@ detect_install_dir() {
     return
   fi
 
-  # Prefer /usr/local/bin if writable, otherwise ~/.local/bin
   if [ -w "/usr/local/bin" ]; then
     echo "/usr/local/bin"
   else
@@ -83,7 +77,7 @@ get_latest_version() {
   fi
 
   local tag
-  tag=$(auth_curl "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+  tag=$(curl -fsSL $(build_auth_args) "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
   if [ -z "$tag" ]; then
     echo "Failed to determine latest version" >&2
     exit 1
@@ -95,8 +89,45 @@ get_latest_version() {
   echo "$tag"
 }
 
+# Download a release asset. Tries direct URL first (public repos),
+# falls back to API-based download (private repos).
+download_asset() {
+  local version="$1" archive_name="$2" dest="$3"
+
+  local direct_url="https://github.com/$REPO/releases/download/${version}/${archive_name}"
+
+  # Try direct download first (works for public repos, and some private configs)
+  if curl -fSL $(build_auth_args) -o "$dest" "$direct_url" 2>/dev/null; then
+    return 0
+  fi
+
+  # Fall back to API-based download (required for private repos).
+  # Look up the asset ID, then download via the API with Accept: application/octet-stream.
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    local asset_url
+    asset_url=$(curl -fsSL $(build_auth_args) \
+      "https://api.github.com/repos/$REPO/releases/tags/${version}" \
+      | grep -B3 "\"name\": \"${archive_name}\"" \
+      | grep '"url"' \
+      | sed -E 's/.*"url": *"([^"]+)".*/\1/' \
+      | head -1)
+
+    if [ -n "$asset_url" ]; then
+      if curl -fSL \
+        -H "Authorization: token $GITHUB_TOKEN" \
+        -H "Accept: application/octet-stream" \
+        -o "$dest" \
+        "$asset_url" 2>/dev/null; then
+        return 0
+      fi
+    fi
+  fi
+
+  return 1
+}
+
 main() {
-  local os arch install_dir version archive_name url tmp_dir
+  local os arch install_dir version archive_name tmp_dir
 
   os=$(detect_os)
   arch=$(detect_arch)
@@ -104,10 +135,8 @@ main() {
   version=$(get_latest_version)
 
   archive_name="telesis-${version}-${os}-${arch}.tar.gz"
-  url="https://github.com/$REPO/releases/download/${version}/${archive_name}"
 
   echo "Installing Telesis ${version} (${os}-${arch})..."
-  echo "  Source:  $url"
   echo "  Target:  $install_dir"
   echo ""
 
@@ -116,11 +145,7 @@ main() {
 
   # Download
   echo "Downloading..."
-  local curl_args=("-fSL" "-o" "$tmp_dir/$archive_name")
-  if [ -n "$AUTH_HEADER" ]; then
-    curl_args+=("-H" "$AUTH_HEADER" "-H" "Accept: application/octet-stream")
-  fi
-  if ! curl "${curl_args[@]}" "$url"; then
+  if ! download_asset "$version" "$archive_name" "$tmp_dir/$archive_name"; then
     echo ""
     echo "Download failed. Check that version ${version} exists and has a ${os}-${arch} binary." >&2
     if [ -z "${GITHUB_TOKEN:-}" ]; then
