@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   writeFileSync,
+  readFileSync,
   chmodSync,
   existsSync,
   openSync,
@@ -12,6 +13,7 @@ import {
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { save, exists } from "../config/config.js";
+import { appendNote } from "../notes/store.js";
 import type { Config } from "../config/config.js";
 import { generate } from "../context/context.js";
 import { renderTemplate } from "../templates/index.js";
@@ -252,6 +254,77 @@ const writeClaudeHooks = (rootDir: string): void => {
   }
 };
 
+/**
+ * If an existing CLAUDE.md is present, extract its content and preserve
+ * it as tagged notes so it feeds back into the regenerated CLAUDE.md.
+ * Returns the number of notes created.
+ */
+const preserveExistingClaudeMd = (rootDir: string): number => {
+  const claudePath = join(rootDir, "CLAUDE.md");
+  if (!existsSync(claudePath)) return 0;
+
+  let content: string;
+  try {
+    content = readFileSync(claudePath, "utf-8");
+  } catch {
+    return 0;
+  }
+
+  if (content.trim().length === 0) return 0;
+
+  // Split into sections by ## headings
+  const sections: Array<{ heading: string; body: string }> = [];
+  const lines = content.split("\n");
+  let currentHeading = "";
+  let currentBody: string[] = [];
+
+  for (const line of lines) {
+    const headingMatch = /^##\s+(.+)/.exec(line);
+    if (headingMatch) {
+      if (currentBody.length > 0) {
+        sections.push({
+          heading: currentHeading,
+          body: currentBody.join("\n").trim(),
+        });
+      }
+      currentHeading = headingMatch[1];
+      currentBody = [];
+    } else {
+      currentBody.push(line);
+    }
+  }
+  if (currentBody.length > 0) {
+    sections.push({
+      heading: currentHeading,
+      body: currentBody.join("\n").trim(),
+    });
+  }
+
+  let count = 0;
+  for (const section of sections) {
+    // Skip pre-heading content (before first ##) — typically title/boilerplate
+    if (!section.heading) continue;
+    const body = section.body.trim();
+    if (body.length === 0) continue;
+    // Skip very short sections (likely just headers or boilerplate)
+    if (body.length < 20) continue;
+
+    const tag = section.heading
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    try {
+      appendNote(rootDir, body, ["preserved-claude-md", tag]);
+      count++;
+    } catch {
+      // best-effort — don't fail init if a note can't be written
+    }
+  }
+
+  return count;
+};
+
 export const scaffold = (rootDir: string, cfg: Config): void => {
   validateInput(cfg);
 
@@ -264,6 +337,11 @@ export const scaffold = (rootDir: string, cfg: Config): void => {
   const local = applyDefaults(cfg);
 
   createDirectories(rootDir);
+
+  // Preserve existing CLAUDE.md content as notes.
+  // Runs after createDirectories so .telesis/ exists,
+  // and after exists() guard so we don't mutate on abort.
+  preserveExistingClaudeMd(rootDir);
   renderDocStubs(rootDir, local);
   writeREADMEStubs(rootDir);
   writeClaudeHooks(rootDir);

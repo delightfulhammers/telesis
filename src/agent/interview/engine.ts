@@ -9,6 +9,7 @@ import {
   saveState,
 } from "./state.js";
 import { buildInterviewSystemPrompt, hasCompletionSignal } from "./prompts.js";
+import { summarizeCodebase } from "../../scaffold/codebase-summary.js";
 
 const DEFAULT_MAX_TURNS = 20;
 const DONE_SENTINEL = "/done";
@@ -39,7 +40,17 @@ export const runInterview = async (
     maxTurns = DEFAULT_MAX_TURNS,
   } = options;
 
-  const systemPrompt = buildInterviewSystemPrompt();
+  // Inject codebase summary for existing repos (UNTRUSTED content)
+  let codebaseSummary: string | undefined;
+  try {
+    const summary = summarizeCodebase(rootDir);
+    // Cap total size to prevent token overflow from large repos
+    if (summary) codebaseSummary = summary.slice(0, 8000);
+  } catch (err) {
+    console.error("[telesis] Warning: codebase summary failed:", err);
+  }
+
+  const systemPrompt = buildInterviewSystemPrompt(codebaseSummary);
   let state = createInitialState(sessionId);
   await ensureStateDir(rootDir);
 

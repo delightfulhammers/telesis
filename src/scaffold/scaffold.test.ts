@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { scaffold } from "./scaffold.js";
 import { load } from "../config/config.js";
@@ -105,6 +105,24 @@ describe("scaffold", () => {
     const stat = statSync(hookPath);
     const isExecutable = (stat.mode & 0o111) !== 0;
     expect(isExecutable).toBe(true);
+  });
+
+  it("preserves existing CLAUDE.md content as notes", () => {
+    const rootDir = makeTempDir();
+    // Write a pre-existing CLAUDE.md before init
+    writeFileSync(
+      join(rootDir, "CLAUDE.md"),
+      "# Project\n\n## Conventions\n\nAlways use snake_case for variables.\n\n## Pitfalls\n\nDon't use global state.\n",
+    );
+
+    scaffold(rootDir, testConfig());
+
+    // Notes should have been created from the sections
+    const notesPath = join(rootDir, ".telesis", "notes.jsonl");
+    expect(existsSync(notesPath)).toBe(true);
+    const notesContent = readFileSync(notesPath, "utf-8");
+    expect(notesContent).toContain("snake_case");
+    expect(notesContent).toContain("preserved-claude-md");
   });
 
   it("fails when already initialized", () => {

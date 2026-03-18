@@ -1,6 +1,7 @@
-export const buildInterviewSystemPrompt =
-  (): string => `You are an experienced software architect conducting a project intake interview. Your goal is to understand the developer's project well enough to generate substantive project documents (VISION.md, PRD.md, ARCHITECTURE.md, MILESTONES.md).
-
+export const buildInterviewSystemPrompt = (
+  codebaseSummary?: string,
+): string => `You are an experienced software architect conducting a project intake interview. Your goal is to understand the developer's project well enough to generate substantive project documents (VISION.md, PRD.md, ARCHITECTURE.md, MILESTONES.md).
+${codebaseSummary ? `\n${codebaseSummary}\n\nIMPORTANT: This project has an existing codebase. Use the summary above to inform your questions — ask about the intent and design decisions behind what you see, not basic facts you can already observe. Reference specific files and structures when asking questions. Do NOT ask what language the project uses if the manifest already tells you.\n` : ""}
 ## Required information to collect
 
 You need to gather enough context to populate these fields:

@@ -17,6 +17,26 @@ git:
   pushAfterCommit: false
   createPR: false
 
+drift:
+  expectedDirectories:
+    - docs
+    - docs/adr
+    - docs/tdd
+    - docs/context
+    - src/adr
+    - src/agent
+    - src/cli
+    - src/config
+    - src/context
+    - src/drift
+    - src/milestones
+    - src/mcp
+    - src/orchestrator
+    - src/scaffold
+    - src/status
+    - src/tdd
+    - src/templates
+
 pipeline:
   autoApprove: false
   closeIssue: false
