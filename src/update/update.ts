@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join, dirname, basename, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { VERSION } from "../version.js";
 
 const REPO = "delightfulhammers/telesis";
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
@@ -32,22 +33,7 @@ const detectPlatform = (): { os: string; arch: string } => {
   return { os, arch };
 };
 
-/**
- * Get the current version. Works in dev (reads package.json) and falls
- * back to "0.0.0" in compiled binaries. A proper build-time version
- * embedding is a tracked improvement.
- */
-const getCurrentVersion = (): string => {
-  try {
-    const dir = dirname(new URL(import.meta.url).pathname);
-    const pkg = JSON.parse(
-      readFileSync(join(dir, "..", "..", "package.json"), "utf-8"),
-    );
-    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
-};
+const getCurrentVersion = (): string => VERSION;
 
 /**
  * Check the latest release version from GitHub.
