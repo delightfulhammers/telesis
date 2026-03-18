@@ -1,6 +1,28 @@
 import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import type { GitHubPRContext } from "./types.js";
+
+/**
+ * Resolve a GitHub token from environment or gh CLI auth chain.
+ * Checks GITHUB_TOKEN first, then falls back to `gh auth token`.
+ */
+export const resolveGitHubToken = (): string | null => {
+  const envToken = process.env.GITHUB_TOKEN;
+  if (envToken) return envToken;
+
+  try {
+    const ghToken = execFileSync("gh", ["auth", "token"], {
+      encoding: "utf-8",
+      timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    // Basic sanity check — reject empty, multi-line, or non-printable output
+    if (!ghToken || !/^[\x20-\x7E]{10,512}$/.test(ghToken)) return null;
+    return ghToken;
+  } catch {
+    return null;
+  }
+};
 
 const SAFE_NAME_RE = /^[\w.-]+$/;
 const SHA_RE = /^[0-9a-f]{40}$/i;
@@ -22,7 +44,7 @@ export const extractPRContext = (): GitHubPRContext | null => {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) return null;
 
-  const token = process.env.GITHUB_TOKEN;
+  const token = resolveGitHubToken();
   if (!token) return null;
 
   let payload: Record<string, unknown>;
@@ -115,7 +137,7 @@ export const extractRepoContext = (): {
 export const buildLocalPRContext = (
   pullNumber: number,
 ): GitHubPRContext | null => {
-  const token = process.env.GITHUB_TOKEN;
+  const token = resolveGitHubToken();
   if (!token) return null;
 
   const repoCtx = extractRepoContext();

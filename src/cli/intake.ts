@@ -8,7 +8,10 @@ import {
   parseIntakeConfig,
   parsePlannerConfig,
 } from "../config/config.js";
-import { extractRepoContext } from "../github/environment.js";
+import {
+  extractRepoContext,
+  resolveGitHubToken,
+} from "../github/environment.js";
 import { createGitHubSource } from "../intake/github-source.js";
 import { syncFromSource } from "../intake/sync.js";
 import { listWorkItems, loadWorkItem } from "../intake/store.js";
@@ -31,10 +34,10 @@ const githubCommand = new Command("github")
       const rawConfig = loadRawConfig(rootDir);
       const intakeConfig = parseIntakeConfig(rawConfig);
 
-      const token = process.env.GITHUB_TOKEN;
+      const token = resolveGitHubToken();
       if (!token) {
         throw new Error(
-          "GITHUB_TOKEN environment variable is required for GitHub intake",
+          "GitHub token required. Set GITHUB_TOKEN or authenticate with `gh auth login`.",
         );
       }
 

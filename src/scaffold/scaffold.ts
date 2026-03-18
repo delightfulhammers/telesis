@@ -213,6 +213,22 @@ fi
 exit 0
 `;
 
+const MCP_JSON = `{
+  "mcpServers": {
+    "telesis": {
+      "command": "telesis-mcp"
+    }
+  }
+}
+`;
+
+const writeMcpConfig = (rootDir: string): void => {
+  const mcpPath = join(rootDir, ".mcp.json");
+  if (!existsSync(mcpPath)) {
+    writeFileAtomic(mcpPath, MCP_JSON);
+  }
+};
+
 const writeClaudeHooks = (rootDir: string): void => {
   // Guard: don't overwrite existing Claude Code settings or hooks
   const settingsPath = join(rootDir, ".claude", "settings.json");
@@ -242,6 +258,7 @@ export const scaffold = (rootDir: string, cfg: Config): void => {
   renderDocStubs(rootDir, local);
   writeREADMEStubs(rootDir);
   writeClaudeHooks(rootDir);
+  writeMcpConfig(rootDir);
 
   // Config must be saved before CLAUDE.md generation
   save(rootDir, local);

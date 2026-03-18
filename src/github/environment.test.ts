@@ -85,11 +85,18 @@ describe("extractPRContext", () => {
     expect(extractPRContext()).toBeNull();
   });
 
-  it("returns null when GITHUB_TOKEN is not set", () => {
+  it("returns null when no GitHub token is available", () => {
     const dir = makeTempDir();
     process.env.GITHUB_EVENT_PATH = writePREvent(dir);
     delete process.env.GITHUB_TOKEN;
-    expect(extractPRContext()).toBeNull();
+    // Hide gh CLI so resolveGitHubToken can't fall back to it
+    const savedPath = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      expect(extractPRContext()).toBeNull();
+    } finally {
+      process.env.PATH = savedPath;
+    }
   });
 
   it("returns null for non-PR events (push)", () => {
@@ -180,9 +187,15 @@ describe("buildLocalPRContext", () => {
     process.env = originalEnv;
   });
 
-  it("returns null when GITHUB_TOKEN is not set", () => {
+  it("returns null when no GitHub token is available", () => {
     delete process.env.GITHUB_TOKEN;
-    expect(buildLocalPRContext(42)).toBeNull();
+    const savedPath = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      expect(buildLocalPRContext(42)).toBeNull();
+    } finally {
+      process.env.PATH = savedPath;
+    }
   });
 
   it("builds context when GITHUB_TOKEN and GITHUB_REPOSITORY are set", () => {

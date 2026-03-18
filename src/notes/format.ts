@@ -53,9 +53,9 @@ export const renderNotesSection = (notes: readonly Note[]): string => {
     if (note.tags.length === 0) {
       addToGroup(GENERAL_TAG, entry);
     } else {
-      for (const tag of note.tags) {
-        addToGroup(tag, entry);
-      }
+      // Primary tag model: note appears under its first tag only,
+      // avoiding duplication when a note has multiple tags.
+      addToGroup(note.tags[0], entry);
     }
   }
 

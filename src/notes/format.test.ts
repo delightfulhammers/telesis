@@ -103,13 +103,12 @@ describe("renderNotesSection", () => {
     expect(middleIdx).toBeLessThan(oldestIdx);
   });
 
-  it("places multi-tagged notes in each tag group", () => {
+  it("places multi-tagged notes under primary (first) tag only", () => {
     const notes = [makeNote("shared insight", ["git", "config"])];
     const output = renderNotesSection(notes);
-    expect(output).toContain("### config");
     expect(output).toContain("### git");
-    // Should appear under both groups
+    // Primary tag model: note appears once, under first tag only
     const matches = output.match(/shared insight/g);
-    expect(matches).toHaveLength(2);
+    expect(matches).toHaveLength(1);
   });
 });
