@@ -1,6 +1,11 @@
+---
+name: telesis-pipeline
+description: "Use when working in a project managed by Telesis (.telesis/config.yml exists). Provides the canonical lifecycle order for all development work: intake, planning, dispatch, quality gates, review convergence, milestone completion. Load this when starting any task, committing code, or when the user asks about the telesis workflow."
+---
+
 # Telesis Pipeline — Full Lifecycle Orchestration
 
-You are assisting with a project managed by Telesis. Follow this canonical lifecycle for all work.
+This project is managed by Telesis. Follow this canonical lifecycle for all work.
 
 ## Pipeline Order
 
@@ -32,7 +37,7 @@ telesis dispatch show <id>                     # Check session results
 telesis dispatch show <id> --text              # Compact narrative view
 ```
 
-### Review (pre-push)
+### Review (pre-push, MANDATORY)
 ```bash
 git add <files>                          # MUST stage before review
 telesis review                           # Multi-persona review (staged changes)
@@ -51,35 +56,29 @@ pnpm run build                           # Compiles
 telesis drift                            # Zero errors
 ```
 
-### Milestone Completion
-```bash
-# 1. Bump version in package.json AND src/version.ts
-# 2. Update MILESTONES.md status to Complete
-# 3. Update TDD status to Accepted (if applicable)
-# 4. Update PRD.md with new commands
-# 5. Update ARCHITECTURE.md with new files
-# 6. Update user guide
-# 7. telesis context (regenerate CLAUDE.md)
-# 8. Commit, tag, push
-```
+### Milestone Completion (MANDATORY — do not skip any step)
+1. Bump version in `package.json` AND `src/version.ts`
+2. Update `docs/MILESTONES.md` — set status to Complete
+3. Update TDD status to Accepted (if applicable)
+4. Update `docs/PRD.md` with new commands
+5. Update `docs/ARCHITECTURE.md` with new files
+6. Update user guide (`docs/user-guide/`)
+7. Run `telesis context` to regenerate CLAUDE.md
+8. Commit, tag, push
 
 ### Orchestrator (automated lifecycle)
 ```bash
 telesis orchestrator run                 # Advance state machine
 telesis orchestrator status              # Current state + pending decisions
 telesis orchestrator approve <id>        # Approve a decision
-telesis orchestrator reject <id> --reason "..."
 telesis orchestrator preflight           # Pre-commit checks
 ```
 
 ## MCP Tools vs CLI
 
-Most operations are available as MCP tools (`telesis_intake_list`, `telesis_review`, etc.). For write operations that require long-running processes:
-- `telesis_dispatch_run` — available via MCP (10min timeout)
-- `telesis_intake_github` — available via MCP
-- For anything that exceeds MCP limits, fall back to CLI
+Most operations are available as MCP tools (`telesis_intake_list`, `telesis_review`, etc.). Use MCP tools when available. For long-running operations that may exceed MCP timeout, fall back to CLI.
 
-## Common Mistakes to Avoid
+## Common Mistakes
 
 1. **Don't skip review.** Always review before pushing, always converge.
 2. **Stage before reviewing.** `git add` then `telesis review`. Unstaged = stale.
