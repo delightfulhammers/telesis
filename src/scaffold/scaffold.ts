@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   writeFileSync,
@@ -213,19 +214,27 @@ fi
 exit 0
 `;
 
-const MCP_JSON = `{
-  "mcpServers": {
-    "telesis": {
-      "command": "telesis-mcp"
-    }
+const resolveMcpBinary = (): string => {
+  try {
+    const resolved = execFileSync("which", ["telesis-mcp"], {
+      encoding: "utf-8",
+      timeout: 5000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    if (resolved) return resolved;
+  } catch {
+    // not on PATH — fall back to bare name
   }
-}
-`;
+  return "telesis-mcp";
+};
 
 const writeMcpConfig = (rootDir: string): void => {
   const mcpPath = join(rootDir, ".mcp.json");
   if (!existsSync(mcpPath)) {
-    writeFileAtomic(mcpPath, MCP_JSON);
+    const command = resolveMcpBinary();
+    const config =
+      JSON.stringify({ mcpServers: { telesis: { command } } }, null, 2) + "\n";
+    writeFileAtomic(mcpPath, config);
   }
 };
 

@@ -5,6 +5,10 @@ import type { GitHubPRContext } from "./types.js";
 /**
  * Resolve a GitHub token from environment or gh CLI auth chain.
  * Checks GITHUB_TOKEN first, then falls back to `gh auth token`.
+ *
+ * The `gh` fallback resolves whichever `gh` binary is first on PATH.
+ * This is a standard PATH-trust dependency — the same trust model used
+ * by git, ssh, and other CLI tools that shell out to helpers.
  */
 export const resolveGitHubToken = (): string | null => {
   const envToken = process.env.GITHUB_TOKEN;
