@@ -2,10 +2,10 @@ import { defineConfig } from "vitest/config";
 import { readFileSync } from "node:fs";
 import type { Plugin } from "vite";
 
-const rawTmplPlugin = (): Plugin => ({
-  name: "raw-tmpl",
+const rawTextPlugin = (): Plugin => ({
+  name: "raw-text",
   load(id) {
-    if (id.endsWith(".tmpl")) {
+    if (id.endsWith(".tmpl") || id.endsWith(".md")) {
       const content = readFileSync(id, "utf-8");
       return `export default ${JSON.stringify(content)};`;
     }
@@ -13,7 +13,7 @@ const rawTmplPlugin = (): Plugin => ({
 });
 
 export default defineConfig({
-  plugins: [rawTmplPlugin()],
+  plugins: [rawTextPlugin()],
   test: {
     globals: true,
     environment: "node",

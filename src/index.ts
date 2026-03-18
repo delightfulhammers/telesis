@@ -18,6 +18,7 @@ import { planCommand } from "./cli/plan.js";
 import { runCommand } from "./cli/run.js";
 import { orchestratorCommand } from "./cli/orchestrator.js";
 import { updateCommand } from "./cli/update.js";
+import { upgradeCommand } from "./cli/upgrade.js";
 
 import { VERSION } from "./version.js";
 
@@ -42,6 +43,7 @@ const program = new Command("telesis")
   .addCommand(planCommand)
   .addCommand(runCommand)
   .addCommand(orchestratorCommand)
-  .addCommand(updateCommand);
+  .addCommand(updateCommand)
+  .addCommand(upgradeCommand);
 
 program.parse();
