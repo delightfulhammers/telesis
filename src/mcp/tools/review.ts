@@ -118,20 +118,45 @@ export const register = (
     "telesis_review_list",
     "List past review sessions with metadata",
     {
+      limit: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe("Maximum sessions to return (default: 20)"),
+      offset: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe("Skip this many sessions (for pagination)"),
       projectRoot: z
         .string()
         .optional()
         .describe("Override project root directory"),
     },
-    async ({ projectRoot }) => {
+    async ({ limit, offset, projectRoot }) => {
       try {
         const rootDir = resolveRoot(projectRoot);
-        const sessions = listReviewSessions(rootDir);
+        const allSessions = listReviewSessions(rootDir);
+        const start = offset ?? 0;
+        const pageSize = Math.min(limit ?? 20, 200);
+        const sessions = allSessions.slice(start, start + pageSize);
         return {
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(sessions, null, 2),
+              text: JSON.stringify(
+                {
+                  sessions,
+                  total: allSessions.length,
+                  offset: start,
+                  limit: pageSize,
+                  hasMore: start + pageSize < allSessions.length,
+                },
+                null,
+                2,
+              ),
             },
           ],
         };
