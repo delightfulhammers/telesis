@@ -15,6 +15,12 @@ import {
 } from "../orchestrator/decisions.js";
 import { runPreflight } from "../orchestrator/preflight.js";
 import { formatDecisionDetail } from "../orchestrator/format.js";
+import {
+  generateResumeBriefing,
+  formatResumeBriefing,
+} from "../orchestrator/resume.js";
+import { inspectWorkspace } from "../git/operations.js";
+import { loadPlan } from "../plan/store.js";
 import { randomUUID } from "node:crypto";
 
 const statusCommand = new Command("status")
@@ -242,10 +248,28 @@ const runCommand = new Command("run")
     }),
   );
 
+const resumeBriefingCommand = new Command("resume-briefing")
+  .description(
+    "Generate a structured orientation for resuming after a session boundary",
+  )
+  .action(
+    handleAction(() => {
+      const rootDir = projectRoot();
+      const briefing = generateResumeBriefing({
+        loadContext: () => loadContext(rootDir),
+        loadPlan: (planId) => loadPlan(rootDir, planId),
+        listPendingDecisions: () => listPendingDecisions(rootDir),
+        inspectWorkspace: () => inspectWorkspace(rootDir),
+      });
+      console.log(formatResumeBriefing(briefing));
+    }),
+  );
+
 export const orchestratorCommand = new Command("orchestrator")
   .description("Orchestrator state and decision management")
   .addCommand(statusCommand)
   .addCommand(approveCommand)
   .addCommand(rejectCommand)
   .addCommand(preflightCommand)
-  .addCommand(runCommand);
+  .addCommand(runCommand)
+  .addCommand(resumeBriefingCommand);

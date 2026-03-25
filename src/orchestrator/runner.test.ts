@@ -10,7 +10,10 @@ const noopDeps = (): RunnerDeps => ({
   createMilestoneEntry: vi.fn(),
   createPlan: vi.fn().mockResolvedValue("plan-1"),
   approvePlan: vi.fn(),
-  executeTasks: vi.fn().mockResolvedValue({ allComplete: true }),
+  getSessionId: vi.fn().mockReturnValue("test-session-id"),
+  executeTasks: vi
+    .fn()
+    .mockResolvedValue({ allComplete: true, completedTaskCount: 5 }),
   runQualityGates: vi.fn().mockResolvedValue({ passed: true }),
   runReviewConvergence: vi
     .fn()
@@ -236,6 +239,7 @@ describe("advance", () => {
       deps.executeTasks = vi.fn().mockResolvedValue({
         allComplete: false,
         error: "Task 3 failed",
+        completedTaskCount: 2,
       });
       const ctx = makeContext({
         state: "executing",
@@ -439,6 +443,91 @@ describe("advance", () => {
       const result = await advance(ctx, deps);
 
       expect(result.context.state).toBe("idle");
+    });
+  });
+
+  describe("session tracking", () => {
+    it("sets session fields on first entry to executing", async () => {
+      const deps = noopDeps();
+      const ctx = makeContext({
+        state: "executing",
+        milestoneId: "0.22.0",
+        planId: "plan-1",
+        workItemIds: ["wi-1"],
+      });
+
+      await advance(ctx, deps);
+
+      // saveContext should be called with session fields before execution
+      const saveCalls = (deps.saveContext as ReturnType<typeof vi.fn>).mock
+        .calls;
+      const sessionSave = saveCalls.find(
+        (call: OrchestratorContext[]) =>
+          call[0].sessionId === "test-session-id",
+      );
+      expect(sessionSave).toBeDefined();
+    });
+
+    it("preserves existing session ID but clears stale exit fields on re-entry", async () => {
+      const deps = noopDeps();
+      const ctx = makeContext({
+        state: "executing",
+        milestoneId: "0.22.0",
+        planId: "plan-1",
+        workItemIds: ["wi-1"],
+        sessionId: "existing-session",
+        sessionEndedAt: "2026-03-25T00:00:00Z",
+        sessionExitReason: "error",
+      });
+
+      await advance(ctx, deps);
+
+      expect(deps.getSessionId).not.toHaveBeenCalled();
+      // Stale exit fields should be cleared and startedAt reset on re-entry
+      const saveCalls = (deps.saveContext as ReturnType<typeof vi.fn>).mock
+        .calls;
+      const sessionSave = saveCalls.find(
+        (call: OrchestratorContext[]) =>
+          call[0].sessionId === "existing-session" &&
+          call[0].sessionEndedAt === undefined &&
+          call[0].sessionExitReason === undefined &&
+          call[0].sessionStartedAt !== "2026-03-25T00:00:00Z",
+      );
+      expect(sessionSave).toBeDefined();
+    });
+
+    it("checkpoints currentTaskIndex after execution", async () => {
+      const deps = noopDeps();
+      deps.executeTasks = vi
+        .fn()
+        .mockResolvedValue({ allComplete: true, completedTaskCount: 3 });
+      const ctx = makeContext({
+        state: "executing",
+        milestoneId: "0.22.0",
+        planId: "plan-1",
+        workItemIds: ["wi-1"],
+      });
+
+      const result = await advance(ctx, deps);
+
+      // The transitioned context should carry through the checkpoint
+      expect(result.context.state).toBe("post_task");
+    });
+
+    it("sets clean exit reason on successful completion", async () => {
+      const deps = noopDeps();
+      const ctx = makeContext({
+        state: "executing",
+        milestoneId: "0.22.0",
+        planId: "plan-1",
+        workItemIds: ["wi-1"],
+        sessionId: "ses-1",
+      });
+
+      const result = await advance(ctx, deps);
+
+      expect(result.context.sessionExitReason).toBe("clean");
+      expect(result.context.sessionEndedAt).toBeDefined();
     });
   });
 

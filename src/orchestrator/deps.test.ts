@@ -58,6 +58,7 @@ describe("buildRunnerDeps", () => {
     expect(typeof deps.assessTdd).toBe("function");
     expect(typeof deps.createMilestoneEntry).toBe("function");
     expect(typeof deps.createPlan).toBe("function");
+    expect(typeof deps.getSessionId).toBe("function");
     expect(typeof deps.executeTasks).toBe("function");
     expect(typeof deps.runQualityGates).toBe("function");
     expect(typeof deps.runReviewConvergence).toBe("function");

@@ -177,3 +177,53 @@ export const remoteBranchExists = (
     return false;
   }
 };
+
+/** Workspace state from git inspection */
+export interface WorkspaceState {
+  readonly hasUncommittedChanges: boolean;
+  readonly hasStagedChanges: boolean;
+  readonly hasUnstagedChanges: boolean;
+  readonly lastCommitSummary?: string;
+}
+
+/** Inspect the git workspace state: staged/unstaged changes and last commit */
+export const inspectWorkspace = (rootDir: string): WorkspaceState => {
+  let porcelain = "";
+  try {
+    porcelain = execFileSync("git", ["status", "--porcelain"], {
+      cwd: rootDir,
+      encoding: "utf-8",
+    });
+  } catch {
+    return {
+      hasUncommittedChanges: false,
+      hasStagedChanges: false,
+      hasUnstagedChanges: false,
+    };
+  }
+
+  const lines = porcelain.split("\n").filter((l) => l.length > 0);
+  // Porcelain format: XY where X = index status, Y = working tree status.
+  // [MADRC] = modified/added/deleted/renamed/copied.
+  const staged = lines.filter((line) => /^[MADRC]/.test(line));
+  // Exclude untracked (??) from unstaged — they contribute to hasUncommittedChanges only.
+  const unstaged = lines.filter((line) => /^.[MADRC]/.test(line));
+
+  let lastCommitSummary: string | undefined;
+  try {
+    lastCommitSummary =
+      execFileSync("git", ["log", "-1", "--oneline"], {
+        cwd: rootDir,
+        encoding: "utf-8",
+      }).trim() || undefined;
+  } catch {
+    // Empty repo or git error
+  }
+
+  return {
+    hasUncommittedChanges: lines.length > 0,
+    hasStagedChanges: staged.length > 0,
+    hasUnstagedChanges: unstaged.length > 0,
+    lastCommitSummary,
+  };
+};

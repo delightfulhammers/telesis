@@ -13,6 +13,9 @@ import {
 } from "../../orchestrator/decisions.js";
 import { runPreflight } from "../../orchestrator/preflight.js";
 import { formatDecisionDetail } from "../../orchestrator/format.js";
+import { generateResumeBriefing } from "../../orchestrator/resume.js";
+import { inspectWorkspace } from "../../git/operations.js";
+import { loadPlan } from "../../plan/store.js";
 import { createBus } from "../../daemon/bus.js";
 import type { OrchestratorContext } from "../../orchestrator/types.js";
 
@@ -361,6 +364,41 @@ export const register = (
             {
               type: "text" as const,
               text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text: String(err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "telesis_orchestrator_resume_briefing",
+    "Generate a structured resume briefing for an incoming session. Inspects orchestrator state, git workspace, and session history to produce an actionable orientation with recovery recommendations.",
+    {
+      projectRoot: z
+        .string()
+        .optional()
+        .describe("Override project root directory"),
+    },
+    async ({ projectRoot }) => {
+      try {
+        const rootDir = resolveRoot(projectRoot);
+        const briefing = generateResumeBriefing({
+          loadContext: () => loadContext(rootDir),
+          loadPlan: (planId) => loadPlan(rootDir, planId),
+          listPendingDecisions: () => listPendingDecisions(rootDir),
+          inspectWorkspace: () => inspectWorkspace(rootDir),
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(briefing, null, 2),
             },
           ],
         };

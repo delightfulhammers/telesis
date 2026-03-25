@@ -2,6 +2,7 @@ import { transition } from "./machine.js";
 import type {
   OrchestratorContext,
   OrchestratorState,
+  SessionExitReason,
   Decision,
   DecisionKind,
 } from "./types.js";
@@ -48,9 +49,12 @@ export interface RunnerDeps {
   ) => void;
   readonly createPlan: (workItemId: string) => Promise<string>;
   readonly approvePlan: (planId: string) => void;
+  readonly getSessionId: () => string;
   readonly executeTasks: (planId: string) => Promise<{
     allComplete: boolean;
     error?: string;
+    /** Number of completed tasks — required for accurate crash recovery checkpointing */
+    completedTaskCount: number;
   }>;
   readonly runQualityGates: () => Promise<{
     passed: boolean;
@@ -347,18 +351,50 @@ const advanceExecuting = async (
     };
   }
 
-  const result = await deps.executeTasks(ctx.planId);
+  // Set or reset session fields for this execution attempt.
+  // New session: assign ID. Resumed session: keep existing ID.
+  // Always reset startedAt, endedAt, exitReason — each attempt is a fresh session start.
+  const isNewSession = !ctx.sessionId;
+  const sessionCtx: OrchestratorContext = {
+    ...ctx,
+    ...(isNewSession && { sessionId: deps.getSessionId() }),
+    sessionStartedAt: new Date().toISOString(),
+    sessionEndedAt: undefined,
+    sessionExitReason: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  // Deliberate checkpoint before the blocking executeTasks call —
+  // if execution crashes, the session-start state is persisted for resume briefing.
+  deps.saveContext(sessionCtx);
+
+  const result = await deps.executeTasks(sessionCtx.planId!);
+
+  // Checkpoint task progress regardless of outcome.
+  // Explicit save ensures currentTaskIndex survives even if doTransition fails.
+  // On success: include exit metadata so crash between checkpoint and doTransition
+  // still leaves a coherent state for resume briefing.
+  const completedIndex = result.completedTaskCount;
+  const checkpointedCtx: OrchestratorContext = {
+    ...sessionCtx,
+    currentTaskIndex: completedIndex,
+    ...(result.allComplete && {
+      sessionEndedAt: new Date().toISOString(),
+      sessionExitReason: "clean" as SessionExitReason,
+    }),
+    updatedAt: new Date().toISOString(),
+  };
+  deps.saveContext(checkpointedCtx);
 
   if (result.allComplete) {
-    return doTransition(ctx, "post_task", deps);
+    return doTransition(checkpointedCtx, "post_task", deps);
   }
 
   return createAndWait(
-    ctx,
+    checkpointedCtx,
     deps,
     "escalation",
     `Task failed: ${result.error ?? "unknown error"}`,
-    JSON.stringify({ planId: ctx.planId, error: result.error }),
+    JSON.stringify({ planId: checkpointedCtx.planId, error: result.error }),
     "Task escalated",
   );
 };

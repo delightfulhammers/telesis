@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import type { EventBus } from "../daemon/bus.js";
 import { createEvent } from "../daemon/types.js";
 import type { ModelClient } from "../agent/model/client.js";
@@ -47,6 +48,8 @@ export const buildRunnerDeps = (
   bus: EventBus,
   client: ModelClient,
 ): RunnerDeps => ({
+  getSessionId: () => randomUUID(),
+
   syncIntake: async () => {
     // For now, sync is manual (telesis intake github). The orchestrator
     // reads whatever work items are already in the store.
@@ -132,12 +135,20 @@ export const buildRunnerDeps = (
       plan,
     );
 
+    // Read the updated plan to get accurate completed task count.
+    // Safe: executePlan writes task status synchronously via updatePlan
+    // before returning, so loadPlan will see the final state.
+    const updatedPlan = loadPlan(rootDir, planId);
+    const completedTaskCount =
+      updatedPlan?.tasks.filter((t) => t.status === "completed").length ?? 0;
+
     return {
       allComplete: result.status === "completed",
       error:
         result.status !== "completed"
           ? `Plan ended with status: ${result.status}`
           : undefined,
+      completedTaskCount,
     };
   },
 
