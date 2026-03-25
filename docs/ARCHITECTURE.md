@@ -86,7 +86,10 @@ telesis/
       deps.ts             ← buildRunnerDeps factory (composition root, v0.23.0)
     config/               ← .telesis/config.yml read/write
     context/              ← CLAUDE.md generation from doc tree
-    scaffold/             ← project initialization and file generation
+    scaffold/             ← project initialization, state detection, unified onboarding (v0.31.0)
+      detect.ts           ← project state detection (greenfield/existing/migration)
+      unified-init.ts     ← unified init orchestrator dispatching to mode-specific logic
+      upgrade.ts          ← scaffold artifact retrofitting (used internally by init)
     adr/                  ← ADR file management
     tdd/                  ← TDD file management
     status/               ← project status aggregation

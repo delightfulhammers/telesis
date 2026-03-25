@@ -41,14 +41,15 @@ CLAUDE.md            ← generated; stitches context together for Claude Code
 
 ### `telesis init`
 
-Initializes a new project context in the current repo.
+Unified project onboarding — auto-detects project state and applies the appropriate mode.
 
-- Gathers project metadata: name, owner, purpose, primary language(s), key constraints
-- Generates `VISION.md` skeleton from input
-- Creates empty skeletons for PRD, ARCHITECTURE, MILESTONES
-- Creates `docs/adr/` and `docs/tdd/` directories with README stubs
-- Creates `.telesis/config.yml`
-- Generates initial `CLAUDE.md`
+- **Greenfield** (no `.telesis/`, no docs): AI interview + doc generation
+- **Existing project** (no `.telesis/`, has docs): ingest docs, create config, scaffold
+- **Migration** (has `.telesis/` from older version): retrofit missing artifacts
+- `--docs <path>` — custom docs directory (default: `docs/`)
+- All modes install provider-appropriate adapter (Claude Code: skills + hooks; generic: git hooks)
+- Idempotent — safe to run repeatedly
+- Replaces the former `telesis upgrade` command (removed in v0.31.0)
 
 ### `telesis context`
 

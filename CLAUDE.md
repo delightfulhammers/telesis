@@ -57,39 +57,42 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.30.0 — Provider-Neutral Enforcement
+## v0.31.0 — Unified Init
 
-**Goal:** Telesis enforcement works without Claude Code-specific integration. The daemon
-provides preflight gating and contextual guidance through provider-neutral mechanisms — git
-hooks and MCP resources — so that Codex, Gemini, or any MCP-compatible agent receives the
-same guardrails as Claude Code.
+**Goal:** Evolve `telesis init` into a single command that handles all onboarding scenarios:
+greenfield projects, existing projects with pre-created docs, and version migration from
+older telesis installations. Remove the `upgrade` command — `init` handles everything.
 
 **Status:** Complete
 
-**Reference:** TDD-020 (Provider-Neutral Enforcement)
+**Reference:** TDD-021 (Unified Init)
 
 ### What Changes
 
-`telesis hooks install` installs native git hooks (pre-commit) that call `telesis orchestrator
-preflight`, replacing the dependency on Claude Code's PreToolUse hooks for enforcement.
-Contextual guidance currently delivered via `.claude/skills/` is also served as MCP resources
-that any MCP-compatible client can read. The git hooks and Claude Code hooks coexist — the git
-hook defers if it detects the Claude Code hook already ran preflight in the current process.
+`telesis init` auto-detects the project state and applies the appropriate mode:
+- **Greenfield** (no `.telesis/`, no docs): full AI interview + doc generation (existing behavior)
+- **Existing project** (no `.telesis/`, has docs): ingest existing docs, create `.telesis/config.yml`,
+  scaffold missing artifacts (skills, hooks, MCP config), identify doc gaps
+- **Migration** (has `.telesis/` from older version): retrofit missing scaffold artifacts
+  (current `upgrade` behavior absorbed into init)
+
+All modes end with provider detection and appropriate adapter installation (Claude Code:
+skills + hooks; generic: git hooks + MCP resources). The `upgrade` command is removed.
 
 ### Acceptance Criteria
 
-1. `telesis hooks install` installs a git pre-commit hook that calls `telesis orchestrator
-   preflight`
-2. `telesis hooks uninstall` removes the installed git hook
-3. Git hook exits non-zero when preflight fails, blocking the commit
-4. Git hook defers (exits 0) if Claude Code hook already ran preflight for this commit
-5. Contextual guidance (currently skills) is served as MCP resources with descriptions
-   matching the skill frontmatter
-6. Any MCP-compatible client can read guidance resources and receive the same context as
-   Claude Code skills provide
-7. MCP server emits process nudges via logging messages when orchestrator state changes
-8. All new business logic has colocated unit tests
-9. Running `telesis drift` produces zero errors
+1. `telesis init` on a greenfield project runs the AI interview (existing behavior preserved)
+2. `telesis init` on a project with existing docs (PRD.md, ARCHITECTURE.md, etc.) ingests
+   them and creates `.telesis/config.yml` without requiring the full interview
+3. `telesis init` on a project with `.telesis/` from an older version retrofits missing
+   scaffold artifacts (skills, hooks, MCP config)
+4. `telesis init` identifies missing docs and reports gaps (e.g., "VISION.md not found")
+5. `telesis init` detects LLM provider and installs appropriate adapter
+6. `telesis init` is idempotent — safe to run repeatedly on the same project
+7. `telesis upgrade` command is removed
+8. `telesis init --docs <path>` accepts a custom docs directory
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
 
 ---
 
@@ -106,7 +109,7 @@ hook defers if it detects the Claude Code hook already ran preflight in the curr
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (20 component designs)
+- TDDs: `docs/tdd/` (21 component designs)
 
 ---
 

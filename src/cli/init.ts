@@ -1,5 +1,7 @@
 import { createInterface } from "node:readline";
+import { mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import { Command } from "commander";
 import { handleAction } from "./handle-action.js";
 import { runInit } from "../agent/init/orchestrator.js";
@@ -11,6 +13,10 @@ import type { InterviewIO } from "../agent/interview/engine.js";
 import { generateDocuments } from "../agent/generate/generator.js";
 import { extractConfig } from "../agent/init/config-extract.js";
 import { generate } from "../context/context.js";
+import { save as saveConfig } from "../config/config.js";
+import { runUnifiedInit } from "../scaffold/unified-init.js";
+import { applyUpgrade } from "../scaffold/upgrade.js";
+import { installHook } from "../hooks/install.js";
 import type { DocumentType } from "../agent/generate/types.js";
 
 const DOCUMENT_LABELS: Readonly<Record<DocumentType, string>> = {
@@ -38,70 +44,151 @@ const createTerminalIO = (): InterviewIO & { close: () => void } => {
   return { readInput, writeOutput, close: () => rl.close() };
 };
 
+const scaffoldDirectories = (rootDir: string): void => {
+  for (const dir of ["docs/adr", "docs/tdd", "docs/context"]) {
+    mkdirSync(join(rootDir, dir), { recursive: true });
+  }
+};
+
 export const initCommand = new Command("init")
-  .description("Initialize a new Telesis project with AI-powered interview")
+  .description(
+    "Initialize telesis — auto-detects greenfield, existing docs, or version migration",
+  )
+  .option("--docs <path>", "Custom docs directory (default: docs)")
   .action(
-    handleAction(async () => {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        throw new Error(
-          "ANTHROPIC_API_KEY environment variable is not set. " +
-            "Set it to your Anthropic API key before running telesis init.",
-        );
-      }
-
+    handleAction(async (opts: { docs?: string }) => {
       const rootDir = process.cwd();
-      const sessionId = randomUUID();
-      const telemetry = createTelemetryLogger(rootDir);
-      const sdk = createSdk();
+      const docsDir = opts.docs;
 
-      const interviewClient = createModelClient({
-        sdk,
-        telemetry,
-        sessionId,
-        component: "interview",
-      });
-
-      const generateClient = createModelClient({
-        sdk,
-        telemetry,
-        sessionId,
-        component: "generate",
-      });
-
-      const configClient = createModelClient({
-        sdk,
-        telemetry,
-        sessionId,
-        component: "config-extract",
-      });
+      console.log("\ntelesis init\n");
 
       const io = createTerminalIO();
 
-      const deps: InitDeps = {
-        rootDir,
-        interviewClient,
-        generateClient,
-        configClient,
-        runInterview: (opts) => runInterview({ ...opts, io, maxTurns: 20 }),
-        generateDocuments,
-        extractConfig,
-        generateContext: generate,
-        onDocGenerated: (docType) => {
-          console.log(`  ✓ ${DOCUMENT_LABELS[docType]}`);
-        },
-      };
-
       try {
-        console.log("\ntelesis init\n");
+        const result = await runUnifiedInit({
+          rootDir,
+          docsDir,
 
-        const result = await runInit(deps);
+          runGreenfield: async () => {
+            if (!process.env.ANTHROPIC_API_KEY) {
+              throw new Error(
+                "ANTHROPIC_API_KEY environment variable is not set. " +
+                  "Set it to your Anthropic API key before running telesis init.",
+              );
+            }
 
-        console.log(`  ✓ CLAUDE.md`);
-        console.log(
-          `\nInitialized ${result.config.project.name} — ` +
-            `${result.documentsGenerated.length} documents generated ` +
-            `from ${result.turnCount} interview turn${result.turnCount === 1 ? "" : "s"}.`,
-        );
+            const sessionId = randomUUID();
+            const telemetry = createTelemetryLogger(rootDir);
+            const sdk = createSdk();
+
+            const interviewClient = createModelClient({
+              sdk,
+              telemetry,
+              sessionId,
+              component: "interview",
+            });
+            const generateClient = createModelClient({
+              sdk,
+              telemetry,
+              sessionId,
+              component: "generate",
+            });
+            const configClient = createModelClient({
+              sdk,
+              telemetry,
+              sessionId,
+              component: "config-extract",
+            });
+
+            const deps: InitDeps = {
+              rootDir,
+              interviewClient,
+              generateClient,
+              configClient,
+              runInterview: (o) => runInterview({ ...o, io, maxTurns: 20 }),
+              generateDocuments,
+              extractConfig,
+              generateContext: generate,
+              onDocGenerated: (docType) => {
+                console.log(`  ✓ ${DOCUMENT_LABELS[docType]}`);
+              },
+            };
+
+            const initResult = await runInit(deps);
+            console.log(`  ✓ CLAUDE.md`);
+            console.log(
+              `\nInitialized ${initResult.config.project.name} — ` +
+                `${initResult.documentsGenerated.length} documents generated ` +
+                `from ${initResult.turnCount} interview turn${initResult.turnCount === 1 ? "" : "s"}.`,
+            );
+            return initResult;
+          },
+
+          applyMigration: (dir) => applyUpgrade(dir),
+
+          extractConfigFromDocs: async (_dir, _docsPath) => {
+            // Minimal config from directory name.
+            // Future: LLM extraction from existing doc content.
+            const rawName = rootDir.split("/").pop() ?? "project";
+            const name =
+              rawName
+                .replace(/[^\w\s-]/g, "")
+                .trim()
+                .slice(0, 128) || "project";
+            return {
+              project: {
+                name,
+                owner: "",
+                language: "",
+                languages: [],
+                status: "active" as const,
+                repo: "",
+              },
+            };
+          },
+
+          saveConfig: (dir, config) => saveConfig(dir, config),
+          generateContext: (dir) => generate(dir),
+          scaffoldDirectories,
+
+          installProviderAdapter: (dir, hasClaudeDir) => {
+            // Generic adapter for all providers — git hooks
+            try {
+              installHook(dir);
+              console.log("  Installed git pre-commit hook");
+            } catch {
+              // Not a git repo — skip hook installation
+            }
+
+            if (hasClaudeDir) {
+              // Claude Code adapter — install skills/hooks/MCP config.
+              // applyUpgrade is idempotent — safe even if migration already ran.
+              const upgradeResult = applyUpgrade(dir);
+              if (upgradeResult.added.length > 0) {
+                console.log(
+                  `  Installed ${upgradeResult.added.length} Claude Code artifact(s)`,
+                );
+              }
+            }
+          },
+        });
+
+        console.log(`\nMode: ${result.mode}`);
+        if (result.existingDocs.length > 0) {
+          console.log(`Found: ${result.existingDocs.join(", ")}`);
+        }
+        if (result.missingDocs.length > 0) {
+          console.log(`Missing: ${result.missingDocs.join(", ")}`);
+        }
+        if (result.migrationResult) {
+          const { added, alreadyPresent } = result.migrationResult;
+          if (added.length > 0) {
+            console.log(`Added ${added.length} artifact(s)`);
+          }
+          if (alreadyPresent.length > 0) {
+            console.log(`${alreadyPresent.length} artifact(s) already present`);
+          }
+        }
       } finally {
         io.close();
       }

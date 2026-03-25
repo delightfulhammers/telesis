@@ -1491,34 +1491,42 @@ hook defers if it detects the Claude Code hook already ran preflight in the curr
 
 ---
 
-## v0.31.0 — Telesis Adopt
+## v0.31.0 — Unified Init
 
-**Goal:** A single command that onboards any project into telesis — whether the project is
-new to telesis or was initialized with an older version. Replaces `telesis init` for existing
-projects and `telesis upgrade` for version migration.
+**Goal:** Evolve `telesis init` into a single command that handles all onboarding scenarios:
+greenfield projects, existing projects with pre-created docs, and version migration from
+older telesis installations. Remove the `upgrade` command — `init` handles everything.
 
-**Status:** Planned
+**Status:** Complete
+
+**Reference:** TDD-021 (Unified Init)
 
 ### What Changes
 
-`telesis adopt` inspects the project state, identifies what telesis artifacts exist (config,
-docs, hooks, MCP config, skills), what's missing or outdated, and assists in creating or
-updating what's needed. It accepts pre-existing documentation (PRD, ARCHITECTURE, VISION,
-MILESTONES), identifies gaps, and assists in creating the missing pieces. Provider detection
-installs the appropriate adapter (Claude Code: skills + hooks; generic: git hooks + MCP
-resources).
+`telesis init` auto-detects the project state and applies the appropriate mode:
+- **Greenfield** (no `.telesis/`, no docs): full AI interview + doc generation (existing behavior)
+- **Existing project** (no `.telesis/`, has docs): ingest existing docs, create `.telesis/config.yml`,
+  scaffold missing artifacts (skills, hooks, MCP config), identify doc gaps
+- **Migration** (has `.telesis/` from older version): retrofit missing scaffold artifacts
+  (current `upgrade` behavior absorbed into init)
+
+All modes end with provider detection and appropriate adapter installation (Claude Code:
+skills + hooks; generic: git hooks + MCP resources). The `upgrade` command is removed.
 
 ### Acceptance Criteria
 
-1. `telesis adopt` works on a project with no prior telesis integration (greenfield)
-2. `telesis adopt` works on a project initialized with an older telesis version (migration)
-3. `telesis adopt` accepts pre-existing docs and identifies gaps
-4. `telesis adopt` assists in creating missing docs (conversational via MCP, template via CLI)
-5. `telesis adopt` detects active LLM provider and installs appropriate adapter
-6. `telesis adopt` subsumes current `telesis upgrade` functionality
-7. `telesis adopt` is idempotent — safe to run repeatedly
-8. All new business logic has colocated unit tests
-9. Running `telesis drift` produces zero errors
+1. `telesis init` on a greenfield project runs the AI interview (existing behavior preserved)
+2. `telesis init` on a project with existing docs (PRD.md, ARCHITECTURE.md, etc.) ingests
+   them and creates `.telesis/config.yml` without requiring the full interview
+3. `telesis init` on a project with `.telesis/` from an older version retrofits missing
+   scaffold artifacts (skills, hooks, MCP config)
+4. `telesis init` identifies missing docs and reports gaps (e.g., "VISION.md not found")
+5. `telesis init` detects LLM provider and installs appropriate adapter
+6. `telesis init` is idempotent — safe to run repeatedly on the same project
+7. `telesis upgrade` command is removed
+8. `telesis init --docs <path>` accepts a custom docs directory
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
 
 ---
 
