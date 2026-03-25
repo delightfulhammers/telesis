@@ -108,10 +108,66 @@ telesis orchestrator reject <decision-id> --reason "Tasks are too coarse"
 
 The orchestrator uses your feedback to adjust (e.g., re-plan with your guidance).
 
+## Session Tracking
+
+The orchestrator tracks agent session lifecycle across context boundaries. When a coding
+agent session ends — whether from context exhaustion, a hook block, a crash, or clean
+completion — the orchestrator records what happened so the next session can resume
+intelligently.
+
+Each execution attempt records:
+- **Session ID** — which session was active
+- **Start time** — when the execution attempt began
+- **End time** — when the session ended
+- **Exit reason** — `clean`, `hook_block`, `context_full`, `error`, or `unknown`
+
+### Resume Briefing
+
+When a new session needs to pick up where the last one left off:
+
+```
+telesis orchestrator resume-briefing
+```
+
+This inspects the orchestrator state, git workspace (staged/unstaged changes), and session
+history to produce a structured orientation:
+
+- Current state and task progress
+- What the last session was doing and why it ended
+- Whether uncommitted changes exist (and whether they look like completed work)
+- A specific recovery recommendation (e.g., "run review convergence, then commit")
+
+The MCP tool `telesis_orchestrator_resume_briefing` returns the same information as
+structured JSON for LLM consumption.
+
+## Restart Policies
+
+When the daemon detects that a dispatched agent session has ended, it applies a configurable
+restart policy:
+
+| Policy | Behavior |
+|--------|----------|
+| `notify-only` (default) | Sends OS notification, waits for human to run `orchestrator run` |
+| `auto-restart` | Automatically calls `advance()` to continue the state machine |
+| `manual` | No action — human must intervene |
+
+Configure in `.telesis/config.yml`:
+
+```yaml
+daemon:
+  sessionLifecycle:
+    restartPolicy: auto-restart
+    cooldownSeconds: 30
+    maxRestartsPerMilestone: 10
+```
+
+Auto-restart has safety rails:
+- **Cooldown** — minimum 30s between restarts (configurable)
+- **Circuit breaker** — stops after 10 restarts per milestone (configurable)
+
 ## Preflight Checks
 
-The orchestrator provides preflight checks that can be used as Claude Code hooks to
-gate git operations:
+The orchestrator provides preflight checks that gate git operations:
 
 ```
 telesis orchestrator preflight
@@ -125,15 +181,23 @@ Checks:
 
 Exits with code 1 on failure, which blocks the hook.
 
-### Claude Code Hook
+### Enforcement Mechanisms
 
-A hook is installed at `.claude/settings.json` that automatically runs preflight before
-every `git commit` in Claude Code. If preflight fails, the commit is blocked and Claude
-receives the failure message as feedback.
+Preflight is enforced through two complementary mechanisms:
 
-The hook script is at `.claude/hooks/git-preflight.sh`. It only intercepts `git commit`
-commands (not other git operations), using an anchored regex to avoid false positives on
-commands like `git commit-graph`.
+**Git hooks (provider-neutral):** `telesis hooks install` adds a git pre-commit hook that
+runs preflight before every commit. Works with any agent — no Claude Code dependency.
+
+```
+telesis hooks install    # install the hook
+telesis hooks uninstall  # remove it
+```
+
+**Claude Code hooks:** A hook at `.claude/settings.json` runs preflight before every
+`git commit` in Claude Code. The git hook and Claude Code hook coexist without conflict —
+the git hook defers if it detects the Claude Code hook already ran preflight.
+
+The Claude Code hook script is at `.claude/hooks/git-preflight.sh`.
 
 ## LLM Judgment Calls
 
@@ -149,6 +213,12 @@ These are suggestions — the human makes the final decision via the approval fl
 Orchestrator state is persisted to `.telesis/orchestrator.json`. If the daemon crashes,
 the orchestrator resumes from the last saved state on restart. Decisions are persisted
 individually in `.telesis/decisions/`.
+
+Task progress is checkpointed after each completed task — if a session dies mid-plan,
+the next session starts from the last completed task, not from scratch.
+
+The `telesis orchestrator status` command shows dispatch session history for the current
+milestone, including start/end times, status, and exit reasons.
 
 ## Starting the Orchestrator
 

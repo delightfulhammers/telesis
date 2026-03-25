@@ -186,12 +186,19 @@ daemon:
       - "dist/**"
       - ".git/**"
   heartbeatIntervalMs: 5000
+  sessionLifecycle:
+    restartPolicy: notify-only
+    cooldownSeconds: 30
+    maxRestartsPerMilestone: 10
 ```
 
 | Field | Default | Description |
 |---|---|---|
 | `watch.ignore` | — | Glob patterns for paths the daemon should not watch |
 | `heartbeatIntervalMs` | `5000` | Interval between heartbeat events (milliseconds) |
+| `sessionLifecycle.restartPolicy` | `notify-only` | What to do when a dispatched session ends: `auto-restart`, `notify-only`, `manual` |
+| `sessionLifecycle.cooldownSeconds` | `30` | Minimum seconds between auto-restarts |
+| `sessionLifecycle.maxRestartsPerMilestone` | `10` | Circuit breaker: max auto-restarts per milestone |
 
 ## Environment Variables
 
@@ -283,4 +290,8 @@ daemon:
       - "dist/**"
       - ".git/**"
   heartbeatIntervalMs: 5000
+  sessionLifecycle:
+    restartPolicy: notify-only
+    cooldownSeconds: 30
+    maxRestartsPerMilestone: 10
 ```

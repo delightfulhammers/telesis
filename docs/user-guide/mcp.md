@@ -57,16 +57,19 @@ The MCP server exposes 27 tools:
 - **telesis_review_list** / **_show** — past review sessions
 
 ### Orchestrator
-- **telesis_orchestrator_status** — current state, milestone, pending decisions
+- **telesis_orchestrator_status** — current state, milestone, pending decisions, session history
 - **telesis_orchestrator_run** — advance state machine until decision point or idle
 - **telesis_orchestrator_approve** — approve a decision (with optional triage metadata)
 - **telesis_orchestrator_reject** — reject with reason
 - **telesis_orchestrator_preflight** — preflight checks for commit gating
+- **telesis_orchestrator_resume_briefing** — structured orientation for session resumption
 
 All tools accept an optional `projectRoot` parameter to override the working directory.
 Input validation is enforced via Zod schemas (slug patterns, length caps).
 
 ## Resources
+
+### Document Resources
 
 Six project documents are exposed as readable MCP resources:
 
@@ -76,6 +79,20 @@ Six project documents are exposed as readable MCP resources:
 - `telesis://docs/MILESTONES.md`
 - `telesis://CLAUDE.md`
 - `telesis://config` (parsed config as YAML)
+
+### Guidance Resources
+
+Contextual guidance from `.claude/skills/*/SKILL.md` is served as MCP resources. Any
+MCP-compatible client can read these for the same context that Claude Code receives via
+skills:
+
+- `telesis://guidance/telesis-pipeline`
+- `telesis://guidance/telesis-review`
+- `telesis://guidance/telesis-milestone`
+- etc.
+
+Resources are registered at server startup from the skills directory. Content is re-read
+on each request to serve the current version.
 
 ## Design Notes
 

@@ -1,14 +1,33 @@
 ---
 title: Project Initialization
-description: The AI-powered interview and what it produces
+description: Unified onboarding for new and existing projects
 weight: 40
 ---
 
 # Project Initialization
 
-`telesis init` is the entry point. It runs an AI-powered interview to understand your project, then generates a complete set of living documents from your responses.
+`telesis init` is the entry point for all projects. It auto-detects the project state and
+applies the appropriate onboarding mode:
 
-## Running the Interview
+| Mode | Detected when | What happens |
+|------|--------------|--------------|
+| **Greenfield** | No `.telesis/`, no docs | AI interview + doc generation |
+| **Existing project** | Docs exist, no `.telesis/` | Ingest docs, create config, scaffold |
+| **Migration** | `.telesis/` exists | Retrofit missing scaffold artifacts |
+
+Just run `telesis init` — you don't need to specify which mode. Telesis inspects your
+project and does the right thing.
+
+## Options
+
+| Flag | Description |
+|------|-------------|
+| `--docs <path>` | Custom docs directory (default: `docs/`) |
+
+## Greenfield Mode
+
+When no project documents or telesis config exist, `telesis init` runs a full AI-powered
+interview.
 
 ```bash
 telesis init
@@ -33,6 +52,39 @@ The interview adapts to your answers, but it generally covers:
 - **Constraints** — technology choices, performance requirements, compliance needs
 - **Development practices** — testing strategy, deployment model, team conventions
 - **Roadmap** — what's been built, what's next, what "done" looks like
+
+## Existing Project Mode
+
+When `telesis init` finds documentation files (PRD.md, ARCHITECTURE.md, VISION.md, or
+MILESTONES.md) but no `.telesis/config.yml`, it skips the interview and ingests what exists:
+
+- Creates `.telesis/config.yml` with project metadata derived from your project
+- Scaffolds standard directories (`docs/adr/`, `docs/tdd/`, `docs/context/`)
+- Generates `CLAUDE.md` from existing docs
+- Reports which docs are present and which are missing
+
+Use `--docs` if your documentation lives outside the default `docs/` directory:
+
+```bash
+telesis init --docs documentation/
+```
+
+## Migration Mode
+
+When `.telesis/config.yml` already exists (from an older telesis version), `init` retrofits
+any missing scaffold artifacts — skills, hooks, MCP config — without touching your existing
+docs or config. This is idempotent: running it on an up-to-date project is a no-op.
+
+> **Note:** `telesis upgrade` was removed in v0.31.0. Use `telesis init` instead — it
+> detects migration mode automatically.
+
+## Provider Adapter Installation
+
+All modes install a provider-appropriate enforcement adapter:
+
+- **Claude Code detected** (`.claude/` directory exists): installs skills, Claude Code hooks,
+  and MCP config
+- **Generic**: installs git pre-commit hook via `telesis hooks install`
 
 ## Generated Documents
 

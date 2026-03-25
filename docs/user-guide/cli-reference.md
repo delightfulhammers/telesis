@@ -10,13 +10,22 @@ Complete reference for all Telesis CLI commands.
 
 ## telesis init
 
-Initialize a new Telesis project with an AI-powered interview.
+Unified project onboarding — auto-detects greenfield, existing docs, or version migration.
 
 ```
-telesis init
+telesis init [--docs <path>]
 ```
 
-Requires `ANTHROPIC_API_KEY`. Creates `docs/VISION.md`, `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/MILESTONES.md`, `.telesis/config.yml`, and `CLAUDE.md`. If an interrupted interview state exists (`.telesis/interview-state.json`), it resumes automatically.
+| Flag | Description |
+|---|---|
+| `--docs <path>` | Custom docs directory (default: `docs/`) |
+
+**Modes:**
+- **Greenfield** (no `.telesis/`, no docs): AI interview + doc generation. Requires `ANTHROPIC_API_KEY`.
+- **Existing project** (docs exist, no `.telesis/`): ingests docs, creates config, scaffolds.
+- **Migration** (`.telesis/` exists): retrofits missing scaffold artifacts.
+
+Idempotent — safe to run repeatedly. Replaces the former `telesis upgrade` command (removed in v0.31.0).
 
 ---
 
@@ -281,13 +290,27 @@ Orchestrator lifecycle management.
 | `telesis orchestrator run` | Advance the state machine until a decision point or idle |
 | `telesis orchestrator approve <id> [--items ...] [--milestone-name ...] [--milestone-id ...] [--goal ...]` | Approve a decision (triage flags set milestone metadata) |
 | `telesis orchestrator reject <decision-id> --reason <text>` | Reject a decision with feedback |
-| `telesis orchestrator preflight` | Run preflight checks (used by Claude Code hooks) |
+| `telesis orchestrator preflight` | Run preflight checks (used by hooks) |
+| `telesis orchestrator resume-briefing` | Generate structured orientation for resuming after a session boundary |
 
 Decision IDs support prefix matching (8+ characters). Triage approval accepts `--items` (comma-separated IDs), `--milestone-name`, `--milestone-id`, and `--goal` to configure the milestone scope.
 
 Preflight checks: milestone entry exists, review has converged, quality gates pass, no blocking decisions pending. Exits 1 on failure.
 
-A Claude Code hook is installed at `.claude/settings.json` that runs `telesis orchestrator preflight` before every `git commit`.
+Resume briefing inspects orchestrator state, git workspace, and session history to produce a recovery recommendation.
+
+---
+
+## telesis hooks
+
+Provider-neutral git hook management.
+
+| Command | Description |
+|---|---|
+| `telesis hooks install` | Install git pre-commit hook that runs preflight checks |
+| `telesis hooks uninstall` | Remove telesis git pre-commit hook |
+
+The git hook coexists with Claude Code hooks — defers if Claude Code already ran preflight. Appends to existing hooks without overwriting. Idempotent.
 
 ---
 
@@ -312,11 +335,11 @@ MCP server binary (separate from the CLI).
 telesis-mcp
 ```
 
-Starts a stdio MCP server exposing 22 tools and 6 resources. Intended for use with Claude Code or other MCP clients.
+Starts a stdio MCP server exposing 28 tools and 6+ resources. Intended for use with Claude Code or other MCP clients.
 
-**Tools:** `telesis_status`, `telesis_drift`, `telesis_context_generate`, `telesis_adr_new`, `telesis_tdd_new`, `telesis_journal_add`, `telesis_journal_list`, `telesis_journal_show`, `telesis_note_add`, `telesis_note_list`, `telesis_milestone_check`, `telesis_milestone_complete`, `telesis_intake_list`, `telesis_intake_show`, `telesis_plan_list`, `telesis_plan_show`, `telesis_plan_approve`, `telesis_dispatch_list`, `telesis_dispatch_show`, `telesis_review`, `telesis_review_list`, `telesis_review_show`
+**Tools:** `telesis_status`, `telesis_drift`, `telesis_context_generate`, `telesis_adr_new`, `telesis_tdd_new`, `telesis_journal_add`, `telesis_journal_list`, `telesis_journal_show`, `telesis_note_add`, `telesis_note_list`, `telesis_milestone_check`, `telesis_milestone_complete`, `telesis_intake_list`, `telesis_intake_show`, `telesis_plan_list`, `telesis_plan_show`, `telesis_plan_approve`, `telesis_dispatch_list`, `telesis_dispatch_show`, `telesis_review`, `telesis_review_list`, `telesis_review_show`, `telesis_orchestrator_status`, `telesis_orchestrator_run`, `telesis_orchestrator_approve`, `telesis_orchestrator_reject`, `telesis_orchestrator_preflight`, `telesis_orchestrator_resume_briefing`
 
-**Resources:** `telesis://docs/VISION.md`, `telesis://docs/PRD.md`, `telesis://docs/ARCHITECTURE.md`, `telesis://docs/MILESTONES.md`, `telesis://CLAUDE.md`, `telesis://config`
+**Resources:** `telesis://docs/VISION.md`, `telesis://docs/PRD.md`, `telesis://docs/ARCHITECTURE.md`, `telesis://docs/MILESTONES.md`, `telesis://CLAUDE.md`, `telesis://config`, `telesis://guidance/*` (one per installed skill)
 
 Configure in Claude Code:
 ```json
