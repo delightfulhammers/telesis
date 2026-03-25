@@ -57,45 +57,39 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.29.0 — Daemon Session Lifecycle
+## v0.30.0 — Provider-Neutral Enforcement
 
-**Goal:** The daemon becomes the session lifecycle manager. When a dispatched agent session
-completes or fails, the daemon automatically persists exit state, generates a resume briefing,
-and — based on configurable policy — re-dispatches the next orchestrator step or notifies the
-human. The orchestrator no longer depends on an external actor to notice that a session ended
-and manually advance the state machine.
+**Goal:** Telesis enforcement works without Claude Code-specific integration. The daemon
+provides preflight gating and contextual guidance through provider-neutral mechanisms — git
+hooks and MCP resources — so that Codex, Gemini, or any MCP-compatible agent receives the
+same guardrails as Claude Code.
 
 **Status:** Complete
 
-**Reference:** TDD-019 (Daemon Session Lifecycle)
+**Reference:** TDD-020 (Provider-Neutral Enforcement)
 
 ### What Changes
 
-The daemon subscribes to `dispatch:session:completed` and `dispatch:session:failed` events
-on the event bus. On session end, it persists the exit reason to orchestrator context (using
-v0.28.0 session tracking fields), generates a resume briefing, and applies the configured
-restart policy. The dispatcher and `AgentAdapter` (acpx) already handle session creation,
-monitoring, and cleanup — v0.29.0 wires the daemon to react to their output and drive the
-orchestrator forward.
-
-Session history is already tracked in `.telesis/dispatch/` via `SessionMeta`. The orchestrator
-status command is extended to surface dispatch session history for the current milestone.
+`telesis hooks install` installs native git hooks (pre-commit) that call `telesis orchestrator
+preflight`, replacing the dependency on Claude Code's PreToolUse hooks for enforcement.
+Contextual guidance currently delivered via `.claude/skills/` is also served as MCP resources
+that any MCP-compatible client can read. The git hooks and Claude Code hooks coexist — the git
+hook defers if it detects the Claude Code hook already ran preflight in the current process.
 
 ### Acceptance Criteria
 
-1. Daemon subscribes to `dispatch:session:completed` and `dispatch:session:failed` bus events
-2. On session end, daemon persists exit reason to orchestrator context via session tracking
-3. Daemon generates resume briefing artifact on session end (writes to `.telesis/`)
-4. Daemon re-dispatches the next orchestrator step when restart policy is `auto-restart`
-5. Daemon sends OS notification when restart policy is `notify-only` (default)
-6. Configurable restart policy in `.telesis/config.yml`: auto-restart, notify-only, manual
-7. Auto-restart respects a configurable cooldown (default 30s) to prevent thrashing
-8. Auto-restart respects a max-restart count per milestone (default 10) as circuit breaker
-9. `telesis orchestrator status` shows dispatch session history for the current milestone
-10. Exit reason mapping: dispatch `completed` → orchestrator `clean`, dispatch `failed` →
-    orchestrator `error`, acpx error containing "hook" or "preflight" → `hook_block`
-11. All new business logic has colocated unit tests
-12. Running `telesis drift` produces zero errors
+1. `telesis hooks install` installs a git pre-commit hook that calls `telesis orchestrator
+   preflight`
+2. `telesis hooks uninstall` removes the installed git hook
+3. Git hook exits non-zero when preflight fails, blocking the commit
+4. Git hook defers (exits 0) if Claude Code hook already ran preflight for this commit
+5. Contextual guidance (currently skills) is served as MCP resources with descriptions
+   matching the skill frontmatter
+6. Any MCP-compatible client can read guidance resources and receive the same context as
+   Claude Code skills provide
+7. MCP server emits process nudges via logging messages when orchestrator state changes
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
 
 ---
 
@@ -112,7 +106,7 @@ status command is extended to surface dispatch session history for the current m
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (19 component designs)
+- TDDs: `docs/tdd/` (20 component designs)
 
 ---
 

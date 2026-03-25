@@ -319,6 +319,23 @@ Orchestrator state management and human decision interface.
 - Status command shows dispatch session history for the current milestone
 - Claude Code hook installed: `PreToolUse(Bash)` gates git commit on preflight
 
+### `telesis hooks`
+
+Provider-neutral git hook management.
+
+- `telesis hooks install` — install git pre-commit hook that runs preflight checks
+- `telesis hooks uninstall` — remove telesis git hook
+- Git hooks coexist with Claude Code hooks (marker file dedup)
+- Works with any agent — no Claude Code dependency required
+
+### MCP Guidance Resources
+
+Contextual guidance served as MCP resources for any MCP-compatible client.
+
+- Skills content from `.claude/skills/*/SKILL.md` served as `telesis://guidance/{name}`
+- Any MCP client can read guidance resources for the same context Claude Code skills provide
+- Resources re-read at request time to serve current content
+
 ### `telesis update`
 
 Self-update mechanism.

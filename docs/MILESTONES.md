@@ -1458,38 +1458,67 @@ status command is extended to surface dispatch session history for the current m
 ## v0.30.0 — Provider-Neutral Enforcement
 
 **Goal:** Telesis enforcement works without Claude Code-specific integration. The daemon
-provides preflight gating, contextual guidance, and process nudging through provider-neutral
-mechanisms — git hooks and MCP resources — so that Codex, Gemini, or any MCP-compatible
-agent receives the same guardrails as Claude Code.
+provides preflight gating and contextual guidance through provider-neutral mechanisms — git
+hooks and MCP resources — so that Codex, Gemini, or any MCP-compatible agent receives the
+same guardrails as Claude Code.
+
+**Status:** Complete
+
+**Reference:** TDD-020 (Provider-Neutral Enforcement)
+
+### What Changes
+
+`telesis hooks install` installs native git hooks (pre-commit) that call `telesis orchestrator
+preflight`, replacing the dependency on Claude Code's PreToolUse hooks for enforcement.
+Contextual guidance currently delivered via `.claude/skills/` is also served as MCP resources
+that any MCP-compatible client can read. The git hooks and Claude Code hooks coexist — the git
+hook defers if it detects the Claude Code hook already ran preflight in the current process.
+
+### Acceptance Criteria
+
+1. `telesis hooks install` installs a git pre-commit hook that calls `telesis orchestrator
+   preflight`
+2. `telesis hooks uninstall` removes the installed git hook
+3. Git hook exits non-zero when preflight fails, blocking the commit
+4. Git hook defers (exits 0) if Claude Code hook already ran preflight for this commit
+5. Contextual guidance (currently skills) is served as MCP resources with descriptions
+   matching the skill frontmatter
+6. Any MCP-compatible client can read guidance resources and receive the same context as
+   Claude Code skills provide
+7. MCP server emits process nudges via logging messages when orchestrator state changes
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+---
+
+## v0.31.0 — Telesis Adopt
+
+**Goal:** A single command that onboards any project into telesis — whether the project is
+new to telesis or was initialized with an older version. Replaces `telesis init` for existing
+projects and `telesis upgrade` for version migration.
 
 **Status:** Planned
 
 ### What Changes
 
-The daemon installs native git hooks (pre-commit, pre-push) that call `telesis orchestrator
-preflight`, replacing the dependency on Claude Code's PreToolUse hooks for enforcement.
-Contextual guidance currently delivered via `.claude/skills/` is also served as MCP resources
-that any MCP-compatible client can read. The daemon watches for git events (commits, pushes)
-and emits process nudges (review reminders, milestone gate warnings) through MCP logging
-messages rather than OS notifications alone.
+`telesis adopt` inspects the project state, identifies what telesis artifacts exist (config,
+docs, hooks, MCP config, skills), what's missing or outdated, and assists in creating or
+updating what's needed. It accepts pre-existing documentation (PRD, ARCHITECTURE, VISION,
+MILESTONES), identifies gaps, and assists in creating the missing pieces. Provider detection
+installs the appropriate adapter (Claude Code: skills + hooks; generic: git hooks + MCP
+resources).
 
 ### Acceptance Criteria
 
-1. `telesis adopt` installs git pre-commit and pre-push hooks that run preflight checks
-2. Git hooks work identically to Claude Code PreToolUse hooks (exit non-zero blocks the action)
-3. Git hooks and Claude Code hooks coexist without conflict (git hooks defer if Claude Code
-   hook already ran preflight)
-4. Contextual guidance (currently skills) is served as MCP resources with descriptions
-   matching the skill frontmatter
-5. Any MCP-compatible client can read guidance resources and receive the same context as
-   Claude Code skills provide
-6. Daemon emits process nudges via MCP logging messages on relevant git events
-7. `telesis adopt` detects the active LLM provider and installs appropriate adapter
-   (Claude Code: skills + hooks; generic: git hooks + MCP resources)
-8. End-to-end test: a non-Claude MCP client can drive the full orchestrator lifecycle
-   using only MCP tools and git hooks for enforcement
-9. All new business logic has colocated unit tests
-10. Running `telesis drift` produces zero errors
+1. `telesis adopt` works on a project with no prior telesis integration (greenfield)
+2. `telesis adopt` works on a project initialized with an older telesis version (migration)
+3. `telesis adopt` accepts pre-existing docs and identifies gaps
+4. `telesis adopt` assists in creating missing docs (conversational via MCP, template via CLI)
+5. `telesis adopt` detects active LLM provider and installs appropriate adapter
+6. `telesis adopt` subsumes current `telesis upgrade` functionality
+7. `telesis adopt` is idempotent — safe to run repeatedly
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
 
 ---
 

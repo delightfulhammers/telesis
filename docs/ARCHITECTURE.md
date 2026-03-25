@@ -67,6 +67,10 @@ telesis/
       resources/
         index.ts          ← registerResources aggregator
         docs.ts           ← telesis:// document and config resources
+        guidance.ts       ← telesis://guidance/ skill content as MCP resources (v0.30.0)
+    hooks/                ← provider-neutral git hook management (v0.30.0)
+      install.ts          ← git pre-commit hook install/uninstall
+
     orchestrator/         ← orchestrator state machine, decisions, runner (v0.22.0, v0.28.0)
       types.ts            ← OrchestratorState, OrchestratorContext, Decision, SessionExitReason
       machine.ts          ← state machine: transitions, preconditions, entry effects
