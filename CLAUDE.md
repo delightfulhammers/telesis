@@ -113,7 +113,7 @@ orientation for the incoming session.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (18 component designs)
+- TDDs: `docs/tdd/` (19 component designs)
 
 ---
 

@@ -1415,33 +1415,43 @@ orientation for the incoming session.
 
 ## v0.29.0 — Daemon Session Lifecycle
 
-**Goal:** The daemon becomes the session lifecycle manager — detecting session death, triggering
-restarts, and generating handoff artifacts. The orchestrator no longer depends on an external
-actor to notice that a session ended and manually start a new one.
+**Goal:** The daemon becomes the session lifecycle manager. When a dispatched agent session
+completes or fails, the daemon automatically persists exit state, generates a resume briefing,
+and — based on configurable policy — re-dispatches the next orchestrator step or notifies the
+human. The orchestrator no longer depends on an external actor to notice that a session ended
+and manually advance the state machine.
 
 **Status:** Planned
 
+**Reference:** TDD-019 (Daemon Session Lifecycle)
+
 ### What Changes
 
-The daemon monitors active agent sessions via the event bus and socket connections. When it
-detects a session has ended (socket disconnect, process exit, heartbeat timeout), it persists
-the exit reason, generates a resume briefing, and optionally spawns a new agent session with
-the briefing as initial context. The daemon manages the full session lifecycle: start, monitor,
-detect death, checkpoint, restart.
+The daemon subscribes to `dispatch:session:completed` and `dispatch:session:failed` events
+on the event bus. On session end, it persists the exit reason to orchestrator context (using
+v0.28.0 session tracking fields), generates a resume briefing, and applies the configured
+restart policy. The dispatcher and `AgentAdapter` (acpx) already handle session creation,
+monitoring, and cleanup — v0.29.0 wires the daemon to react to their output and drive the
+orchestrator forward.
+
+Session history is already tracked in `.telesis/dispatch/` via `SessionMeta`. The orchestrator
+status command is extended to surface dispatch session history for the current milestone.
 
 ### Acceptance Criteria
 
-1. Daemon detects agent session end via socket disconnect or process monitoring
-2. On session end, daemon persists exit reason to orchestrator context
-3. Daemon generates resume briefing artifact on session end
-4. Daemon can spawn a new agent session with resume briefing as initial context
-5. Configurable restart policy: auto-restart, notify-only, or manual (default: notify-only)
-6. Session restart respects a configurable cooldown to prevent thrashing
-7. Daemon tracks session history (start time, end time, exit reason, tasks completed) in
-   `.telesis/sessions/`
-8. `telesis orchestrator status` shows session history for the current milestone
-9. All new business logic has colocated unit tests
-10. Running `telesis drift` produces zero errors
+1. Daemon subscribes to `dispatch:session:completed` and `dispatch:session:failed` bus events
+2. On session end, daemon persists exit reason to orchestrator context via session tracking
+3. Daemon generates resume briefing artifact on session end (writes to `.telesis/`)
+4. Daemon re-dispatches the next orchestrator step when restart policy is `auto-restart`
+5. Daemon sends OS notification when restart policy is `notify-only` (default)
+6. Configurable restart policy in `.telesis/config.yml`: auto-restart, notify-only, manual
+7. Auto-restart respects a configurable cooldown (default 30s) to prevent thrashing
+8. Auto-restart respects a max-restart count per milestone (default 10) as circuit breaker
+9. `telesis orchestrator status` shows dispatch session history for the current milestone
+10. Exit reason mapping: dispatch `completed` → orchestrator `clean`, dispatch `failed` →
+    orchestrator `error`, acpx error containing "hook" or "preflight" → `hook_block`
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
 
 ---
 
