@@ -62,9 +62,9 @@ hooks and speaks MCP.
 
 | File | Purpose |
 |------|---------|
+| `src/hooks/` | Provider-neutral git hook management package |
 | `src/hooks/install.ts` | Git hook installation/uninstallation logic |
 | `src/hooks/install.test.ts` | Unit tests for hook management |
-| `src/hooks/templates.ts` | Git hook script templates |
 | `src/cli/hooks.ts` | `telesis hooks install` / `uninstall` commands |
 | `src/mcp/resources/guidance.ts` | Contextual guidance as MCP resources |
 | `src/mcp/resources/guidance.test.ts` | Unit tests for guidance resources |
