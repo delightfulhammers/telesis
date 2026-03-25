@@ -1421,7 +1421,7 @@ and — based on configurable policy — re-dispatches the next orchestrator ste
 human. The orchestrator no longer depends on an external actor to notice that a session ended
 and manually advance the state machine.
 
-**Status:** Planned
+**Status:** Complete
 
 **Reference:** TDD-019 (Daemon Session Lifecycle)
 

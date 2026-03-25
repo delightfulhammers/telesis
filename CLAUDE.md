@@ -57,46 +57,45 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.28.0 — Multi-Session Orchestrator
+## v0.29.0 — Daemon Session Lifecycle
 
-**Goal:** Make the orchestrator survive agent session boundaries. When a coding agent session
-ends mid-milestone — whether from context exhaustion, a hook block, a crash, or clean
-completion — the orchestrator captures enough state for a new session to resume intelligently
-without manual reconstruction.
+**Goal:** The daemon becomes the session lifecycle manager. When a dispatched agent session
+completes or fails, the daemon automatically persists exit state, generates a resume briefing,
+and — based on configurable policy — re-dispatches the next orchestrator step or notifies the
+human. The orchestrator no longer depends on an external actor to notice that a session ended
+and manually advance the state machine.
 
 **Status:** Complete
 
-**Reference:** TDD-018 (Multi-Session Orchestrator)
+**Reference:** TDD-019 (Daemon Session Lifecycle)
 
 ### What Changes
 
-The orchestrator gains three capabilities: mid-execution checkpointing (task progress persisted
-after each completed task), session tracking (which session is active, when it started, why the
-last session ended), and a resume briefing (structured orientation artifact for new sessions that
-includes orchestrator state, workspace status, and recommended next action).
+The daemon subscribes to `dispatch:session:completed` and `dispatch:session:failed` events
+on the event bus. On session end, it persists the exit reason to orchestrator context (using
+v0.28.0 session tracking fields), generates a resume briefing, and applies the configured
+restart policy. The dispatcher and `AgentAdapter` (acpx) already handle session creation,
+monitoring, and cleanup — v0.29.0 wires the daemon to react to their output and drive the
+orchestrator forward.
 
-The `OrchestratorContext` gains session fields: `sessionId`, `sessionStartedAt`,
-`sessionEndedAt`, `sessionExitReason`. The plan executor checkpoints `currentTaskIndex` after
-each task completion. A new `resume-briefing` MCP tool (and CLI command) inspects orchestrator
-context, git working tree state, and last session exit reason to produce an actionable
-orientation for the incoming session.
+Session history is already tracked in `.telesis/dispatch/` via `SessionMeta`. The orchestrator
+status command is extended to surface dispatch session history for the current milestone.
 
 ### Acceptance Criteria
 
-1. Plan executor persists `currentTaskIndex` to orchestrator context after each task completes
-2. Resuming execution after a session death starts from the last checkpointed task, not task 1
-3. `OrchestratorContext` tracks `sessionId`, `sessionStartedAt`, `sessionEndedAt`,
-   `sessionExitReason` (hook_block | context_full | error | clean | unknown)
-4. Session fields are set when `executing` begins and updated when the session ends
-5. `telesis orchestrator resume-briefing` CLI command produces a structured orientation:
-   current state, completed tasks, workspace status (uncommitted changes, staged files),
-   last session exit reason, and recommended next action
-6. `telesis_orchestrator_resume_briefing` MCP tool exposes the same orientation to LLM clients
-7. Resume briefing detects uncommitted changes consistent with completed work (task done but
-   commit blocked) and recommends the appropriate recovery path
-8. Resume briefing is idempotent — safe to call multiple times without side effects
-9. All new business logic has colocated unit tests
-10. Running `telesis drift` produces zero errors
+1. Daemon subscribes to `dispatch:session:completed` and `dispatch:session:failed` bus events
+2. On session end, daemon persists exit reason to orchestrator context via session tracking
+3. Daemon generates resume briefing artifact on session end (writes to `.telesis/`)
+4. Daemon re-dispatches the next orchestrator step when restart policy is `auto-restart`
+5. Daemon sends OS notification when restart policy is `notify-only` (default)
+6. Configurable restart policy in `.telesis/config.yml`: auto-restart, notify-only, manual
+7. Auto-restart respects a configurable cooldown (default 30s) to prevent thrashing
+8. Auto-restart respects a max-restart count per milestone (default 10) as circuit breaker
+9. `telesis orchestrator status` shows dispatch session history for the current milestone
+10. Exit reason mapping: dispatch `completed` → orchestrator `clean`, dispatch `failed` →
+    orchestrator `error`, acpx error containing "hook" or "preflight" → `hook_block`
+11. All new business logic has colocated unit tests
+12. Running `telesis drift` produces zero errors
 
 ---
 

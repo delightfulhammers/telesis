@@ -167,6 +167,13 @@ export const listSessions = (rootDir: string): readonly SessionMeta[] => {
   return sessions.sort((a, b) => (a.startedAt > b.startedAt ? -1 : 1));
 };
 
+/** List sessions started at or after a given ISO timestamp */
+export const listSessionsSince = (
+  rootDir: string,
+  since: string,
+): readonly SessionMeta[] =>
+  listSessions(rootDir).filter((s) => s.startedAt >= since);
+
 /** Resolve a session ID prefix to a full ID */
 const resolveSessionId = (
   rootDir: string,

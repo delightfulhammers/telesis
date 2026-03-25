@@ -311,6 +311,12 @@ Orchestrator state management and human decision interface.
 - Exit code 1 on preflight failure (blocks the hook)
 - Session tracking: orchestrator records session ID, start time, exit reason for each
   execution attempt; resume briefing produces recovery recommendations
+- Daemon session reactor: subscribes to dispatch lifecycle events, maps exit reasons,
+  applies configurable restart policy (auto-restart, notify-only, manual)
+- Configurable via `daemon.sessionLifecycle` in `.telesis/config.yml`: restartPolicy,
+  cooldownSeconds, maxRestartsPerMilestone
+- Circuit breaker: auto-restart stops after maxRestartsPerMilestone (default 10)
+- Status command shows dispatch session history for the current milestone
 - Claude Code hook installed: `PreToolUse(Bash)` gates git commit on preflight
 
 ### `telesis update`

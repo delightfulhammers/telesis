@@ -93,7 +93,7 @@ telesis/
       format.ts           ← formatCheckReport — terminal output for milestone check
     notes/                ← development notes (JSONL store, formatting)
     journal/              ← design journal (JSONL store, formatting, migration) (v0.11.0)
-    daemon/               ← daemon process, event bus, socket server, fs watcher (v0.12.0)
+    daemon/               ← daemon process, event bus, socket server, fs watcher (v0.12.0, v0.29.0)
       types.ts            ← event discriminated union, socket protocol, config types
       bus.ts              ← RxJS event bus (sole rxjs importer)
       watcher.ts          ← node:fs.watch wrapper with ignore/debounce
@@ -102,6 +102,7 @@ telesis/
       lifecycle.ts        ← start/stop/status orchestration
       client.ts           ← socket client for CLI/TUI
       entrypoint.ts       ← daemon main loop
+      session-reactor.ts  ← dispatch lifecycle reactor: exit mapping, restart policy
       supervision.ts      ← LaunchAgent/systemd unit generation
       tui.ts              ← event stream renderer
     dispatch/             ← ACP agent dispatch, session management (v0.13.0)

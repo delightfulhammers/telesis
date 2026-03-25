@@ -13,6 +13,13 @@ import {
   startOrchestrator,
   stopOrchestrator,
 } from "../orchestrator/integration.js";
+import { buildRunnerDeps } from "../orchestrator/deps.js";
+import { createModelClient, createSdk } from "../agent/model/client.js";
+import { createTelemetryLogger } from "../agent/telemetry/logger.js";
+import {
+  loadRawConfig,
+  parseDaemonConfig as parseConfigDaemon,
+} from "../config/config.js";
 import { checkForUpdate } from "../update/update.js";
 import { notify } from "../orchestrator/notify.js";
 
@@ -34,8 +41,22 @@ export const runDaemon = async (
     eventCount++;
   });
 
-  // Start orchestrator (subscribes to bus, loads/creates persisted state)
-  const orchestrator = startOrchestrator(resolvedRoot, bus);
+  // Create model client once — shared across all reactor restarts.
+  // SDK construction is contained to entrypoint.ts (composition root).
+  const telemetry = createTelemetryLogger(resolvedRoot);
+  const modelClient = createModelClient({
+    sdk: createSdk(),
+    telemetry,
+    sessionId: "daemon",
+    component: "orchestrator",
+  });
+
+  // Start orchestrator (subscribes to bus via session reactor, loads/creates persisted state)
+  const orchestrator = startOrchestrator(resolvedRoot, bus, {
+    sessionLifecycle: config.sessionLifecycle,
+    buildRunnerDeps: () => buildRunnerDeps(resolvedRoot, bus, modelClient),
+    notify,
+  });
 
   // Merge ignore patterns
   const ignorePatterns = [

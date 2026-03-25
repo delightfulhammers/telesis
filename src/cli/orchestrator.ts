@@ -21,6 +21,7 @@ import {
 } from "../orchestrator/resume.js";
 import { inspectWorkspace } from "../git/operations.js";
 import { loadPlan } from "../plan/store.js";
+import { listSessionsSince } from "../dispatch/store.js";
 import { randomUUID } from "node:crypto";
 
 const statusCommand = new Command("status")
@@ -53,6 +54,25 @@ const statusCommand = new Command("status")
         );
       }
       console.log(`Updated:      ${ctx.updatedAt}`);
+
+      // Session history (filter to current milestone timeframe)
+      if (ctx.startedAt) {
+        const sessions = listSessionsSince(rootDir, ctx.startedAt);
+        if (sessions.length > 0) {
+          console.log("");
+          console.log(`Session history (${sessions.length}):`);
+          for (const s of sessions) {
+            const duration = s.completedAt
+              ? `${Math.round((new Date(s.completedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)}s`
+              : "...";
+            const detail =
+              s.status === "failed" ? `, ${s.error ?? "unknown error"}` : "";
+            console.log(
+              `  ${s.id.slice(0, 8)} [${s.status}] ${s.startedAt} (${duration}${detail})`,
+            );
+          }
+        }
+      }
 
       const pending = listPendingDecisions(rootDir);
       if (pending.length > 0) {

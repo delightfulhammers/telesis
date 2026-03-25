@@ -16,6 +16,7 @@ import { formatDecisionDetail } from "../../orchestrator/format.js";
 import { generateResumeBriefing } from "../../orchestrator/resume.js";
 import { inspectWorkspace } from "../../git/operations.js";
 import { loadPlan } from "../../plan/store.js";
+import { listSessionsSince } from "../../dispatch/store.js";
 import { createBus } from "../../daemon/bus.js";
 import type { OrchestratorContext } from "../../orchestrator/types.js";
 
@@ -61,12 +62,24 @@ export const register = (
           createdAt: d.createdAt,
         }));
 
+        // Session history for current milestone timeframe
+        const sessionHistory = ctx.startedAt
+          ? listSessionsSince(rootDir, ctx.startedAt).map((s) => ({
+              id: s.id,
+              status: s.status,
+              startedAt: s.startedAt,
+              completedAt: s.completedAt,
+              eventCount: s.eventCount,
+              error: s.error,
+            }))
+          : [];
+
         return {
           content: [
             {
               type: "text" as const,
               text: JSON.stringify(
-                { ...ctx, pendingDecisions: decisions },
+                { ...ctx, pendingDecisions: decisions, sessionHistory },
                 null,
                 2,
               ),

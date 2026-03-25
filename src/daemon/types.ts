@@ -419,13 +419,11 @@ export interface SocketBroadcast {
 /** Any message a client may receive */
 export type SocketMessage = SocketResponse | SocketBroadcast;
 
-/** Daemon configuration (parsed from .telesis/config.yml) */
-export interface DaemonConfig {
-  readonly watch?: {
-    readonly ignore?: readonly string[];
-  };
-  readonly heartbeatIntervalMs?: number;
-}
+/**
+ * Daemon configuration (parsed from .telesis/config.yml).
+ * Re-exported from config/config.ts — single source of truth.
+ */
+export type { DaemonConfig } from "../config/config.js";
 
 /** Maximum message size over the socket (bytes) */
 export const MAX_SOCKET_MESSAGE_SIZE = 64 * 1024;

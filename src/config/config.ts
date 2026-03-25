@@ -345,11 +345,25 @@ export const parseIntakeConfig = (raw: RawConfig | null): IntakeConfig => {
   return result;
 };
 
+/** What the daemon does when a dispatched agent session ends */
+export type RestartPolicy = "auto-restart" | "notify-only" | "manual";
+
+/** Session lifecycle configuration for the daemon */
+export interface SessionLifecycleConfig {
+  /** What to do when a dispatched session ends. Default: "notify-only" */
+  readonly restartPolicy?: RestartPolicy;
+  /** Minimum seconds between auto-restarts. Default: 30 */
+  readonly cooldownSeconds?: number;
+  /** Max auto-restarts per milestone before circuit-breaking. Default: 10 */
+  readonly maxRestartsPerMilestone?: number;
+}
+
 export interface DaemonConfig {
   readonly watch?: {
     readonly ignore?: readonly string[];
   };
   readonly heartbeatIntervalMs?: number;
+  readonly sessionLifecycle?: SessionLifecycleConfig;
 }
 
 /** Parse daemon config from .telesis/config.yml, returning defaults if absent */
@@ -363,6 +377,7 @@ export const parseDaemonConfig = (raw: RawConfig | null): DaemonConfig => {
   const result: {
     watch?: { ignore?: readonly string[] };
     heartbeatIntervalMs?: number;
+    sessionLifecycle?: SessionLifecycleConfig;
   } = {};
 
   if (typeof d.heartbeatIntervalMs === "number" && d.heartbeatIntervalMs > 0) {
@@ -378,6 +393,36 @@ export const parseDaemonConfig = (raw: RawConfig | null): DaemonConfig => {
       if (ignore.length > 0) {
         result.watch = { ignore };
       }
+    }
+  }
+
+  const validPolicies = new Set(["auto-restart", "notify-only", "manual"]);
+  if (d.sessionLifecycle && typeof d.sessionLifecycle === "object") {
+    const sl = d.sessionLifecycle as Record<string, unknown>;
+    const lifecycle: {
+      restartPolicy?: RestartPolicy;
+      cooldownSeconds?: number;
+      maxRestartsPerMilestone?: number;
+    } = {};
+
+    if (
+      typeof sl.restartPolicy === "string" &&
+      validPolicies.has(sl.restartPolicy)
+    ) {
+      lifecycle.restartPolicy = sl.restartPolicy as RestartPolicy;
+    }
+    if (typeof sl.cooldownSeconds === "number" && sl.cooldownSeconds >= 0) {
+      lifecycle.cooldownSeconds = sl.cooldownSeconds;
+    }
+    if (
+      typeof sl.maxRestartsPerMilestone === "number" &&
+      sl.maxRestartsPerMilestone >= 0
+    ) {
+      lifecycle.maxRestartsPerMilestone = sl.maxRestartsPerMilestone;
+    }
+
+    if (Object.keys(lifecycle).length > 0) {
+      result.sessionLifecycle = lifecycle;
     }
   }
 

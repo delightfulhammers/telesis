@@ -302,6 +302,11 @@ describe("config", () => {
           watch: {
             ignore: ["node_modules", ".git"],
           },
+          sessionLifecycle: {
+            restartPolicy: "auto-restart",
+            cooldownSeconds: 60,
+            maxRestartsPerMilestone: 5,
+          },
         },
         validation: {
           model: "claude-sonnet-4-6",
@@ -346,6 +351,11 @@ describe("config", () => {
       expect(parseDaemonConfig(raw)).toEqual({
         heartbeatIntervalMs: 2500,
         watch: { ignore: ["node_modules", ".git"] },
+        sessionLifecycle: {
+          restartPolicy: "auto-restart",
+          cooldownSeconds: 60,
+          maxRestartsPerMilestone: 5,
+        },
       });
       expect(parseValidationConfig(raw)).toEqual({
         model: "claude-sonnet-4-6",
