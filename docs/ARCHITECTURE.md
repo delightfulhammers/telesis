@@ -67,14 +67,15 @@ telesis/
       resources/
         index.ts          ← registerResources aggregator
         docs.ts           ← telesis:// document and config resources
-    orchestrator/         ← orchestrator state machine, decisions, runner (v0.22.0)
-      types.ts            ← OrchestratorState, OrchestratorContext, Decision types
+    orchestrator/         ← orchestrator state machine, decisions, runner (v0.22.0, v0.28.0)
+      types.ts            ← OrchestratorState, OrchestratorContext, Decision, SessionExitReason
       machine.ts          ← state machine: transitions, preconditions, entry effects
       persistence.ts      ← atomic save/load of orchestrator state
       decisions.ts        ← decision queue: create, resolve, list
       judgment.ts         ← LLM calls: triage grouping, TDD necessity
       convergence.ts      ← automated review-fix-review loop
-      runner.ts           ← advance() function: drives state machine through lifecycle
+      runner.ts           ← advance() function: session tracking, task checkpointing
+      resume.ts           ← resume briefing: workspace inspection, recovery recommendations
       notify.ts           ← macOS notifications via osascript
       preflight.ts        ← preflight checks for Claude Code hooks
       integration.ts      ← daemon ↔ orchestrator bridge (start/stop/bus subscription)

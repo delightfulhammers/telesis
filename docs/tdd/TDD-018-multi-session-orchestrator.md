@@ -1,6 +1,6 @@
 # TDD-018 — Multi-Session Orchestrator
 
-**Status:** Draft
+**Status:** Accepted
 **Date:** 2026-03-25
 **Author:** Delightful Hammers
 **Related:** v0.28.0 milestone, TDD-016 (Orchestrator)

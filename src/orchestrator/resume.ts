@@ -36,7 +36,6 @@ export interface ResumeBriefingDeps {
   readonly inspectWorkspace: () => WorkspaceState;
 }
 
-
 /** Generate a recovery recommendation from exit reason + workspace state */
 export const generateRecommendation = (
   ctx: OrchestratorContext | null,
@@ -147,7 +146,9 @@ export const generateResumeBriefing = (
     lastSessionEndedAt: ctx?.sessionEndedAt,
     completedTasks,
     totalTasks,
-    currentTaskIndex: planLoaded ? (ctx?.currentTaskIndex ?? completedTasks) : 0,
+    currentTaskIndex: planLoaded
+      ? (ctx?.currentTaskIndex ?? completedTasks)
+      : 0,
     currentTaskTitle,
     hasUncommittedChanges: workspace.hasUncommittedChanges,
     hasStagedChanges: workspace.hasStagedChanges,

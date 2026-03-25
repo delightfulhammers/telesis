@@ -57,31 +57,44 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.27.0 — Distribution & Auto-Update
+## v0.28.0 — Multi-Session Orchestrator
 
-**Goal:** Make Telesis installable by anyone with a single command, publish platform binaries
-to GitHub Releases, and provide a self-update mechanism.
+**Goal:** Make the orchestrator survive agent session boundaries. When a coding agent session
+ends mid-milestone — whether from context exhaustion, a hook block, a crash, or clean
+completion — the orchestrator captures enough state for a new session to resume intelligently
+without manual reconstruction.
 
 **Status:** Complete
 
+**Reference:** TDD-018 (Multi-Session Orchestrator)
+
 ### What Changes
 
-A `telesis release` command cross-compiles for 4 targets (darwin-arm64, darwin-x64, linux-x64,
-linux-arm64), creates a GitHub Release, and uploads the binaries. An `install.sh` script
-detects the platform and downloads the right binary. A `telesis update` command checks for
-new releases and replaces the running binary. The daemon checks for updates daily on its first
-heartbeat after midnight and notifies via OS notification if an update is available.
+The orchestrator gains three capabilities: mid-execution checkpointing (task progress persisted
+after each completed task), session tracking (which session is active, when it started, why the
+last session ended), and a resume briefing (structured orientation artifact for new sessions that
+includes orchestrator state, workspace status, and recommended next action).
+
+The `OrchestratorContext` gains session fields: `sessionId`, `sessionStartedAt`,
+`sessionEndedAt`, `sessionExitReason`. The plan executor checkpoints `currentTaskIndex` after
+each task completion. A new `resume-briefing` MCP tool (and CLI command) inspects orchestrator
+context, git working tree state, and last session exit reason to produce an actionable
+orientation for the incoming session.
 
 ### Acceptance Criteria
 
-1. `telesis release` builds both binaries for all 4 platform targets
-2. `telesis release` creates a GitHub Release with all assets attached
-3. `install.sh` detects OS and architecture, downloads correct binary, installs to PATH
-4. `telesis update` checks GitHub Releases API for latest version
-5. `telesis update` downloads and replaces both binaries when update is available
-6. `telesis update` reports "already up to date" when current
-7. Daemon checks for updates on first heartbeat after midnight, notifies if available
-8. User guide updated with installation and update documentation
+1. Plan executor persists `currentTaskIndex` to orchestrator context after each task completes
+2. Resuming execution after a session death starts from the last checkpointed task, not task 1
+3. `OrchestratorContext` tracks `sessionId`, `sessionStartedAt`, `sessionEndedAt`,
+   `sessionExitReason` (hook_block | context_full | error | clean | unknown)
+4. Session fields are set when `executing` begins and updated when the session ends
+5. `telesis orchestrator resume-briefing` CLI command produces a structured orientation:
+   current state, completed tasks, workspace status (uncommitted changes, staged files),
+   last session exit reason, and recommended next action
+6. `telesis_orchestrator_resume_briefing` MCP tool exposes the same orientation to LLM clients
+7. Resume briefing detects uncommitted changes consistent with completed work (task done but
+   commit blocked) and recommends the appropriate recovery path
+8. Resume briefing is idempotent — safe to call multiple times without side effects
 9. All new business logic has colocated unit tests
 10. Running `telesis drift` produces zero errors
 

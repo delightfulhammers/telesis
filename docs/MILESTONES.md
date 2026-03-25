@@ -1377,7 +1377,7 @@ ends mid-milestone — whether from context exhaustion, a hook block, a crash, o
 completion — the orchestrator captures enough state for a new session to resume intelligently
 without manual reconstruction.
 
-**Status:** Planned
+**Status:** Complete
 
 **Reference:** TDD-018 (Multi-Session Orchestrator)
 

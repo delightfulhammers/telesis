@@ -304,9 +304,13 @@ Orchestrator state management and human decision interface.
 - `telesis orchestrator run` — advance the state machine until a decision point or idle
 - `telesis orchestrator preflight` — run preflight checks (used by Claude Code hooks to
   gate git commit/push operations)
+- `telesis orchestrator resume-briefing` — generate a structured orientation for resuming
+  after a session boundary (inspects orchestrator state, git workspace, session history)
 - Preflight checks: milestone entry exists, review has converged, quality gates pass,
   no blocking decisions pending
 - Exit code 1 on preflight failure (blocks the hook)
+- Session tracking: orchestrator records session ID, start time, exit reason for each
+  execution attempt; resume briefing produces recovery recommendations
 - Claude Code hook installed: `PreToolUse(Bash)` gates git commit on preflight
 
 ### `telesis update`

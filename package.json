@@ -1,6 +1,6 @@
 {
   "name": "telesis",
-  "version": "0.27.5",
+  "version": "0.28.0",
   "description": "Development intelligence platform",
   "type": "module",
   "main": "src/index.ts",
