@@ -1370,6 +1370,119 @@ heartbeat after midnight and notifies via OS notification if an update is availa
 
 ---
 
+## v0.28.0 — Multi-Session Orchestrator
+
+**Goal:** Make the orchestrator survive agent session boundaries. When a coding agent session
+ends mid-milestone — whether from context exhaustion, a hook block, a crash, or clean
+completion — the orchestrator captures enough state for a new session to resume intelligently
+without manual reconstruction.
+
+**Status:** Planned
+
+**Reference:** TDD-018 (Multi-Session Orchestrator)
+
+### What Changes
+
+The orchestrator gains three capabilities: mid-execution checkpointing (task progress persisted
+after each completed task), session tracking (which session is active, when it started, why the
+last session ended), and a resume briefing (structured orientation artifact for new sessions that
+includes orchestrator state, workspace status, and recommended next action).
+
+The `OrchestratorContext` gains session fields: `sessionId`, `sessionStartedAt`,
+`sessionEndedAt`, `sessionExitReason`. The plan executor checkpoints `currentTaskIndex` after
+each task completion. A new `resume-briefing` MCP tool (and CLI command) inspects orchestrator
+context, git working tree state, and last session exit reason to produce an actionable
+orientation for the incoming session.
+
+### Acceptance Criteria
+
+1. Plan executor persists `currentTaskIndex` to orchestrator context after each task completes
+2. Resuming execution after a session death starts from the last checkpointed task, not task 1
+3. `OrchestratorContext` tracks `sessionId`, `sessionStartedAt`, `sessionEndedAt`,
+   `sessionExitReason` (hook_block | context_full | error | clean | unknown)
+4. Session fields are set when `executing` begins and updated when the session ends
+5. `telesis orchestrator resume-briefing` CLI command produces a structured orientation:
+   current state, completed tasks, workspace status (uncommitted changes, staged files),
+   last session exit reason, and recommended next action
+6. `telesis_orchestrator_resume_briefing` MCP tool exposes the same orientation to LLM clients
+7. Resume briefing detects uncommitted changes consistent with completed work (task done but
+   commit blocked) and recommends the appropriate recovery path
+8. Resume briefing is idempotent — safe to call multiple times without side effects
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
+
+---
+
+## v0.29.0 — Daemon Session Lifecycle
+
+**Goal:** The daemon becomes the session lifecycle manager — detecting session death, triggering
+restarts, and generating handoff artifacts. The orchestrator no longer depends on an external
+actor to notice that a session ended and manually start a new one.
+
+**Status:** Planned
+
+### What Changes
+
+The daemon monitors active agent sessions via the event bus and socket connections. When it
+detects a session has ended (socket disconnect, process exit, heartbeat timeout), it persists
+the exit reason, generates a resume briefing, and optionally spawns a new agent session with
+the briefing as initial context. The daemon manages the full session lifecycle: start, monitor,
+detect death, checkpoint, restart.
+
+### Acceptance Criteria
+
+1. Daemon detects agent session end via socket disconnect or process monitoring
+2. On session end, daemon persists exit reason to orchestrator context
+3. Daemon generates resume briefing artifact on session end
+4. Daemon can spawn a new agent session with resume briefing as initial context
+5. Configurable restart policy: auto-restart, notify-only, or manual (default: notify-only)
+6. Session restart respects a configurable cooldown to prevent thrashing
+7. Daemon tracks session history (start time, end time, exit reason, tasks completed) in
+   `.telesis/sessions/`
+8. `telesis orchestrator status` shows session history for the current milestone
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
+
+---
+
+## v0.30.0 — Provider-Neutral Enforcement
+
+**Goal:** Telesis enforcement works without Claude Code-specific integration. The daemon
+provides preflight gating, contextual guidance, and process nudging through provider-neutral
+mechanisms — git hooks and MCP resources — so that Codex, Gemini, or any MCP-compatible
+agent receives the same guardrails as Claude Code.
+
+**Status:** Planned
+
+### What Changes
+
+The daemon installs native git hooks (pre-commit, pre-push) that call `telesis orchestrator
+preflight`, replacing the dependency on Claude Code's PreToolUse hooks for enforcement.
+Contextual guidance currently delivered via `.claude/skills/` is also served as MCP resources
+that any MCP-compatible client can read. The daemon watches for git events (commits, pushes)
+and emits process nudges (review reminders, milestone gate warnings) through MCP logging
+messages rather than OS notifications alone.
+
+### Acceptance Criteria
+
+1. `telesis adopt` installs git pre-commit and pre-push hooks that run preflight checks
+2. Git hooks work identically to Claude Code PreToolUse hooks (exit non-zero blocks the action)
+3. Git hooks and Claude Code hooks coexist without conflict (git hooks defer if Claude Code
+   hook already ran preflight)
+4. Contextual guidance (currently skills) is served as MCP resources with descriptions
+   matching the skill frontmatter
+5. Any MCP-compatible client can read guidance resources and receive the same context as
+   Claude Code skills provide
+6. Daemon emits process nudges via MCP logging messages on relevant git events
+7. `telesis adopt` detects the active LLM provider and installs appropriate adapter
+   (Claude Code: skills + hooks; generic: git hooks + MCP resources)
+8. End-to-end test: a non-Claude MCP client can drive the full orchestrator lifecycle
+   using only MCP tools and git hooks for enforcement
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,
