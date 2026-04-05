@@ -4,11 +4,18 @@ import type { RootResolver } from "../root-resolver.js";
 import { listWorkItems, loadWorkItem } from "../../intake/store.js";
 import { syncFromSource } from "../../intake/sync.js";
 import { createGitHubSource } from "../../intake/github-source.js";
+import { createJiraSource } from "../../intake/jira-source.js";
+import { resolveJiraAuth } from "../../jira/auth.js";
 import {
   extractRepoContext,
+  extractDomainFromApiUrl,
   resolveGitHubToken,
 } from "../../github/environment.js";
-import { loadRawConfig, parseIntakeConfig } from "../../config/config.js";
+import {
+  loadRawConfig,
+  parseIntakeConfig,
+  resolveGitHubApiBase,
+} from "../../config/config.js";
 import type { WorkItemStatus } from "../../intake/types.js";
 
 export const register = (
@@ -168,7 +175,9 @@ export const register = (
           };
         }
 
-        const repoCtx = extractRepoContext();
+        const apiBase = resolveGitHubApiBase(rawConfig);
+        const domain = extractDomainFromApiUrl(apiBase);
+        const repoCtx = extractRepoContext(domain);
         if (!repoCtx) {
           return {
             content: [
@@ -186,8 +195,68 @@ export const register = (
           repoCtx.owner,
           repoCtx.repo,
           token,
+          apiBase,
         );
 
+        const result = await syncFromSource(rootDir, source);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text: String(err) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    "telesis_intake_jira",
+    "Import issues from a configured Jira instance. Requires JIRA_TOKEN (and JIRA_EMAIL for Jira Cloud).",
+    {
+      projectRoot: z
+        .string()
+        .optional()
+        .describe("Override project root directory"),
+    },
+    async ({ projectRoot }) => {
+      try {
+        const rootDir = resolveRoot(projectRoot);
+        const rawConfig = loadRawConfig(rootDir);
+        const intakeConfig = parseIntakeConfig(rawConfig);
+
+        if (!intakeConfig.jira?.baseUrl) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Jira base URL not configured. Add intake.jira.baseUrl to .telesis/config.yml.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const auth = resolveJiraAuth();
+        if (!auth) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "JIRA_TOKEN not set. Set JIRA_TOKEN (and JIRA_EMAIL for Jira Cloud).",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const source = createJiraSource(intakeConfig.jira, auth);
         const result = await syncFromSource(rootDir, source);
         return {
           content: [

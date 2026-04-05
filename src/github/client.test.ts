@@ -6,6 +6,7 @@ import {
   findCommentByMarker,
   updatePRComment,
   replyToReviewComment,
+  createGitHubClient,
 } from "./client.js";
 
 const mockCtx: GitHubPRContext = {
@@ -235,5 +236,78 @@ describe("updatePRComment", () => {
       "https://api.github.com/repos/delightfulhammers/telesis/issues/comments/302",
     );
     expect(init!.method).toBe("PATCH");
+  });
+});
+
+describe("createGitHubClient", () => {
+  const gheBase = "https://github.company.com/api/v3";
+
+  it("uses custom apiBase for listRepoIssues", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+    const client = createGitHubClient(gheBase);
+    await client.listRepoIssues("org", "repo", "tok");
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain("github.company.com/api/v3/repos/org/repo/issues");
+    expect(url).not.toContain("api.github.com");
+  });
+
+  it("uses custom apiBase for postPullRequestReview", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+
+    const client = createGitHubClient(gheBase);
+    await client.postPullRequestReview(mockCtx, "COMMENT", "body", []);
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe(
+      "https://github.company.com/api/v3/repos/delightfulhammers/telesis/pulls/42/reviews",
+    );
+  });
+
+  it("uses custom apiBase for postPRComment", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+
+    const client = createGitHubClient(gheBase);
+    await client.postPRComment(mockCtx, "comment");
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe(
+      "https://github.company.com/api/v3/repos/delightfulhammers/telesis/issues/42/comments",
+    );
+  });
+
+  it("uses custom apiBase for findCommentByMarker", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+    const client = createGitHubClient(gheBase);
+    await client.findCommentByMarker(mockCtx, "marker");
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain("github.company.com/api/v3/repos/");
+  });
+
+  it("uses custom apiBase for updatePRComment", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+
+    const client = createGitHubClient(gheBase);
+    await client.updatePRComment(mockCtx, 1, "updated");
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe(
+      "https://github.company.com/api/v3/repos/delightfulhammers/telesis/issues/comments/1",
+    );
+  });
+
+  it("strips trailing slashes from apiBase", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse([]));
+
+    const client = createGitHubClient("https://ghe.example.com/api/v3///");
+    expect(client.apiBase).toBe("https://ghe.example.com/api/v3");
+  });
+
+  it("exposes apiBase as a property", () => {
+    const client = createGitHubClient(gheBase);
+    expect(client.apiBase).toBe(gheBase);
   });
 });

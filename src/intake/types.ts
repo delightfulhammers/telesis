@@ -12,7 +12,7 @@ export const WORK_ITEM_STATUSES = [
 export type WorkItemStatus = (typeof WORK_ITEM_STATUSES)[number];
 
 /** Supported intake source kinds — extensible for future adapters */
-export type IntakeSourceKind = "github";
+export type IntakeSourceKind = "github" | "jira";
 
 /** Canonical internal representation of a unit of work from any source */
 export interface WorkItem {

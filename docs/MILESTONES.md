@@ -1530,6 +1530,47 @@ skills + hooks; generic: git hooks + MCP resources). The `upgrade` command is re
 
 ---
 
+## v0.32.0 — Enterprise Integration
+
+**Goal:** Enable Telesis to work with GitHub Enterprise (self-hosted) and Jira for issue
+intake. These are the minimum integrations needed to use Telesis on a real work project
+outside the personal/open-source context it was built in.
+
+**Status:** Complete
+
+**Reference:** TDD-022 (GitHub Enterprise), TDD-023 (Jira Intake)
+
+### What Changes
+
+**GitHub Enterprise support:**
+- Parameterize the GitHub API base URL (currently hardcoded to `api.github.com`)
+- Generalize remote URL parsing for GHE domains
+- Client factory pattern to close over configurable `apiBase`
+- Config: `github.apiUrl` + env override `GITHUB_API_URL`
+
+**Jira intake adapter:**
+- New `src/jira/` package with REST API client
+- Jira `IntakeSource` adapter implementing the existing interface
+- Auth: Jira Cloud (email + API token) and Jira Server (PAT), auto-detected
+- Config: `intake.jira` with `baseUrl`, `project`, `jql`, `labels`, `assignee`, `status`, `issueTypes`
+- CLI: `telesis intake jira`
+- MCP: `telesis_intake_jira` tool
+
+### Acceptance Criteria
+
+1. `GITHUB_API_URL` or `github.apiUrl` config overrides the API base for all GitHub operations
+2. Git remote parsing works for GHE domains (SSH and HTTPS)
+3. Existing github.com behavior unchanged when no override is set
+4. `telesis intake jira` imports issues from a configured Jira instance
+5. Jira auth auto-detects Cloud (Basic) vs Server (Bearer) from env vars
+6. JQL is constructed from config fields or accepted as a custom override
+7. Jira work items flow through the existing sync/approve/dispatch pipeline unchanged
+8. `telesis_intake_jira` MCP tool works
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

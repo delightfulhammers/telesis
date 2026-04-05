@@ -1,10 +1,19 @@
 import {
-  API_BASE,
+  DEFAULT_API_BASE,
   SAFE_NAME_RE,
   GitHubApiError,
   headers,
   fetchWithRetry,
 } from "./http.js";
+
+/** Resolve the API base URL from env, falling back to the default.
+ *  Matches the lazy resolution in client.ts for consistency. */
+const resolveApiBase = (): string => {
+  const env = process.env.GITHUB_API_URL;
+  return env && env.startsWith("https://")
+    ? env.replace(/\/+$/, "")
+    : DEFAULT_API_BASE;
+};
 
 /** Create a pull request and return its number and URL */
 export const createPullRequest = async (params: {
@@ -24,7 +33,8 @@ export const createPullRequest = async (params: {
     );
   }
 
-  const url = `${API_BASE}/repos/${params.owner}/${params.repo}/pulls`;
+  const apiBase = resolveApiBase();
+  const url = `${apiBase}/repos/${params.owner}/${params.repo}/pulls`;
 
   const data = (await fetchWithRetry(
     url,
@@ -59,7 +69,8 @@ export const closeIssue = async (
     );
   }
 
-  const url = `${API_BASE}/repos/${owner}/${repo}/issues/${issueNumber}`;
+  const apiBase = resolveApiBase();
+  const url = `${apiBase}/repos/${owner}/${repo}/issues/${issueNumber}`;
 
   await fetchWithRetry(
     url,
@@ -88,7 +99,8 @@ export const commentOnIssue = async (
     );
   }
 
-  const url = `${API_BASE}/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+  const apiBase = resolveApiBase();
+  const url = `${apiBase}/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
 
   await fetchWithRetry(
     url,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -14,6 +14,8 @@ import {
   parseValidationConfig,
   parseGitConfig,
   parsePipelineConfig,
+  parseGitHubConfig,
+  resolveGitHubApiBase,
 } from "./config.js";
 import type { Config } from "./config.js";
 import { useTempDir } from "../test-utils.js";
@@ -270,6 +272,7 @@ describe("config", () => {
       expect(parseValidationConfig(null)).toEqual({});
       expect(parsePlannerConfig(null)).toEqual({});
       expect(parseGitConfig(null)).toEqual({});
+      expect(parseGitHubConfig(null)).toEqual({});
       expect(parsePipelineConfig(null)).toEqual({
         reviewBeforePush: false,
         reviewBlockThreshold: "high",
@@ -561,6 +564,163 @@ describe("config", () => {
         lint: "pnpm run lint",
         drift: false,
       });
+    });
+  });
+
+  describe("parseGitHubConfig", () => {
+    it("parses apiUrl when present", () => {
+      const raw = { github: { apiUrl: "https://ghe.company.com/api/v3" } };
+      expect(parseGitHubConfig(raw)).toEqual({
+        apiUrl: "https://ghe.company.com/api/v3",
+      });
+    });
+
+    it("returns empty when github section absent", () => {
+      expect(parseGitHubConfig({})).toEqual({});
+    });
+
+    it("returns empty when github is not an object", () => {
+      expect(parseGitHubConfig({ github: "invalid" })).toEqual({});
+    });
+
+    it("ignores empty apiUrl", () => {
+      expect(parseGitHubConfig({ github: { apiUrl: "" } })).toEqual({});
+    });
+
+    it("ignores non-string apiUrl", () => {
+      expect(parseGitHubConfig({ github: { apiUrl: 42 } })).toEqual({});
+    });
+  });
+
+  describe("resolveGitHubApiBase", () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      process.env = { ...originalEnv };
+      delete process.env.GITHUB_API_URL;
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it("returns default when no config or env", () => {
+      expect(resolveGitHubApiBase(null)).toBe("https://api.github.com");
+    });
+
+    it("uses config apiUrl when set", () => {
+      const raw = { github: { apiUrl: "https://ghe.company.com/api/v3" } };
+      expect(resolveGitHubApiBase(raw)).toBe("https://ghe.company.com/api/v3");
+    });
+
+    it("strips trailing slashes from config", () => {
+      const raw = { github: { apiUrl: "https://ghe.company.com/api/v3///" } };
+      expect(resolveGitHubApiBase(raw)).toBe("https://ghe.company.com/api/v3");
+    });
+
+    it("env GITHUB_API_URL takes precedence over config", () => {
+      process.env.GITHUB_API_URL = "https://env-ghe.example.com/api/v3";
+      const raw = {
+        github: { apiUrl: "https://config-ghe.example.com/api/v3" },
+      };
+      expect(resolveGitHubApiBase(raw)).toBe(
+        "https://env-ghe.example.com/api/v3",
+      );
+    });
+
+    it("strips trailing slashes from env", () => {
+      process.env.GITHUB_API_URL = "https://ghe.example.com/api/v3/";
+      expect(resolveGitHubApiBase(null)).toBe("https://ghe.example.com/api/v3");
+    });
+
+    it("ignores non-HTTPS env value and falls back to default", () => {
+      process.env.GITHUB_API_URL = "http://attacker.com";
+      expect(resolveGitHubApiBase(null)).toBe("https://api.github.com");
+    });
+
+    it("ignores non-HTTPS config value and falls back to default", () => {
+      const raw = { github: { apiUrl: "http://attacker.com" } };
+      expect(resolveGitHubApiBase(raw)).toBe("https://api.github.com");
+    });
+  });
+
+  describe("parseIntakeConfig with jira", () => {
+    it("parses full jira config", () => {
+      const raw = {
+        intake: {
+          jira: {
+            baseUrl: "https://company.atlassian.net",
+            project: "PROJ",
+            jql: "project = PROJ AND sprint in openSprints()",
+            labels: ["ready-for-dev"],
+            assignee: "john.smith",
+            status: ["To Do", "Ready"],
+            issueTypes: ["Bug", "Story"],
+          },
+        },
+      };
+      expect(parseIntakeConfig(raw)).toEqual({
+        jira: {
+          baseUrl: "https://company.atlassian.net",
+          project: "PROJ",
+          jql: "project = PROJ AND sprint in openSprints()",
+          labels: ["ready-for-dev"],
+          assignee: "john.smith",
+          status: ["To Do", "Ready"],
+          issueTypes: ["Bug", "Story"],
+        },
+      });
+    });
+
+    it("parses minimal jira config (baseUrl only)", () => {
+      const raw = {
+        intake: {
+          jira: { baseUrl: "https://company.atlassian.net" },
+        },
+      };
+      expect(parseIntakeConfig(raw)).toEqual({
+        jira: { baseUrl: "https://company.atlassian.net" },
+      });
+    });
+
+    it("skips jira when baseUrl is missing", () => {
+      const raw = { intake: { jira: { project: "PROJ" } } };
+      expect(parseIntakeConfig(raw)).toEqual({});
+    });
+
+    it("skips jira when baseUrl is empty string", () => {
+      const raw = { intake: { jira: { baseUrl: "" } } };
+      expect(parseIntakeConfig(raw)).toEqual({});
+    });
+
+    it("parses both github and jira together", () => {
+      const raw = {
+        intake: {
+          github: { labels: ["bug"], state: "open" },
+          jira: { baseUrl: "https://company.atlassian.net", project: "PROJ" },
+        },
+      };
+      const result = parseIntakeConfig(raw);
+      expect(result.github).toEqual({ labels: ["bug"], state: "open" });
+      expect(result.jira).toEqual({
+        baseUrl: "https://company.atlassian.net",
+        project: "PROJ",
+      });
+    });
+
+    it("filters non-string values from jira arrays", () => {
+      const raw = {
+        intake: {
+          jira: {
+            baseUrl: "https://company.atlassian.net",
+            labels: ["valid", 42, "", "also-valid"],
+            status: [true, "To Do"],
+          },
+        },
+      };
+      const result = parseIntakeConfig(raw);
+      expect(result.jira?.labels).toEqual(["valid", "also-valid"]);
+      expect(result.jira?.status).toEqual(["To Do"]);
     });
   });
 

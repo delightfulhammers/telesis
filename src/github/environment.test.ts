@@ -7,6 +7,7 @@ import {
   extractPRContext,
   extractRepoContext,
   buildLocalPRContext,
+  extractDomainFromApiUrl,
 } from "./environment.js";
 
 const makeTempDir = useTempDir("github-env");
@@ -173,6 +174,30 @@ describe("extractRepoContext", () => {
     process.env.GITHUB_REPOSITORY = "owner/repo";
     const ctx = extractRepoContext();
     expect(ctx).toEqual({ owner: "owner", repo: "repo" });
+  });
+});
+
+describe("extractDomainFromApiUrl", () => {
+  it("extracts domain from GHE API URL", () => {
+    expect(extractDomainFromApiUrl("https://github.company.com/api/v3")).toBe(
+      "github.company.com",
+    );
+  });
+
+  it("maps api.github.com to github.com", () => {
+    expect(extractDomainFromApiUrl("https://api.github.com")).toBe(
+      "github.com",
+    );
+  });
+
+  it("handles trailing slashes", () => {
+    expect(extractDomainFromApiUrl("https://ghe.example.com/api/v3/")).toBe(
+      "ghe.example.com",
+    );
+  });
+
+  it("returns github.com for invalid URLs", () => {
+    expect(extractDomainFromApiUrl("not-a-url")).toBe("github.com");
   });
 });
 

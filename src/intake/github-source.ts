@@ -1,5 +1,6 @@
 import type { IntakeGitHubConfig } from "../config/config.js";
-import { listRepoIssues } from "../github/client.js";
+import { createGitHubClient } from "../github/client.js";
+import { DEFAULT_API_BASE } from "../github/http.js";
 import type { GitHubIssue } from "../github/types.js";
 import type { IntakeSource, RawIssue } from "./source.js";
 
@@ -19,39 +20,44 @@ const hasExcludedLabel = (
   excludeLabels: readonly string[],
 ): boolean => issue.labels.some((l) => excludeLabels.includes(l.name));
 
-/** Create a GitHub IntakeSource adapter */
+/** Create a GitHub IntakeSource adapter.
+ *  @param apiBase — optional API base URL for GitHub Enterprise. Defaults to api.github.com. */
 export const createGitHubSource = (
   config: IntakeGitHubConfig | undefined,
   owner: string,
   repo: string,
   token: string,
-): IntakeSource => ({
-  kind: "github",
-  fetchIssues: async (): Promise<readonly RawIssue[]> => {
-    // Filter out labels containing commas to prevent silent API filter expansion
-    const safeLabels = config?.labels?.filter((l) => !l.includes(","));
-    if (
-      config?.labels &&
-      safeLabels &&
-      safeLabels.length < config.labels.length
-    ) {
-      const dropped = config.labels.filter((l) => l.includes(","));
-      process.stderr.write(
-        `[telesis] Warning: labels containing commas were ignored: ${dropped.join(", ")}\n`,
-      );
-    }
-    const issues = await listRepoIssues(owner, repo, token, {
-      labels: safeLabels?.length ? safeLabels.join(",") : undefined,
-      assignee: config?.assignee,
-      state: config?.state ?? "open",
-    });
+  apiBase?: string,
+): IntakeSource => {
+  const client = createGitHubClient(apiBase ?? DEFAULT_API_BASE);
+  return {
+    kind: "github",
+    fetchIssues: async (): Promise<readonly RawIssue[]> => {
+      // Filter out labels containing commas to prevent silent API filter expansion
+      const safeLabels = config?.labels?.filter((l) => !l.includes(","));
+      if (
+        config?.labels &&
+        safeLabels &&
+        safeLabels.length < config.labels.length
+      ) {
+        const dropped = config.labels.filter((l) => l.includes(","));
+        process.stderr.write(
+          `[telesis] Warning: labels containing commas were ignored: ${dropped.join(", ")}\n`,
+        );
+      }
+      const issues = await client.listRepoIssues(owner, repo, token, {
+        labels: safeLabels?.length ? safeLabels.join(",") : undefined,
+        assignee: config?.assignee,
+        state: config?.state ?? "open",
+      });
 
-    const excludeLabels = config?.excludeLabels ?? [];
-    const filtered =
-      excludeLabels.length > 0
-        ? issues.filter((i) => !hasExcludedLabel(i, excludeLabels))
-        : issues;
+      const excludeLabels = config?.excludeLabels ?? [];
+      const filtered =
+        excludeLabels.length > 0
+          ? issues.filter((i) => !hasExcludedLabel(i, excludeLabels))
+          : issues;
 
-    return filtered.map(toRawIssue);
-  },
-});
+      return filtered.map(toRawIssue);
+    },
+  };
+};

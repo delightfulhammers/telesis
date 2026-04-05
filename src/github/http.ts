@@ -1,6 +1,6 @@
 /** Shared HTTP helpers for GitHub API operations */
 
-export const API_BASE = "https://api.github.com";
+export const DEFAULT_API_BASE = "https://api.github.com";
 export const SAFE_NAME_RE = /^[\w.-]+$/;
 export const RETRY_DELAY_MS = 2000;
 

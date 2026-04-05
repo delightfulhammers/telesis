@@ -7,12 +7,16 @@ import {
   parseDispatchConfig,
   parseIntakeConfig,
   parsePlannerConfig,
+  resolveGitHubApiBase,
 } from "../config/config.js";
 import {
   extractRepoContext,
+  extractDomainFromApiUrl,
   resolveGitHubToken,
 } from "../github/environment.js";
 import { createGitHubSource } from "../intake/github-source.js";
+import { createJiraSource } from "../intake/jira-source.js";
+import { resolveJiraAuth } from "../jira/auth.js";
 import { syncFromSource } from "../intake/sync.js";
 import { listWorkItems, loadWorkItem } from "../intake/store.js";
 import { updateWorkItem } from "../intake/store.js";
@@ -41,7 +45,9 @@ const githubCommand = new Command("github")
         );
       }
 
-      const repoCtx = extractRepoContext();
+      const apiBase = resolveGitHubApiBase(rawConfig);
+      const domain = extractDomainFromApiUrl(apiBase);
+      const repoCtx = extractRepoContext(domain);
       if (!repoCtx) {
         throw new Error(
           "Could not detect GitHub repo. Set GITHUB_REPOSITORY or ensure a GitHub remote exists.",
@@ -53,7 +59,47 @@ const githubCommand = new Command("github")
         repoCtx.owner,
         repoCtx.repo,
         token,
+        apiBase,
       );
+
+      const renderer = createEventRenderer();
+      const result = await syncFromSource(rootDir, source, renderer);
+
+      console.log(
+        `Imported ${result.imported} issue(s), ${result.skippedDuplicate} duplicate(s) skipped`,
+      );
+
+      if (result.errors.length > 0) {
+        for (const err of result.errors) {
+          console.error(`  ${err}`);
+        }
+        process.exitCode = 1;
+      }
+    }),
+  );
+
+const jiraCommand = new Command("jira")
+  .description("Import issues from Jira")
+  .action(
+    handleAction(async () => {
+      const rootDir = projectRoot();
+      const rawConfig = loadRawConfig(rootDir);
+      const intakeConfig = parseIntakeConfig(rawConfig);
+
+      if (!intakeConfig.jira?.baseUrl) {
+        throw new Error(
+          "Jira base URL not configured. Add intake.jira.baseUrl to .telesis/config.yml",
+        );
+      }
+
+      const auth = resolveJiraAuth();
+      if (!auth) {
+        throw new Error(
+          "JIRA_TOKEN not set. Set JIRA_TOKEN (and JIRA_EMAIL for Jira Cloud).",
+        );
+      }
+
+      const source = createJiraSource(intakeConfig.jira, auth);
 
       const renderer = createEventRenderer();
       const result = await syncFromSource(rootDir, source, renderer);
@@ -248,6 +294,7 @@ const skipCommand = new Command("skip")
 export const intakeCommand = new Command("intake")
   .description("Import and manage work items from external sources")
   .addCommand(githubCommand)
+  .addCommand(jiraCommand)
   .addCommand(listCommand)
   .addCommand(showCommand)
   .addCommand(approveCommand)

@@ -32,6 +32,32 @@ const SAFE_NAME_RE = /^[\w.-]+$/;
 const SHA_RE = /^[0-9a-f]{40}$/i;
 const GITHUB_REMOTE_RE = /github\.com[:/]([^/]+)\/([^/.]+?)(?:\.git)?$/;
 
+/**
+ * Builds a regex to match git remote URLs for a given domain.
+ * Handles both SSH (`git@domain:owner/repo.git`) and HTTPS (`https://domain/owner/repo.git`).
+ */
+const buildRemoteRegex = (domain: string): RegExp => {
+  const escaped = domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`${escaped}[:/]([^/]+)\\/([^/.]+?)(?:\\.git)?$`);
+};
+
+/**
+ * Extracts the domain from a GitHub API URL.
+ * e.g., "https://github.company.com/api/v3" → "github.company.com"
+ *       "https://api.github.com" → "github.com"
+ */
+export const extractDomainFromApiUrl = (apiUrl: string): string => {
+  try {
+    const url = new URL(apiUrl);
+    const host = url.hostname;
+    // api.github.com → github.com (special case for the public API)
+    if (host === "api.github.com") return "github.com";
+    return host;
+  } catch {
+    return "github.com";
+  }
+};
+
 /** Returns true when running inside GitHub Actions. */
 export const isGitHubActions = (): boolean =>
   process.env.GITHUB_ACTIONS === "true";
@@ -91,8 +117,13 @@ export const extractPRContext = (): GitHubPRContext | null => {
 /**
  * Extracts owner/repo from the git remote URL.
  * Tries GITHUB_REPOSITORY env var first (CI), then parses the origin remote.
+ *
+ * @param domain — optional domain to match in remotes (e.g., "github.company.com").
+ *   Defaults to "github.com". Used for GitHub Enterprise instances.
  */
-export const extractRepoContext = (): {
+export const extractRepoContext = (
+  domain?: string,
+): {
   owner: string;
   repo: string;
 } | null => {
@@ -111,13 +142,15 @@ export const extractRepoContext = (): {
     }
   }
 
-  // Parse from git remote
+  // Parse from git remote — use custom domain regex if provided
+  const remoteRe = domain ? buildRemoteRegex(domain) : GITHUB_REMOTE_RE;
+
   try {
     const remoteUrl = execSync("git remote get-url origin", {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
-    const match = GITHUB_REMOTE_RE.exec(remoteUrl);
+    const match = remoteRe.exec(remoteUrl);
     if (
       match &&
       match[1] &&

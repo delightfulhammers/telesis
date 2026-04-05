@@ -7,7 +7,7 @@ import type {
   PostCommentResult,
 } from "./types.js";
 import {
-  API_BASE,
+  DEFAULT_API_BASE,
   SAFE_NAME_RE,
   GitHubApiError,
   headers,
@@ -15,108 +15,6 @@ import {
 } from "./http.js";
 
 export { GitHubApiError } from "./http.js";
-
-/**
- * Posts a pull request review with optional inline comments.
- * Throws GitHubApiError on failure (including 422 for out-of-diff lines).
- * The adapter layer handles 422 fallback by re-rendering findings as summary.
- */
-export const postPullRequestReview = async (
-  ctx: GitHubPRContext,
-  event: ReviewEvent,
-  body: string,
-  comments: readonly PRReviewComment[],
-): Promise<PostReviewResult> => {
-  const url = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/reviews`;
-
-  const requestBody = {
-    commit_id: ctx.commitSha,
-    event,
-    body,
-    comments: comments.map((c) => ({
-      path: c.path,
-      body: c.body,
-      line: c.line,
-      ...(c.startLine !== undefined && { start_line: c.startLine }),
-      side: c.side,
-    })),
-  };
-
-  const data = (await fetchWithRetry(
-    url,
-    {
-      method: "POST",
-      headers: headers(ctx.token),
-      body: JSON.stringify(requestBody),
-    },
-    "post review",
-  )) as { id: number };
-
-  return {
-    reviewId: data.id,
-    commentCount: comments.length,
-    summaryFindingCount: 0,
-  };
-};
-
-/**
- * Posts a comment on a PR (via the issues API).
- */
-export const postPRComment = async (
-  ctx: GitHubPRContext,
-  body: string,
-): Promise<PostCommentResult> => {
-  const url = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.pullNumber}/comments`;
-
-  const data = (await fetchWithRetry(
-    url,
-    {
-      method: "POST",
-      headers: headers(ctx.token),
-      body: JSON.stringify({ body }),
-    },
-    "post comment",
-  )) as { id: number };
-
-  return { commentId: data.id };
-};
-
-const MAX_COMMENT_PAGES = 10;
-
-/**
- * Finds an existing PR comment containing a specific marker string.
- * Returns the comment ID if found, null otherwise.
- *
- * Paginates through comments (100 per page, up to 10 pages) to handle
- * PRs with heavy review activity.
- */
-export const findCommentByMarker = async (
-  ctx: GitHubPRContext,
-  marker: string,
-): Promise<number | null> => {
-  const baseUrl = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.pullNumber}/comments?per_page=100`;
-
-  for (let page = 1; page <= MAX_COMMENT_PAGES; page++) {
-    const url = `${baseUrl}&page=${page}`;
-
-    const data = await fetchWithRetry(
-      url,
-      { method: "GET", headers: headers(ctx.token) },
-      "list comments",
-    );
-
-    if (!Array.isArray(data)) return null;
-
-    const comments = data as readonly { id: number; body: string }[];
-    const match = comments.find((c) => c.body.includes(marker));
-    if (match) return match.id;
-
-    // Last page — fewer results than per_page means no more pages
-    if (comments.length < 100) break;
-  }
-
-  return null;
-};
 
 /** Shape of a review comment returned by the GitHub API. */
 export interface GitHubReviewComment {
@@ -128,60 +26,6 @@ export interface GitHubReviewComment {
   readonly in_reply_to_id?: number | null;
 }
 
-/**
- * Lists all review comments on a pull request with pagination.
- * Returns inline review comments (not issue comments).
- */
-export const listPullRequestReviewComments = async (
-  ctx: GitHubPRContext,
-): Promise<readonly GitHubReviewComment[]> => {
-  const baseUrl = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/comments?per_page=100`;
-  const allComments: GitHubReviewComment[] = [];
-
-  for (let page = 1; page <= MAX_COMMENT_PAGES; page++) {
-    const url = `${baseUrl}&page=${page}`;
-
-    const data = await fetchWithRetry(
-      url,
-      { method: "GET", headers: headers(ctx.token) },
-      "list review comments",
-    );
-
-    if (!Array.isArray(data)) break;
-
-    const comments = data as readonly GitHubReviewComment[];
-    allComments.push(...comments);
-
-    if (comments.length < 100) break;
-  }
-
-  return allComments;
-};
-
-/**
- * Posts a reply to an existing pull request review comment thread.
- * Uses the pull request review comments API (not the issues API).
- */
-export const replyToReviewComment = async (
-  ctx: GitHubPRContext,
-  commentId: number,
-  body: string,
-): Promise<{ id: number }> => {
-  const url = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/comments`;
-
-  const data = (await fetchWithRetry(
-    url,
-    {
-      method: "POST",
-      headers: headers(ctx.token),
-      body: JSON.stringify({ body, in_reply_to: commentId }),
-    },
-    "reply to review comment",
-  )) as { id: number };
-
-  return { id: data.id };
-};
-
 /** Parameters for listing repository issues */
 export interface ListRepoIssuesParams {
   readonly labels?: string;
@@ -190,93 +34,311 @@ export interface ListRepoIssuesParams {
   readonly perPage?: number;
 }
 
+/** A GitHub API client bound to a specific API base URL. */
+export interface GitHubClient {
+  readonly apiBase: string;
+  readonly listRepoIssues: (
+    owner: string,
+    repo: string,
+    token: string,
+    params?: ListRepoIssuesParams,
+  ) => Promise<readonly GitHubIssue[]>;
+  readonly postPullRequestReview: (
+    ctx: GitHubPRContext,
+    event: ReviewEvent,
+    body: string,
+    comments: readonly PRReviewComment[],
+  ) => Promise<PostReviewResult>;
+  readonly postPRComment: (
+    ctx: GitHubPRContext,
+    body: string,
+  ) => Promise<PostCommentResult>;
+  readonly findCommentByMarker: (
+    ctx: GitHubPRContext,
+    marker: string,
+  ) => Promise<number | null>;
+  readonly listPullRequestReviewComments: (
+    ctx: GitHubPRContext,
+  ) => Promise<readonly GitHubReviewComment[]>;
+  readonly replyToReviewComment: (
+    ctx: GitHubPRContext,
+    commentId: number,
+    body: string,
+  ) => Promise<{ id: number }>;
+  readonly updatePRComment: (
+    ctx: GitHubPRContext,
+    commentId: number,
+    body: string,
+  ) => Promise<PostCommentResult>;
+}
+
+// Module-level constants shared across all client instances
+const MAX_COMMENT_PAGES = 10;
 const MAX_ISSUE_PAGES = 10;
+const VALID_STATES = new Set(["open", "closed", "all"]);
+const SAFE_LABEL_RE = /^[\w.\- ]+$/;
 
 /**
- * Lists issues for a repository with pagination. Filters out pull requests
- * (items with a `pull_request` key). Paginates up to 10 pages.
+ * Creates a GitHub API client bound to a specific base URL.
+ * Use this for GitHub Enterprise instances with custom API URLs.
+ * All methods use the provided `apiBase` instead of the default `api.github.com`.
  */
-export const listRepoIssues = async (
-  owner: string,
-  repo: string,
-  token: string,
-  params?: ListRepoIssuesParams,
-): Promise<readonly GitHubIssue[]> => {
-  if (!SAFE_NAME_RE.test(owner) || !SAFE_NAME_RE.test(repo)) {
-    throw new GitHubApiError(
-      0,
-      "",
-      `Invalid owner or repo name: ${owner}/${repo}`,
-    );
-  }
+export const createGitHubClient = (apiBase: string): GitHubClient => {
+  const base = apiBase.replace(/\/+$/, "");
 
-  const VALID_STATES = new Set(["open", "closed", "all"]);
-  const SAFE_LABEL_RE = /^[\w.\- ]+$/;
-
-  const perPage = params?.perPage ?? 100;
-  const state = VALID_STATES.has(params?.state ?? "open")
-    ? (params?.state ?? "open")
-    : "open";
-  const allIssues: GitHubIssue[] = [];
-
-  for (let page = 1; page <= MAX_ISSUE_PAGES; page++) {
-    const searchParams = new URLSearchParams({
-      state,
-      per_page: String(perPage),
-      page: String(page),
-    });
-
-    // User-controlled config inputs — validate before passing to API
-    if (params?.labels) {
-      const safeLabels = params.labels
-        .split(",")
-        .filter((l) => SAFE_LABEL_RE.test(l.trim()));
-      if (safeLabels.length) searchParams.set("labels", safeLabels.join(","));
-    }
-    if (params?.assignee && SAFE_NAME_RE.test(params.assignee)) {
-      searchParams.set("assignee", params.assignee);
+  const clientListRepoIssues = async (
+    owner: string,
+    repo: string,
+    token: string,
+    params?: ListRepoIssuesParams,
+  ): Promise<readonly GitHubIssue[]> => {
+    if (!SAFE_NAME_RE.test(owner) || !SAFE_NAME_RE.test(repo)) {
+      throw new GitHubApiError(
+        0,
+        "",
+        `Invalid owner or repo name: ${owner}/${repo}`,
+      );
     }
 
-    const url = `${API_BASE}/repos/${owner}/${repo}/issues?${searchParams.toString()}`;
+    const perPage = params?.perPage ?? 100;
+    const state = VALID_STATES.has(params?.state ?? "open")
+      ? (params?.state ?? "open")
+      : "open";
+    const allIssues: GitHubIssue[] = [];
 
-    const data = await fetchWithRetry(
+    for (let page = 1; page <= MAX_ISSUE_PAGES; page++) {
+      const searchParams = new URLSearchParams({
+        state,
+        per_page: String(perPage),
+        page: String(page),
+      });
+
+      // User-controlled config inputs — validate before passing to API
+      if (params?.labels) {
+        const safeLabels = params.labels
+          .split(",")
+          .filter((l) => SAFE_LABEL_RE.test(l.trim()));
+        if (safeLabels.length) searchParams.set("labels", safeLabels.join(","));
+      }
+      if (params?.assignee && SAFE_NAME_RE.test(params.assignee)) {
+        searchParams.set("assignee", params.assignee);
+      }
+
+      const url = `${base}/repos/${owner}/${repo}/issues?${searchParams.toString()}`;
+
+      const data = await fetchWithRetry(
+        url,
+        { method: "GET", headers: headers(token) },
+        "list repo issues",
+      );
+
+      if (!Array.isArray(data)) break;
+
+      const issues = (data as readonly GitHubIssue[]).filter(
+        (item) => !item.pull_request,
+      );
+      allIssues.push(...issues);
+
+      if ((data as readonly unknown[]).length < perPage) break;
+    }
+
+    return allIssues;
+  };
+
+  const clientPostPullRequestReview = async (
+    ctx: GitHubPRContext,
+    event: ReviewEvent,
+    body: string,
+    comments: readonly PRReviewComment[],
+  ): Promise<PostReviewResult> => {
+    const url = `${base}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/reviews`;
+
+    const requestBody = {
+      commit_id: ctx.commitSha,
+      event,
+      body,
+      comments: comments.map((c) => ({
+        path: c.path,
+        body: c.body,
+        line: c.line,
+        ...(c.startLine !== undefined && { start_line: c.startLine }),
+        side: c.side,
+      })),
+    };
+
+    const data = (await fetchWithRetry(
       url,
-      { method: "GET", headers: headers(token) },
-      "list repo issues",
-    );
+      {
+        method: "POST",
+        headers: headers(ctx.token),
+        body: JSON.stringify(requestBody),
+      },
+      "post review",
+    )) as { id: number };
 
-    if (!Array.isArray(data)) break;
+    return {
+      reviewId: data.id,
+      commentCount: comments.length,
+      summaryFindingCount: 0,
+    };
+  };
 
-    const issues = (data as readonly GitHubIssue[]).filter(
-      (item) => !item.pull_request,
-    );
-    allIssues.push(...issues);
+  const clientPostPRComment = async (
+    ctx: GitHubPRContext,
+    body: string,
+  ): Promise<PostCommentResult> => {
+    const url = `${base}/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.pullNumber}/comments`;
 
-    if ((data as readonly unknown[]).length < perPage) break;
+    const data = (await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: headers(ctx.token),
+        body: JSON.stringify({ body }),
+      },
+      "post comment",
+    )) as { id: number };
+
+    return { commentId: data.id };
+  };
+
+  const clientFindCommentByMarker = async (
+    ctx: GitHubPRContext,
+    marker: string,
+  ): Promise<number | null> => {
+    const baseUrl = `${base}/repos/${ctx.owner}/${ctx.repo}/issues/${ctx.pullNumber}/comments?per_page=100`;
+
+    for (let page = 1; page <= MAX_COMMENT_PAGES; page++) {
+      const url = `${baseUrl}&page=${page}`;
+
+      const data = await fetchWithRetry(
+        url,
+        { method: "GET", headers: headers(ctx.token) },
+        "list comments",
+      );
+
+      if (!Array.isArray(data)) return null;
+
+      const comments = data as readonly { id: number; body: string }[];
+      const match = comments.find((c) => c.body.includes(marker));
+      if (match) return match.id;
+
+      if (comments.length < 100) break;
+    }
+
+    return null;
+  };
+
+  const clientListPullRequestReviewComments = async (
+    ctx: GitHubPRContext,
+  ): Promise<readonly GitHubReviewComment[]> => {
+    const baseUrl = `${base}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/comments?per_page=100`;
+    const allComments: GitHubReviewComment[] = [];
+
+    for (let page = 1; page <= MAX_COMMENT_PAGES; page++) {
+      const url = `${baseUrl}&page=${page}`;
+
+      const data = await fetchWithRetry(
+        url,
+        { method: "GET", headers: headers(ctx.token) },
+        "list review comments",
+      );
+
+      if (!Array.isArray(data)) break;
+
+      const comments = data as readonly GitHubReviewComment[];
+      allComments.push(...comments);
+
+      if (comments.length < 100) break;
+    }
+
+    return allComments;
+  };
+
+  const clientReplyToReviewComment = async (
+    ctx: GitHubPRContext,
+    commentId: number,
+    body: string,
+  ): Promise<{ id: number }> => {
+    const url = `${base}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.pullNumber}/comments`;
+
+    const data = (await fetchWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: headers(ctx.token),
+        body: JSON.stringify({ body, in_reply_to: commentId }),
+      },
+      "reply to review comment",
+    )) as { id: number };
+
+    return { id: data.id };
+  };
+
+  const clientUpdatePRComment = async (
+    ctx: GitHubPRContext,
+    commentId: number,
+    body: string,
+  ): Promise<PostCommentResult> => {
+    const url = `${base}/repos/${ctx.owner}/${ctx.repo}/issues/comments/${commentId}`;
+
+    const data = (await fetchWithRetry(
+      url,
+      {
+        method: "PATCH",
+        headers: headers(ctx.token),
+        body: JSON.stringify({ body }),
+      },
+      "update comment",
+    )) as { id: number };
+
+    return { commentId: data.id };
+  };
+
+  return {
+    apiBase: base,
+    listRepoIssues: clientListRepoIssues,
+    postPullRequestReview: clientPostPullRequestReview,
+    postPRComment: clientPostPRComment,
+    findCommentByMarker: clientFindCommentByMarker,
+    listPullRequestReviewComments: clientListPullRequestReviewComments,
+    replyToReviewComment: clientReplyToReviewComment,
+    updatePRComment: clientUpdatePRComment,
+  };
+};
+
+// Lazy-resolved default client for backwards-compatible bare function exports.
+// Resolves GITHUB_API_URL from env at first call time, so GHE config works
+// even through bare imports without explicitly using createGitHubClient.
+// NOTE: Resolved once at first call and cached. Tests that modify GITHUB_API_URL
+// must use createGitHubClient() directly rather than bare exports.
+let _defaultClient: GitHubClient | null = null;
+const getDefaultClient = (): GitHubClient => {
+  if (!_defaultClient) {
+    const envBase = process.env.GITHUB_API_URL;
+    const base =
+      envBase && envBase.startsWith("https://")
+        ? envBase.replace(/\/+$/, "")
+        : DEFAULT_API_BASE;
+    _defaultClient = createGitHubClient(base);
   }
-
-  return allIssues;
+  return _defaultClient;
 };
 
-/**
- * Updates an existing PR comment by ID.
- */
-export const updatePRComment = async (
-  ctx: GitHubPRContext,
-  commentId: number,
-  body: string,
-): Promise<PostCommentResult> => {
-  const url = `${API_BASE}/repos/${ctx.owner}/${ctx.repo}/issues/comments/${commentId}`;
-
-  const data = (await fetchWithRetry(
-    url,
-    {
-      method: "PATCH",
-      headers: headers(ctx.token),
-      body: JSON.stringify({ body }),
-    },
-    "update comment",
-  )) as { id: number };
-
-  return { commentId: data.id };
-};
+export const postPullRequestReview: GitHubClient["postPullRequestReview"] = (
+  ...args
+) => getDefaultClient().postPullRequestReview(...args);
+export const postPRComment: GitHubClient["postPRComment"] = (...args) =>
+  getDefaultClient().postPRComment(...args);
+export const findCommentByMarker: GitHubClient["findCommentByMarker"] = (
+  ...args
+) => getDefaultClient().findCommentByMarker(...args);
+export const listPullRequestReviewComments: GitHubClient["listPullRequestReviewComments"] =
+  (...args) => getDefaultClient().listPullRequestReviewComments(...args);
+export const replyToReviewComment: GitHubClient["replyToReviewComment"] = (
+  ...args
+) => getDefaultClient().replyToReviewComment(...args);
+export const listRepoIssues: GitHubClient["listRepoIssues"] = (...args) =>
+  getDefaultClient().listRepoIssues(...args);
+export const updatePRComment: GitHubClient["updatePRComment"] = (...args) =>
+  getDefaultClient().updatePRComment(...args);

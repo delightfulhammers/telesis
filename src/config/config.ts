@@ -285,6 +285,58 @@ export const parseOversightConfig = (
   return result;
 };
 
+export interface GitHubConfig {
+  readonly apiUrl?: string;
+}
+
+/** Parse github config from .telesis/config.yml, returning defaults if absent */
+export const parseGitHubConfig = (raw: RawConfig | null): GitHubConfig => {
+  if (!raw || typeof raw !== "object" || !raw.github) return {};
+
+  const github = raw.github;
+  if (typeof github !== "object" || github === null) return {};
+
+  const g = github as Record<string, unknown>;
+  const result: { apiUrl?: string } = {};
+
+  if (typeof g.apiUrl === "string" && g.apiUrl.length > 0) {
+    result.apiUrl = g.apiUrl;
+  }
+
+  return result;
+};
+
+/** Resolve the GitHub API base URL from environment and config.
+ *  Precedence: GITHUB_API_URL env > github.apiUrl config > default.
+ *  Non-HTTPS values are ignored with a warning to prevent credential leaks. */
+export const resolveGitHubApiBase = (raw: RawConfig | null): string => {
+  const env = process.env.GITHUB_API_URL;
+  if (env) {
+    const cleaned = env.replace(/\/+$/, "");
+    if (!cleaned.startsWith("https://")) {
+      process.stderr.write(
+        `[telesis] Warning: GITHUB_API_URL must use HTTPS, ignoring: ${cleaned}\n`,
+      );
+    } else {
+      return cleaned;
+    }
+  }
+
+  const config = parseGitHubConfig(raw);
+  if (config.apiUrl) {
+    const cleaned = config.apiUrl.replace(/\/+$/, "");
+    if (!cleaned.startsWith("https://")) {
+      process.stderr.write(
+        `[telesis] Warning: github.apiUrl must use HTTPS, ignoring: ${cleaned}\n`,
+      );
+    } else {
+      return cleaned;
+    }
+  }
+
+  return "https://api.github.com";
+};
+
 export interface IntakeGitHubConfig {
   readonly labels?: readonly string[];
   readonly excludeLabels?: readonly string[];
@@ -292,9 +344,28 @@ export interface IntakeGitHubConfig {
   readonly state?: string;
 }
 
+export interface IntakeJiraConfig {
+  readonly baseUrl: string;
+  readonly project?: string;
+  readonly jql?: string;
+  readonly labels?: readonly string[];
+  readonly assignee?: string;
+  readonly status?: readonly string[];
+  readonly issueTypes?: readonly string[];
+}
+
 export interface IntakeConfig {
   readonly github?: IntakeGitHubConfig;
+  readonly jira?: IntakeJiraConfig;
 }
+
+const parseStringArray = (raw: unknown): readonly string[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+  const filtered = raw.filter(
+    (v): v is string => typeof v === "string" && v.length > 0,
+  );
+  return filtered.length > 0 ? filtered : undefined;
+};
 
 /** Parse intake config from .telesis/config.yml, returning defaults if absent */
 export const parseIntakeConfig = (raw: RawConfig | null): IntakeConfig => {
@@ -304,7 +375,7 @@ export const parseIntakeConfig = (raw: RawConfig | null): IntakeConfig => {
   if (typeof intake !== "object" || intake === null) return {};
 
   const i = intake as Record<string, unknown>;
-  const result: { github?: IntakeGitHubConfig } = {};
+  const result: { github?: IntakeGitHubConfig; jira?: IntakeJiraConfig } = {};
 
   if (i.github && typeof i.github === "object" && !Array.isArray(i.github)) {
     const g = i.github as Record<string, unknown>;
@@ -315,19 +386,11 @@ export const parseIntakeConfig = (raw: RawConfig | null): IntakeConfig => {
       state?: string;
     } = {};
 
-    if (Array.isArray(g.labels)) {
-      const labels = g.labels.filter(
-        (v): v is string => typeof v === "string" && v.length > 0,
-      );
-      if (labels.length > 0) ghConfig.labels = labels;
-    }
+    const labels = parseStringArray(g.labels);
+    if (labels) ghConfig.labels = labels;
 
-    if (Array.isArray(g.excludeLabels)) {
-      const excludeLabels = g.excludeLabels.filter(
-        (v): v is string => typeof v === "string" && v.length > 0,
-      );
-      if (excludeLabels.length > 0) ghConfig.excludeLabels = excludeLabels;
-    }
+    const excludeLabels = parseStringArray(g.excludeLabels);
+    if (excludeLabels) ghConfig.excludeLabels = excludeLabels;
 
     if (typeof g.assignee === "string" && g.assignee.length > 0) {
       ghConfig.assignee = g.assignee;
@@ -339,6 +402,43 @@ export const parseIntakeConfig = (raw: RawConfig | null): IntakeConfig => {
 
     if (Object.keys(ghConfig).length > 0) {
       result.github = ghConfig;
+    }
+  }
+
+  if (i.jira && typeof i.jira === "object" && !Array.isArray(i.jira)) {
+    const j = i.jira as Record<string, unknown>;
+
+    if (typeof j.baseUrl === "string" && j.baseUrl.length > 0) {
+      const jiraConfig: {
+        baseUrl: string;
+        project?: string;
+        jql?: string;
+        labels?: readonly string[];
+        assignee?: string;
+        status?: readonly string[];
+        issueTypes?: readonly string[];
+      } = { baseUrl: j.baseUrl };
+
+      if (typeof j.project === "string" && j.project.length > 0) {
+        jiraConfig.project = j.project;
+      }
+      if (typeof j.jql === "string" && j.jql.length > 0) {
+        jiraConfig.jql = j.jql;
+      }
+      if (typeof j.assignee === "string" && j.assignee.length > 0) {
+        jiraConfig.assignee = j.assignee;
+      }
+
+      const labels = parseStringArray(j.labels);
+      if (labels) jiraConfig.labels = labels;
+
+      const status = parseStringArray(j.status);
+      if (status) jiraConfig.status = status;
+
+      const issueTypes = parseStringArray(j.issueTypes);
+      if (issueTypes) jiraConfig.issueTypes = issueTypes;
+
+      result.jira = jiraConfig;
     }
   }
 
