@@ -19,6 +19,7 @@ import { runCommand } from "./cli/run.js";
 import { orchestratorCommand } from "./cli/orchestrator.js";
 import { updateCommand } from "./cli/update.js";
 import { hooksCommand } from "./cli/hooks.js";
+import { tuiCommand } from "./cli/tui.js";
 
 import { VERSION } from "./version.js";
 
@@ -44,6 +45,7 @@ const program = new Command("telesis")
   .addCommand(runCommand)
   .addCommand(orchestratorCommand)
   .addCommand(updateCommand)
-  .addCommand(hooksCommand);
+  .addCommand(hooksCommand)
+  .addCommand(tuiCommand);
 
 program.parse();

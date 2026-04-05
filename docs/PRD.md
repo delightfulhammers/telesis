@@ -337,6 +337,16 @@ Contextual guidance served as MCP resources for any MCP-compatible client.
 - Any MCP client can read guidance resources for the same context Claude Code skills provide
 - Resources re-read at request time to serve current content
 
+### `telesis tui`
+
+Interactive terminal UI for monitoring and managing Telesis.
+
+- `telesis tui` — open interactive full-screen TUI
+- Requires a running daemon (`telesis daemon start`)
+- Dashboard view: project status, milestone, orchestrator state, recent events
+- Events view: scrollable, filterable event log with color coding
+- Keyboard navigation: Tab/number keys switch views, arrows scroll, f filters, q quits
+
 ### `telesis update`
 
 Self-update mechanism.

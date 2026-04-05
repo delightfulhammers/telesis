@@ -1623,6 +1623,31 @@ Telesis source code changes. Unblocks enforcing architecture boundaries in any p
 
 ---
 
+## v0.35.0 — TUI Foundation
+
+**Goal:** Build an interactive terminal UI for monitoring Telesis state and events.
+Zero-dependency framework built on raw ANSI escape codes. Foundation for the full
+interactive workflow (intake/dispatch/review/pipeline) in v0.36.0.
+
+**Status:** Complete
+
+**Reference:** TDD-026 (TUI Foundation)
+
+### Acceptance Criteria
+
+1. `telesis tui` opens an interactive full-screen terminal UI
+2. Dashboard view shows project status, milestone, orchestrator state, recent events
+3. Events view shows scrollable, filterable event log with existing color scheme
+4. Tab / number keys switch between views
+5. Arrow keys scroll in events view; auto-scroll on new events
+6. Event type filtering (all, daemon, fs, dispatch, etc.)
+7. `q` / Ctrl+C cleanly exits (restores terminal state)
+8. Requires running daemon; shows actionable error if daemon is not running
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

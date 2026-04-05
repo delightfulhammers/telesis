@@ -57,26 +57,28 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.34.0 — Declarative Drift Containment
+## v0.35.0 — TUI Foundation
 
-**Goal:** Let projects declare import containment rules in config rather than requiring
-Telesis source code changes. Unblocks enforcing architecture boundaries in any project.
+**Goal:** Build an interactive terminal UI for monitoring Telesis state and events.
+Zero-dependency framework built on raw ANSI escape codes. Foundation for the full
+interactive workflow (intake/dispatch/review/pipeline) in v0.36.0.
 
 **Status:** Complete
 
-**Reference:** TDD-025 (Declarative Drift Containment)
+**Reference:** TDD-026 (TUI Foundation)
 
 ### Acceptance Criteria
 
-1. `drift.containment` config section is parsed and validated
-2. Each containment rule generates a `DriftCheck` that runs alongside built-in checks
-3. Rules support: import pattern, allowedIn paths, severity, excludeTests
-4. Config-generated checks appear in `telesis drift` output with `containment:` prefix
-5. `--check containment:<name>` filter works
-6. Go import syntax is matched (bare string imports inside import blocks)
-7. Test files are excluded by default (`excludeTests: true`)
-8. All new business logic has colocated unit tests
-9. Running `telesis drift` produces zero errors
+1. `telesis tui` opens an interactive full-screen terminal UI
+2. Dashboard view shows project status, milestone, orchestrator state, recent events
+3. Events view shows scrollable, filterable event log with existing color scheme
+4. Tab / number keys switch between views
+5. Arrow keys scroll in events view; auto-scroll on new events
+6. Event type filtering (all, daemon, fs, dispatch, etc.)
+7. `q` / Ctrl+C cleanly exits (restores terminal state)
+8. Requires running daemon; shows actionable error if daemon is not running
+9. All new business logic has colocated unit tests
+10. Running `telesis drift` produces zero errors
 
 ---
 
@@ -93,7 +95,7 @@ Telesis source code changes. Unblocks enforcing architecture boundaries in any p
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (25 component designs)
+- TDDs: `docs/tdd/` (26 component designs)
 
 ---
 
