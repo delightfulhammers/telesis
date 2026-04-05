@@ -62,7 +62,8 @@ describe("installHook", () => {
 
     const hookPath = join(dir, ".git", "hooks", "pre-commit");
     const content = readFileSync(hookPath, "utf-8");
-    const matches = content.match(/--- telesis pre-commit hook ---/g);
+    // Count start markers only (not end markers)
+    const matches = content.match(/^# --- telesis pre-commit hook: /gm);
     expect(matches).toHaveLength(1);
   });
 
@@ -130,5 +131,93 @@ describe("isHookInstalled", () => {
     mkdirSync(join(dir, ".git", "hooks"), { recursive: true });
     writeFileSync(hookPath, "#!/bin/bash\necho 'other hook'\n");
     expect(isHookInstalled(dir)).toBe(false);
+  });
+});
+
+describe("monorepo support (gitRoot ≠ projectRoot)", () => {
+  /** Create a monorepo layout: git root at parent, project in subdirectory */
+  const makeMonorepo = (): { gitRoot: string; projectRoot: string } => {
+    const gitRoot = makeGitRepo();
+    const projectRoot = join(gitRoot, "services", "auth-service");
+    mkdirSync(projectRoot, { recursive: true });
+    return { gitRoot, projectRoot };
+  };
+
+  it("installs hook at gitRoot when projectRoot is different", () => {
+    const { gitRoot, projectRoot } = makeMonorepo();
+    installHook(projectRoot, gitRoot);
+
+    const hookPath = join(gitRoot, ".git", "hooks", "pre-commit");
+    const content = readFileSync(hookPath, "utf-8");
+    expect(content).toContain("telesis");
+    expect(content).toContain("preflight");
+  });
+
+  it("hook body contains absolute project root path", () => {
+    const { gitRoot, projectRoot } = makeMonorepo();
+    installHook(projectRoot, gitRoot);
+
+    const hookPath = join(gitRoot, ".git", "hooks", "pre-commit");
+    const content = readFileSync(hookPath, "utf-8");
+    expect(content).toContain(`PROJECT_ROOT="${projectRoot}"`);
+  });
+
+  it("hook body cd's to project root before preflight", () => {
+    const { gitRoot, projectRoot } = makeMonorepo();
+    installHook(projectRoot, gitRoot);
+
+    const hookPath = join(gitRoot, ".git", "hooks", "pre-commit");
+    const content = readFileSync(hookPath, "utf-8");
+    expect(content).toContain('cd "$PROJECT_ROOT"');
+  });
+
+  it("uninstalls from gitRoot", () => {
+    const { gitRoot, projectRoot } = makeMonorepo();
+    installHook(projectRoot, gitRoot);
+    uninstallHook(projectRoot, gitRoot);
+
+    const hookPath = join(gitRoot, ".git", "hooks", "pre-commit");
+    const content = readFileSync(hookPath, "utf-8");
+    expect(content).not.toContain("telesis");
+  });
+
+  it("isHookInstalled checks gitRoot", () => {
+    const { gitRoot, projectRoot } = makeMonorepo();
+    expect(isHookInstalled(projectRoot, gitRoot)).toBe(false);
+    installHook(projectRoot, gitRoot);
+    expect(isHookInstalled(projectRoot, gitRoot)).toBe(true);
+  });
+
+  it("throws when gitRoot has no .git", () => {
+    const projectRoot = makeTempDir();
+    const fakeGitRoot = makeTempDir();
+    expect(() => installHook(projectRoot, fakeGitRoot)).toThrow(
+      "Not a git repository",
+    );
+  });
+
+  it("supports multiple projects in one git repo", () => {
+    const gitRoot = makeGitRepo();
+    const projectA = join(gitRoot, "services", "auth");
+    const projectB = join(gitRoot, "services", "billing");
+    mkdirSync(projectA, { recursive: true });
+    mkdirSync(projectB, { recursive: true });
+
+    installHook(projectA, gitRoot);
+    installHook(projectB, gitRoot);
+
+    const hookPath = join(gitRoot, ".git", "hooks", "pre-commit");
+    const content = readFileSync(hookPath, "utf-8");
+    expect(content).toContain(projectA);
+    expect(content).toContain(projectB);
+
+    // Both are independently tracked
+    expect(isHookInstalled(projectA, gitRoot)).toBe(true);
+    expect(isHookInstalled(projectB, gitRoot)).toBe(true);
+
+    // Uninstalling one doesn't affect the other
+    uninstallHook(projectA, gitRoot);
+    expect(isHookInstalled(projectA, gitRoot)).toBe(false);
+    expect(isHookInstalled(projectB, gitRoot)).toBe(true);
   });
 });

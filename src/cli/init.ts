@@ -17,6 +17,7 @@ import { save as saveConfig } from "../config/config.js";
 import { runUnifiedInit } from "../scaffold/unified-init.js";
 import { applyUpgrade } from "../scaffold/upgrade.js";
 import { installHook } from "../hooks/install.js";
+import { findGitRoot } from "../hooks/git-root.js";
 import type { DocumentType } from "../agent/generate/types.js";
 
 const DOCUMENT_LABELS: Readonly<Record<DocumentType, string>> = {
@@ -153,11 +154,16 @@ export const initCommand = new Command("init")
 
           installProviderAdapter: (dir, hasClaudeDir) => {
             // Generic adapter for all providers — git hooks
-            try {
-              installHook(dir);
-              console.log("  Installed git pre-commit hook");
-            } catch {
-              // Not a git repo — skip hook installation
+            const gitRoot = findGitRoot(dir);
+            if (gitRoot) {
+              try {
+                installHook(dir, gitRoot);
+                console.log("  Installed git pre-commit hook");
+              } catch (err) {
+                console.log(
+                  `  Warning: could not install git pre-commit hook: ${err instanceof Error ? err.message : err}`,
+                );
+              }
             }
 
             if (hasClaudeDir) {

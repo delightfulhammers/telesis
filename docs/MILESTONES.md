@@ -1571,6 +1571,35 @@ outside the personal/open-source context it was built in.
 
 ---
 
+## v0.33.0 — Monorepo Support
+
+**Goal:** Decouple git root from project root so `telesis init` and hook installation work
+in monorepo subdirectories where `.git/` is at the repo root and `.telesis/` is per-service.
+
+**Status:** Complete
+
+**Reference:** TDD-024 (Monorepo Support)
+
+### What Changes
+
+- New `findGitRoot()` utility — walks upward for `.git/` independently from `.telesis/`
+- `installHook` accepts separate `projectRoot` and `gitRoot` parameters
+- Hook body uses absolute paths so preflight runs from the correct project root
+- All callers updated (init, hooks install CLI)
+
+### Acceptance Criteria
+
+1. `telesis init` succeeds when `.git/` is an ancestor of `cwd` (not co-located)
+2. Git pre-commit hook is installed at the correct `.git/hooks/` path
+3. Hook body `cd`s to the project root before running `telesis orchestrator preflight`
+4. Multiple telesis projects in one repo install independent hook sections
+5. Existing single-repo behavior is unchanged (git root = project root)
+6. `telesis hooks install` and `telesis hooks uninstall` work with separate roots
+7. All new business logic has colocated unit tests
+8. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

@@ -5,17 +5,37 @@ import {
   chmodSync,
   existsSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
-const START_MARKER = "# --- telesis pre-commit hook ---";
-const END_MARKER = "# --- end telesis pre-commit hook ---";
+// Old-style generic markers (pre-v0.33.0) — used for migration detection
+const LEGACY_START_MARKER = "# --- telesis pre-commit hook ---";
+const LEGACY_END_MARKER = "# --- end telesis pre-commit hook ---";
 
-const HOOK_BODY = `${START_MARKER}
+/** Validate that a path is safe to embed in a bash double-quoted string */
+const assertSafePath = (path: string): void => {
+  if (/["`$\\\x60!]/.test(path) || /[\x00-\x1f\x7f]/.test(path)) {
+    throw new Error(
+      `Project root path contains shell-unsafe characters: ${path}`,
+    );
+  }
+};
+
+/** Build project-specific markers using the absolute path */
+const startMarker = (absRoot: string): string =>
+  `# --- telesis pre-commit hook: ${absRoot} ---`;
+const endMarker = (absRoot: string): string =>
+  `# --- end telesis pre-commit hook: ${absRoot} ---`;
+
+/** Build the hook body with the project root baked in as an absolute path.
+ *  This ensures the hook works when git root ≠ project root (monorepos). */
+const buildHookBody = (absRoot: string): string => {
+  return `${startMarker(absRoot)}
 # Installed by: telesis hooks install
 # Runs preflight checks before allowing commits.
 # Defers if Claude Code hook already ran preflight (marker file).
 
-MARKER=".telesis/.preflight-ran"
+PROJECT_ROOT="${absRoot}"
+MARKER="$PROJECT_ROOT/.telesis/.preflight-ran"
 
 # Defer if Claude Code hook already ran preflight recently (within 60s).
 # Marker contains a Unix timestamp written by the Claude Code hook.
@@ -30,9 +50,9 @@ if [ -f "$MARKER" ]; then
   rm -f "$MARKER"
 fi
 
-# Run preflight — only if telesis is on PATH
+# Run preflight from the project root — only if telesis is on PATH
 if command -v telesis &>/dev/null; then
-  telesis orchestrator preflight 2>&1
+  (cd "$PROJECT_ROOT" && telesis orchestrator preflight 2>&1)
   RESULT=$?
   if [ $RESULT -ne 0 ]; then
     echo "Telesis preflight checks failed. Commit blocked." >&2
@@ -40,69 +60,102 @@ if command -v telesis &>/dev/null; then
     exit 1
   fi
 fi
-${END_MARKER}`;
+${endMarker(absRoot)}`;
+};
 
-const hookPath = (rootDir: string): string =>
-  join(rootDir, ".git", "hooks", "pre-commit");
+const hookPath = (gitRoot: string): string =>
+  join(gitRoot, ".git", "hooks", "pre-commit");
 
-/** Check if the project has a .git directory */
-const ensureGitRepo = (rootDir: string): void => {
-  if (!existsSync(join(rootDir, ".git"))) {
-    throw new Error(`Not a git repository: ${rootDir}. Run 'git init' first.`);
+/** Check that gitRoot contains a .git directory or file */
+const ensureGitRepo = (gitRoot: string): void => {
+  if (!existsSync(join(gitRoot, ".git"))) {
+    throw new Error(`Not a git repository: ${gitRoot}. Run 'git init' first.`);
   }
 };
 
-/** Install the telesis pre-commit git hook */
-export const installHook = (rootDir: string): void => {
-  ensureGitRepo(rootDir);
+/** Install the telesis pre-commit git hook.
+ *  @param projectRoot — where .telesis/ lives
+ *  @param gitRoot — where .git/ lives (may be an ancestor of projectRoot) */
+export const installHook = (projectRoot: string, gitRoot?: string): void => {
+  const effectiveGitRoot = gitRoot ?? projectRoot;
+  const absRoot = resolve(projectRoot);
+  assertSafePath(absRoot);
+  ensureGitRepo(effectiveGitRoot);
 
-  const hooksDir = join(rootDir, ".git", "hooks");
+  const hooksDir = join(effectiveGitRoot, ".git", "hooks");
   mkdirSync(hooksDir, { recursive: true });
 
-  const path = hookPath(rootDir);
+  const path = hookPath(effectiveGitRoot);
   let existing = "";
 
   if (existsSync(path)) {
     existing = readFileSync(path, "utf-8");
-    // Already installed — idempotent
-    if (existing.includes(START_MARKER)) return;
+    // Migrate: remove legacy generic hook section (pre-v0.33.0)
+    // Runs before idempotency check so legacy sections are always cleaned up.
+    if (existing.includes(LEGACY_START_MARKER)) {
+      const legacyStart = existing.indexOf(LEGACY_START_MARKER);
+      const legacyEnd = existing.indexOf(LEGACY_END_MARKER);
+      const before = existing.slice(0, legacyStart).trimEnd();
+      const after =
+        legacyEnd !== -1 && legacyEnd > legacyStart
+          ? existing.slice(legacyEnd + LEGACY_END_MARKER.length).trimStart()
+          : "";
+      existing = [before, after].filter(Boolean).join("\n");
+    }
+    // Already installed for this project — idempotent
+    if (existing.includes(startMarker(absRoot))) return;
   }
 
+  const hookBody = buildHookBody(absRoot);
   const normalized = existing.trim();
   const content = normalized
-    ? `${normalized}\n\n${HOOK_BODY}\n`
-    : `#!/bin/bash\n${HOOK_BODY}\n`;
+    ? `${normalized}\n\n${hookBody}\n`
+    : `#!/bin/bash\n${hookBody}\n`;
 
   writeFileSync(path, content);
   chmodSync(path, 0o755);
 };
 
-/** Remove the telesis section from the pre-commit hook */
-export const uninstallHook = (rootDir: string): void => {
-  const path = hookPath(rootDir);
+/** Remove the telesis section for a specific project from the pre-commit hook */
+export const uninstallHook = (projectRoot: string, gitRoot?: string): void => {
+  const effectiveGitRoot = gitRoot ?? projectRoot;
+  const absRoot = resolve(projectRoot);
+  const path = hookPath(effectiveGitRoot);
 
   if (!existsSync(path)) return;
 
   const content = readFileSync(path, "utf-8");
-  if (!content.includes(START_MARKER)) return;
+  const start = startMarker(absRoot);
+  const end = endMarker(absRoot);
 
-  const startIdx = content.indexOf(START_MARKER);
+  if (!content.includes(start)) return;
+
+  const startIdx = content.indexOf(start);
   if (startIdx === -1) return;
 
-  const endIdx = content.indexOf(END_MARKER);
-  // If end marker is missing, remove from start marker to end of file (truncated install)
+  const endIdx = content.indexOf(end);
+  if (endIdx === -1) {
+    process.stderr.write(
+      `[telesis] Warning: hook end marker missing in ${path} — skipping removal to avoid data loss\n`,
+    );
+    return;
+  }
   const before = content.slice(0, startIdx).trimEnd();
-  const after =
-    endIdx !== -1 ? content.slice(endIdx + END_MARKER.length).trimStart() : "";
+  const after = content.slice(endIdx + end.length).trimStart();
 
   const remaining = [before, after].filter(Boolean).join("\n");
   writeFileSync(path, remaining ? remaining + "\n" : "");
 };
 
-/** Check if the telesis pre-commit hook is installed */
-export const isHookInstalled = (rootDir: string): boolean => {
-  const path = hookPath(rootDir);
+/** Check if the telesis pre-commit hook is installed for a specific project */
+export const isHookInstalled = (
+  projectRoot: string,
+  gitRoot?: string,
+): boolean => {
+  const effectiveGitRoot = gitRoot ?? projectRoot;
+  const absRoot = resolve(projectRoot);
+  const path = hookPath(effectiveGitRoot);
   if (!existsSync(path)) return false;
   const content = readFileSync(path, "utf-8");
-  return content.includes(START_MARKER);
+  return content.includes(startMarker(absRoot));
 };
