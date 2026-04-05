@@ -35,8 +35,9 @@ export const startDaemon = async (
     return { pid: existingPid, alreadyRunning: true };
   }
 
-  // Use the current binary's absolute path to avoid PATH injection
-  const binary = process.argv[0];
+  // Use the real binary path — process.execPath works in both compiled binaries
+  // (where argv[0] is "bun") and dev mode (where execPath is the bun binary).
+  const binary = process.execPath;
 
   const proc = Bun.spawn([binary, "daemon", "__run"], {
     cwd: resolvedRoot,
