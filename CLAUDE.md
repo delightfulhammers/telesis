@@ -57,28 +57,26 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.35.0 — TUI Foundation
+## v0.36.0 — TUI Workflow
 
-**Goal:** Build an interactive terminal UI for monitoring Telesis state and events.
-Zero-dependency framework built on raw ANSI escape codes. Foundation for the full
-interactive workflow (intake/dispatch/review/pipeline) in v0.36.0.
+**Goal:** Add interactive workflow views to the TUI: intake management, pipeline monitoring,
+dispatch sessions, and review findings. The TUI becomes the primary interaction surface for
+driving the full Telesis lifecycle.
 
 **Status:** Complete
 
-**Reference:** TDD-026 (TUI Foundation)
+**Reference:** TDD-027 (TUI Workflow Views)
 
 ### Acceptance Criteria
 
-1. `telesis tui` opens an interactive full-screen terminal UI
-2. Dashboard view shows project status, milestone, orchestrator state, recent events
-3. Events view shows scrollable, filterable event log with existing color scheme
-4. Tab / number keys switch between views
-5. Arrow keys scroll in events view; auto-scroll on new events
-6. Event type filtering (all, daemon, fs, dispatch, etc.)
-7. `q` / Ctrl+C cleanly exits (restores terminal state)
-8. Requires running daemon; shows actionable error if daemon is not running
-9. All new business logic has colocated unit tests
-10. Running `telesis drift` produces zero errors
+1. Intake view lists work items with keyboard selection and approve/skip/plan actions
+2. Pipeline view shows active pipeline state and quality gate results
+3. Dispatch view lists sessions with status indicators
+4. Review view lists review sessions with finding counts
+5. Number keys 3-6 switch to workflow views
+6. All views refresh data from disk on demand
+7. All new business logic has colocated unit tests
+8. Running `telesis drift` produces zero errors
 
 ---
 
@@ -95,7 +93,7 @@ interactive workflow (intake/dispatch/review/pipeline) in v0.36.0.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (26 component designs)
+- TDDs: `docs/tdd/` (27 component designs)
 
 ---
 

@@ -1648,6 +1648,29 @@ interactive workflow (intake/dispatch/review/pipeline) in v0.36.0.
 
 ---
 
+## v0.36.0 — TUI Workflow
+
+**Goal:** Add interactive workflow views to the TUI: intake management, pipeline monitoring,
+dispatch sessions, and review findings. The TUI becomes the primary interaction surface for
+driving the full Telesis lifecycle.
+
+**Status:** Complete
+
+**Reference:** TDD-027 (TUI Workflow Views)
+
+### Acceptance Criteria
+
+1. Intake view lists work items with keyboard selection and approve/skip/plan actions
+2. Pipeline view shows active pipeline state and quality gate results
+3. Dispatch view lists sessions with status indicators
+4. Review view lists review sessions with finding counts
+5. Number keys 3-6 switch to workflow views
+6. All views refresh data from disk on demand
+7. All new business logic has colocated unit tests
+8. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

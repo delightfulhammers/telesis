@@ -8,8 +8,18 @@ import { createScreen } from "../tui/screen.js";
 import { createApp } from "../tui/app.js";
 import { createDashboardView } from "../tui/views/dashboard.js";
 import { createEventsView } from "../tui/views/events.js";
+import { createIntakeView } from "../tui/views/intake.js";
+import { createPipelineView } from "../tui/views/pipeline.js";
+import { createDispatchView } from "../tui/views/dispatch.js";
+import { createReviewView } from "../tui/views/review.js";
 import { getStatus } from "../status/status.js";
+import { listWorkItems } from "../intake/store.js";
+import { skipWorkItem } from "../intake/approve.js";
+import { listSessions } from "../dispatch/store.js";
+import { listReviewSessions } from "../agent/review/store.js";
+import { loadPipelineState } from "../pipeline/state.js";
 import { VERSION } from "../version.js";
+import type { WorkItemStatus } from "../intake/types.js";
 
 export const tuiCommand = new Command("tui")
   .description("Interactive terminal UI for monitoring and managing Telesis")
@@ -29,7 +39,7 @@ export const tuiCommand = new Command("tui")
       const cfg = load(rootDir);
       const status = await getStatus(rootDir);
 
-      // Connect to daemon first — needed before creating app
+      // Connect to daemon first
       const client = await connect(rootDir);
 
       // Create views
@@ -49,7 +59,59 @@ export const tuiCommand = new Command("tui")
 
       const events = createEventsView();
 
-      // Single cleanup path — guarded against double invocation
+      const intake = createIntakeView({
+        loadItems: () => listWorkItems(rootDir),
+        onSkip: (item) => {
+          try {
+            skipWorkItem(rootDir, item.id);
+          } catch {
+            // best-effort from TUI
+          }
+        },
+      });
+
+      const pipeline = createPipelineView({
+        loadState: () => {
+          // Find most recent active work item to show its pipeline
+          const active = listWorkItems(rootDir, {
+            status: ["dispatching", "approved"] as WorkItemStatus[],
+          });
+          if (active.length === 0) return null;
+          const ps = loadPipelineState(rootDir, active[0].id);
+          if (!ps) return null;
+          return {
+            workItemTitle: active[0].title,
+            currentStage: ps.currentStage,
+            branch: ps.branch,
+            prUrl: ps.prUrl,
+          };
+        },
+      });
+
+      const dispatch = createDispatchView({
+        loadSessions: () =>
+          listSessions(rootDir).map((s) => ({
+            id: s.id,
+            agent: s.agent,
+            task: s.task,
+            status: s.status,
+            startedAt: s.startedAt,
+            eventCount: s.eventCount,
+          })),
+      });
+
+      const review = createReviewView({
+        loadSessions: () =>
+          listReviewSessions(rootDir).map((s) => ({
+            id: s.id,
+            timestamp: s.timestamp,
+            findingCount: s.findingCount,
+            mode: s.mode,
+            durationMs: s.durationMs,
+          })),
+      });
+
+      // Single cleanup path
       let cleaned = false;
       const cleanup = (): void => {
         if (cleaned) return;
@@ -58,11 +120,11 @@ export const tuiCommand = new Command("tui")
         client.disconnect();
       };
 
-      // Create app
+      // Create app with all views
       const screen = createScreen();
       const app = createApp({
         screen,
-        views: [dashboard, events],
+        views: [dashboard, events, intake, pipeline, dispatch, review],
         projectName: cfg.project.name,
         onQuit: () => {
           cleanup();
