@@ -30,7 +30,7 @@ for `.telesis/config.yml`, just like the CLI.
 
 ## Tools
 
-The MCP server exposes 27 tools:
+The MCP server exposes 28 tools:
 
 ### Project State
 - **telesis_status** — project metadata, ADR/TDD counts, token usage, cost
@@ -48,6 +48,7 @@ The MCP server exposes 27 tools:
 - **telesis_milestone_complete** — run completion steps (no git operations)
 
 ### Work Management
+- **telesis_intake_github** / **_jira** — import from GitHub or Jira
 - **telesis_intake_list** / **_show** — work items
 - **telesis_plan_list** / **_show** / **_approve** — task plans
 - **telesis_dispatch_list** / **_show** — dispatch sessions

@@ -93,7 +93,7 @@ driving the full Telesis lifecycle.
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (27 component designs)
+- TDDs: `docs/tdd/` (28 component designs)
 
 ---
 

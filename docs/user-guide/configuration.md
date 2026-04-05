@@ -76,6 +76,19 @@ oversight:
 | `enabled` | `true` if observer policies exist | Enable oversight observers during dispatch |
 | `defaultModel` | `claude-sonnet-4-6` | Model used by oversight observers |
 
+## GitHub
+
+```yaml
+github:
+  apiUrl: "https://github.yourcompany.com/api/v3"
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `apiUrl` | `https://api.github.com` | GitHub API base URL (for GitHub Enterprise) |
+
+Override with `GITHUB_API_URL` environment variable (takes precedence over config).
+
 ## Intake
 
 ```yaml
@@ -89,6 +102,20 @@ intake:
       - duplicate
     assignee: your-username
     state: open
+  jira:
+    baseUrl: "https://yourcompany.atlassian.net"
+    project: "PROJ"
+    labels:
+      - ready-for-dev
+    assignee: john.smith
+    status:
+      - "To Do"
+      - "Ready"
+    issueTypes:
+      - Bug
+      - Story
+      - Task
+    jql: "project = PROJ AND sprint in openSprints()"
 ```
 
 | Field | Default | Description |
@@ -97,6 +124,15 @@ intake:
 | `github.excludeLabels` | — | Skip issues with these labels |
 | `github.assignee` | — | Only import issues assigned to this user |
 | `github.state` | `open` | Issue state filter: `open`, `closed`, `all` |
+| `jira.baseUrl` | — | **Required.** Jira instance URL |
+| `jira.project` | — | Filter by Jira project key |
+| `jira.jql` | — | Custom JQL query (overrides other Jira filters) |
+| `jira.labels` | — | Filter by Jira labels |
+| `jira.assignee` | — | Filter by assignee |
+| `jira.status` | — | Filter by issue status (array) |
+| `jira.issueTypes` | — | Filter by issue type (array) |
+
+Jira auth: set `JIRA_TOKEN` (and `JIRA_EMAIL` for Jira Cloud). When `jql` is provided, it overrides `project`, `labels`, `assignee`, `status`, and `issueTypes`.
 
 ## Planner
 
@@ -176,6 +212,31 @@ pipeline:
 | `qualityGates.build` | — | Shell command for build verification |
 | `qualityGates.drift` | — | Run `telesis drift` (boolean, not a shell command) |
 
+## Drift
+
+```yaml
+drift:
+  containment:
+    - import: "database/sql"
+      allowedIn: ["internal/db/"]
+      description: "DB driver contained to internal/db/"
+      severity: error
+      excludeTests: true
+    - import: "@aws-sdk/client-s3"
+      allowedIn: ["src/storage/"]
+      severity: warning
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `containment[].import` | Yes | — | Import pattern to detect (substring match) |
+| `containment[].allowedIn` | Yes | — | Path prefixes where the import is allowed |
+| `containment[].description` | No | Auto-generated | Human-readable description |
+| `containment[].severity` | No | `error` | Finding severity: `error`, `warning` |
+| `containment[].excludeTests` | No | `true` | Skip test files (`.test.`, `_test.`, `.spec.`) |
+
+Containment rules are checked by `telesis drift` alongside built-in checks. Rules appear as `containment:<import-pattern>` in drift output. Use `--check containment:express` to run a specific rule.
+
 ## Daemon
 
 ```yaml
@@ -208,6 +269,10 @@ These are not in `config.yml` but affect Telesis behavior:
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Yes | API key for all model calls |
 | `GITHUB_TOKEN` | For GitHub features | GitHub personal access token |
+| `GITHUB_API_URL` | For GitHub Enterprise | API base URL (overrides `github.apiUrl` config) |
+| `JIRA_TOKEN` | For Jira/Confluence | Jira API token (Cloud) or PAT (Server) |
+| `JIRA_EMAIL` | For Jira Cloud | Email for Basic auth (omit for Server/PAT) |
+| `CONFLUENCE_BASE_URL` | For Confluence | Confluence instance URL (e.g., `https://company.atlassian.net/wiki`) |
 
 ## Minimal Configuration
 
@@ -248,11 +313,18 @@ oversight:
   enabled: true
   defaultModel: claude-sonnet-4-6
 
+github:
+  apiUrl: "https://github.yourcompany.com/api/v3"
+
 intake:
   github:
     labels: ["bug", "feature", "enhancement"]
     excludeLabels: ["wontfix"]
     state: open
+  jira:
+    baseUrl: "https://yourcompany.atlassian.net"
+    project: "PROJ"
+    status: ["To Do", "Ready"]
 
 planner:
   model: claude-sonnet-4-6
@@ -282,6 +354,14 @@ pipeline:
     test: "pnpm test"
     build: "pnpm run build"
     drift: true
+
+drift:
+  containment:
+    - import: "@anthropic-ai/sdk"
+      allowedIn: ["src/agent/model/"]
+    - import: "express"
+      allowedIn: ["src/api/", "src/middleware/"]
+      severity: warning
 
 daemon:
   watch:

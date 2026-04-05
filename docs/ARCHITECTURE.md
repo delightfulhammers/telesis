@@ -40,7 +40,8 @@ telesis/
       milestone.ts        ← milestone check + complete commands (v0.9.0)
       daemon.ts           ← daemon start/stop/status/install/tui commands (v0.12.0)
       dispatch.ts         ← dispatch run/list/show commands (v0.13.0)
-      intake.ts           ← intake github/list/show/approve/skip commands (v0.15.0)
+      intake.ts           ← intake github/jira/list/show/approve/skip commands (v0.15.0, v0.32.0)
+      tui.ts              ← interactive TUI command (v0.35.0)
       plan.ts             ← plan create/list/show/approve/execute commands (v0.16.0)
       run.ts              ← full pipeline run command (v0.18.0)
       orchestrator.ts     ← orchestrator status/approve/reject/preflight commands (v0.22.0)
@@ -68,8 +69,23 @@ telesis/
         index.ts          ← registerResources aggregator
         docs.ts           ← telesis:// document and config resources
         guidance.ts       ← telesis://guidance/ skill content as MCP resources (v0.30.0)
-    hooks/                ← provider-neutral git hook management (v0.30.0)
-      install.ts          ← git pre-commit hook install/uninstall
+    hooks/                ← provider-neutral git hook management (v0.30.0, v0.33.0)
+      install.ts          ← git pre-commit hook install/uninstall (monorepo-aware)
+      git-root.ts         ← git root discovery (walks up for .git/, separate from project root)
+    tui/                  ← interactive terminal UI (v0.35.0, v0.36.0)
+      screen.ts           ← terminal I/O: raw mode, ANSI cursor control, key capture
+      keys.ts             ← key event parsing from raw stdin bytes
+      colors.ts           ← ANSI color helpers, stripAnsi, fitWidth
+      view.ts             ← View interface (render, onKey, onEvent)
+      app.ts              ← view router, daemon integration, header/status bars
+      list.ts             ← reusable SelectableList component (cursor, scroll, selection)
+      views/
+        dashboard.ts      ← project status, milestone, orchestrator, recent events
+        events.ts         ← scrollable, filterable event log
+        intake.ts         ← work item browser with approve/skip/plan actions
+        pipeline.ts       ← pipeline state, quality gates
+        dispatch.ts       ← agent session monitor
+        review.ts         ← review session history
 
     orchestrator/         ← orchestrator state machine, decisions, runner (v0.22.0, v0.28.0)
       types.ts            ← OrchestratorState, OrchestratorContext, Decision, SessionExitReason
@@ -126,6 +142,7 @@ telesis/
       source.ts           ← IntakeSource interface, RawIssue
       store.ts            ← per-item JSON persistence in .telesis/intake/
       github-source.ts    ← GitHub IntakeSource adapter
+      jira-source.ts      ← Jira IntakeSource adapter (v0.32.0)
       sync.ts             ← source → normalize → dedupe → store
       approve.ts          ← approval + dispatch bridge
       format.ts           ← CLI list/show formatting
@@ -179,16 +196,25 @@ telesis/
         milestone-tdd-consistency.ts ← complete milestones have accepted TDDs (v0.7.0)
         version-consistency.ts      ← package.json version matches latest complete milestone
         tdd-coverage.ts             ← non-exempt packages have TDD coverage
-    github/               ← GitHub CI integration (v0.8.0)
+    github/               ← GitHub CI integration (v0.8.0, GHE support v0.32.0)
       types.ts            ← GitHubPRContext, PRReviewComment, PostReviewResult
-      environment.ts      ← CI detection, PR context extraction from GITHUB_EVENT_PATH
-      http.ts             ← shared HTTP helpers: headers, fetchWithRetry, GitHubApiError (v0.18.0)
-      client.ts           ← Raw fetch wrappers for GitHub REST API (review operations)
-      pr.ts               ← PR creation, issue close, issue comment (v0.18.0)
-      pr-body.ts          ← LLM-generated PR body descriptions (v0.19.0)
+      environment.ts      ← CI detection, PR context extraction, GHE domain parsing
+      http.ts             ← shared HTTP helpers: headers, fetchWithRetry, GitHubApiError
+      client.ts           ← createGitHubClient factory + bare exports (lazy GHE resolution)
+      pr.ts               ← PR creation, issue close, issue comment
+      pr-body.ts          ← LLM-generated PR body descriptions
       format.ts           ← Finding → markdown comment body, drift → markdown comment body
       adapter.ts          ← ReviewFinding[] → { event, body, comments[] } mapping
       dismissals.ts       ← GitHub DismissalSource adapter (v0.10.0)
+    jira/                 ← Jira REST API client (v0.32.0)
+      types.ts            ← JiraIssue, JiraSearchResponse, JiraAuth, JiraClientConfig
+      auth.ts             ← resolveJiraAuth (Cloud Basic / Server Bearer auto-detect)
+      client.ts           ← searchIssues with JQL, pagination, SSRF protection
+    confluence/           ← Confluence doc ingestion (v0.36.2)
+      types.ts            ← ConfluencePage, ConfluenceSearchResponse, ConfluenceClientConfig
+      client.ts           ← fetchSpacePages, fetchPage
+      convert.ts          ← storageToMarkdown (XHTML → markdown converter)
+      ingest.ts           ← ingestConfluenceSpace (fetch → convert → write)
     templates/            ← embedded document templates (.md.tmpl)
     agent/                ← AI agent layer (v0.2.0+)
       interview/
@@ -298,7 +324,9 @@ telesis/
   the `EventBus` interface. Same containment pattern as the model and GitHub clients.
 - **`src/dispatch/acpx-adapter.ts`** is the only file that spawns `acpx` subprocesses.
   All other dispatch code uses the `AgentAdapter` interface. Same containment pattern.
-- **`src/github/client.ts`** is the only file that calls `fetch` for the GitHub API.
+- **`src/github/client.ts`** contains the `createGitHubClient` factory. The lazy default
+  client resolves `GITHUB_API_URL` at first call for GitHub Enterprise support.
+- **`src/jira/auth.ts`** provides shared Atlassian auth for both Jira and Confluence.
   All other code uses the adapter and format modules. Same containment pattern as the model client.
 - **`src/agent/`** packages (`interview/`, `generate/`, `telemetry/`) know nothing about the
   CLI entrypoint. `src/cli/init.ts` wires them together.

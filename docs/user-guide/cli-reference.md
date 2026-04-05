@@ -13,12 +13,13 @@ Complete reference for all Telesis CLI commands.
 Unified project onboarding — auto-detects greenfield, existing docs, or version migration.
 
 ```
-telesis init [--docs <path>]
+telesis init [--docs <path>] [--confluence <space-key>]
 ```
 
 | Flag | Description |
 |---|---|
 | `--docs <path>` | Custom docs directory (default: `docs/`) |
+| `--confluence <space-key>` | Import pages from a Confluence space before init (requires `JIRA_TOKEN`) |
 
 **Modes:**
 - **Greenfield** (no `.telesis/`, no docs): AI interview + doc generation. Requires `ANTHROPIC_API_KEY`.
@@ -200,12 +201,13 @@ Work item intake.
 | Command | Description |
 |---|---|
 | `telesis intake github` | Import open issues from configured GitHub repo |
+| `telesis intake jira` | Import issues from configured Jira instance |
 | `telesis intake list [--all] [--json]` | List work items (default: active only) |
 | `telesis intake show <id>` | Show work item details (supports ID prefix) |
 | `telesis intake approve <id> [--agent <name>] [--plan]` | Approve and optionally dispatch or plan |
 | `telesis intake skip <id>` | Mark work item as skipped |
 
-Requires `GITHUB_TOKEN` for GitHub import.
+Requires `GITHUB_TOKEN` for GitHub import. Requires `JIRA_TOKEN` (and `JIRA_EMAIL` for Jira Cloud) for Jira import.
 
 ---
 
@@ -327,6 +329,34 @@ Downloads platform-specific binaries from GitHub Releases. Replaces both `telesi
 
 ---
 
+## telesis tui
+
+Interactive terminal UI for monitoring and managing Telesis.
+
+```
+telesis tui
+```
+
+Opens a full-screen terminal interface connected to the running daemon. Requires `telesis daemon start` first.
+
+**Views:**
+- **Dashboard** (key: `1`): project status, milestone, orchestrator state, recent events
+- **Events** (key: `2`): scrollable, filterable event log with color coding
+- **Intake** (key: `3`): browse work items, approve/skip/plan with keyboard selection
+- **Pipeline** (key: `4`): active pipeline state, quality gate results
+- **Dispatch** (key: `5`): monitor agent sessions
+- **Review** (key: `6`): review session history with finding counts
+
+**Navigation:**
+- `Tab` or number keys to switch views
+- Arrow keys to scroll/navigate lists
+- `f` to cycle event filters
+- `r` to refresh data from disk
+- `a`/`s`/`p` in Intake view to approve/skip/plan
+- `q` or `Ctrl+C` to quit
+
+---
+
 ## telesis-mcp
 
 MCP server binary (separate from the CLI).
@@ -337,7 +367,7 @@ telesis-mcp
 
 Starts a stdio MCP server exposing 28 tools and 6+ resources. Intended for use with Claude Code or other MCP clients.
 
-**Tools:** `telesis_status`, `telesis_drift`, `telesis_context_generate`, `telesis_adr_new`, `telesis_tdd_new`, `telesis_journal_add`, `telesis_journal_list`, `telesis_journal_show`, `telesis_note_add`, `telesis_note_list`, `telesis_milestone_check`, `telesis_milestone_complete`, `telesis_intake_list`, `telesis_intake_show`, `telesis_plan_list`, `telesis_plan_show`, `telesis_plan_approve`, `telesis_dispatch_list`, `telesis_dispatch_show`, `telesis_review`, `telesis_review_list`, `telesis_review_show`, `telesis_orchestrator_status`, `telesis_orchestrator_run`, `telesis_orchestrator_approve`, `telesis_orchestrator_reject`, `telesis_orchestrator_preflight`, `telesis_orchestrator_resume_briefing`
+**Tools:** `telesis_status`, `telesis_drift`, `telesis_context_generate`, `telesis_adr_new`, `telesis_tdd_new`, `telesis_journal_add`, `telesis_journal_list`, `telesis_journal_show`, `telesis_note_add`, `telesis_note_list`, `telesis_milestone_check`, `telesis_milestone_complete`, `telesis_intake_github`, `telesis_intake_jira`, `telesis_intake_list`, `telesis_intake_show`, `telesis_plan_list`, `telesis_plan_show`, `telesis_plan_approve`, `telesis_dispatch_list`, `telesis_dispatch_show`, `telesis_review`, `telesis_review_list`, `telesis_review_show`, `telesis_orchestrator_status`, `telesis_orchestrator_run`, `telesis_orchestrator_approve`, `telesis_orchestrator_reject`, `telesis_orchestrator_preflight`, `telesis_orchestrator_resume_briefing`
 
 **Resources:** `telesis://docs/VISION.md`, `telesis://docs/PRD.md`, `telesis://docs/ARCHITECTURE.md`, `telesis://docs/MILESTONES.md`, `telesis://CLAUDE.md`, `telesis://config`, `telesis://guidance/*` (one per installed skill)
 
