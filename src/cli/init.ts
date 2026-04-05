@@ -19,6 +19,8 @@ import { applyUpgrade } from "../scaffold/upgrade.js";
 import { installHook } from "../hooks/install.js";
 import { findGitRoot } from "../hooks/git-root.js";
 import type { DocumentType } from "../agent/generate/types.js";
+import { resolveJiraAuth } from "../jira/auth.js";
+import { ingestConfluenceSpace } from "../confluence/ingest.js";
 
 const DOCUMENT_LABELS: Readonly<Record<DocumentType, string>> = {
   vision: "VISION.md",
@@ -56,12 +58,53 @@ export const initCommand = new Command("init")
     "Initialize telesis — auto-detects greenfield, existing docs, or version migration",
   )
   .option("--docs <path>", "Custom docs directory (default: docs)")
+  .option(
+    "--confluence <space-key>",
+    "Import pages from a Confluence space before init",
+  )
   .action(
-    handleAction(async (opts: { docs?: string }) => {
+    handleAction(async (opts: { docs?: string; confluence?: string }) => {
       const rootDir = process.cwd();
-      const docsDir = opts.docs;
+      const docsDir = opts.docs ?? "docs";
 
       console.log("\ntelesis init\n");
+
+      // Pre-init: import Confluence pages if requested
+      if (opts.confluence) {
+        const auth = resolveJiraAuth();
+        if (!auth) {
+          throw new Error(
+            "JIRA_TOKEN not set. Confluence uses the same Atlassian auth. Set JIRA_TOKEN (and JIRA_EMAIL for Cloud).",
+          );
+        }
+        const baseUrl =
+          process.env.CONFLUENCE_BASE_URL ??
+          (auth.email
+            ? `https://${auth.email.split("@")[1]?.split(".")[0] ?? "company"}.atlassian.net/wiki`
+            : "");
+        if (!baseUrl) {
+          throw new Error(
+            "Set CONFLUENCE_BASE_URL to your Confluence instance URL (e.g., https://company.atlassian.net/wiki).",
+          );
+        }
+        console.log(
+          `Importing Confluence space "${opts.confluence}" into ${docsDir}/...`,
+        );
+        const result = await ingestConfluenceSpace(
+          { baseUrl, auth },
+          opts.confluence,
+          join(rootDir, docsDir),
+        );
+        console.log(
+          `  ${result.pagesWritten} page(s) imported, ${result.skippedExisting} skipped (already exist)`,
+        );
+        if (result.files.length > 0) {
+          for (const f of result.files) {
+            console.log(`  + ${docsDir}/${f}`);
+          }
+        }
+        console.log("");
+      }
 
       const io = createTerminalIO();
 
