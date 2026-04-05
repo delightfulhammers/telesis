@@ -636,6 +636,87 @@ export const parseGitConfig = (raw: RawConfig | null): GitConfig => {
   return result;
 };
 
+export interface DriftContainmentRule {
+  readonly import: string;
+  readonly allowedIn: readonly string[];
+  readonly description?: string;
+  readonly severity?: "error" | "warning";
+  readonly excludeTests?: boolean;
+}
+
+export interface DriftConfig {
+  readonly containment?: readonly DriftContainmentRule[];
+  readonly expectedDirectories?: readonly string[];
+}
+
+/** Parse drift config from .telesis/config.yml, returning defaults if absent */
+export const parseDriftConfig = (raw: RawConfig | null): DriftConfig => {
+  if (!raw || typeof raw !== "object" || !raw.drift) return {};
+
+  const drift = raw.drift;
+  if (typeof drift !== "object" || drift === null) return {};
+
+  const d = drift as Record<string, unknown>;
+  const result: {
+    containment?: DriftContainmentRule[];
+    expectedDirectories?: readonly string[];
+  } = {};
+
+  if (Array.isArray(d.containment)) {
+    const rules = d.containment
+      .map((item): DriftContainmentRule | null => {
+        if (!item || typeof item !== "object") return null;
+        const r = item as Record<string, unknown>;
+        if (typeof r.import !== "string" || r.import.length === 0) return null;
+        if (!Array.isArray(r.allowedIn) || r.allowedIn.length === 0) {
+          if (typeof r.import === "string") {
+            process.stderr.write(
+              `[telesis] drift.containment rule skipped: missing "allowedIn" for import "${r.import}"\n`,
+            );
+          }
+          return null;
+        }
+
+        const allowedIn = r.allowedIn.filter(
+          (v): v is string => typeof v === "string" && v.length > 0,
+        );
+        if (allowedIn.length === 0) return null;
+
+        const rule: {
+          import: string;
+          allowedIn: readonly string[];
+          description?: string;
+          severity?: "error" | "warning";
+          excludeTests?: boolean;
+        } = { import: r.import, allowedIn };
+
+        if (typeof r.description === "string" && r.description.length > 0) {
+          rule.description = r.description;
+        }
+        if (r.severity === "error" || r.severity === "warning") {
+          rule.severity = r.severity;
+        }
+        if (typeof r.excludeTests === "boolean") {
+          rule.excludeTests = r.excludeTests;
+        }
+
+        return rule;
+      })
+      .filter((r): r is DriftContainmentRule => r !== null);
+
+    if (rules.length > 0) result.containment = rules;
+  }
+
+  if (Array.isArray(d.expectedDirectories)) {
+    const dirs = d.expectedDirectories.filter(
+      (v): v is string => typeof v === "string" && v.length > 0,
+    );
+    if (dirs.length > 0) result.expectedDirectories = dirs;
+  }
+
+  return result;
+};
+
 export type ReviewBlockThreshold = "critical" | "high" | "medium" | "low";
 
 const validReviewBlockThresholds: readonly string[] = [

@@ -57,32 +57,26 @@ At each stage, Telesis holds the context that keeps the loop coherent. When some
 
 ## Active Milestone
 
-## v0.33.0 — Monorepo Support
+## v0.34.0 — Declarative Drift Containment
 
-**Goal:** Decouple git root from project root so `telesis init` and hook installation work
-in monorepo subdirectories where `.git/` is at the repo root and `.telesis/` is per-service.
+**Goal:** Let projects declare import containment rules in config rather than requiring
+Telesis source code changes. Unblocks enforcing architecture boundaries in any project.
 
 **Status:** Complete
 
-**Reference:** TDD-024 (Monorepo Support)
-
-### What Changes
-
-- New `findGitRoot()` utility — walks upward for `.git/` independently from `.telesis/`
-- `installHook` accepts separate `projectRoot` and `gitRoot` parameters
-- Hook body uses absolute paths so preflight runs from the correct project root
-- All callers updated (init, hooks install CLI)
+**Reference:** TDD-025 (Declarative Drift Containment)
 
 ### Acceptance Criteria
 
-1. `telesis init` succeeds when `.git/` is an ancestor of `cwd` (not co-located)
-2. Git pre-commit hook is installed at the correct `.git/hooks/` path
-3. Hook body `cd`s to the project root before running `telesis orchestrator preflight`
-4. Multiple telesis projects in one repo install independent hook sections
-5. Existing single-repo behavior is unchanged (git root = project root)
-6. `telesis hooks install` and `telesis hooks uninstall` work with separate roots
-7. All new business logic has colocated unit tests
-8. Running `telesis drift` produces zero errors
+1. `drift.containment` config section is parsed and validated
+2. Each containment rule generates a `DriftCheck` that runs alongside built-in checks
+3. Rules support: import pattern, allowedIn paths, severity, excludeTests
+4. Config-generated checks appear in `telesis drift` output with `containment:` prefix
+5. `--check containment:<name>` filter works
+6. Go import syntax is matched (bare string imports inside import blocks)
+7. Test files are excluded by default (`excludeTests: true`)
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
 
 ---
 
@@ -99,7 +93,7 @@ in monorepo subdirectories where `.git/` is at the repo root and `.telesis/` is 
 - Architecture: `docs/ARCHITECTURE.md`
 - Milestones: `docs/MILESTONES.md`
 - ADRs: `docs/adr/` (2 decisions on record)
-- TDDs: `docs/tdd/` (24 component designs)
+- TDDs: `docs/tdd/` (25 component designs)
 
 ---
 

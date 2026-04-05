@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { RootResolver } from "../root-resolver.js";
 import { allChecks } from "../../drift/checks/index.js";
 import { runChecks } from "../../drift/runner.js";
-import { load } from "../../config/config.js";
+import { buildContainmentChecks } from "../../drift/containment.js";
+import { load, loadRawConfig, parseDriftConfig } from "../../config/config.js";
 
 export const register = (
   server: McpServer,
@@ -25,9 +26,16 @@ export const register = (
     async ({ projectRoot, checks: filter }) => {
       try {
         const rootDir = resolveRoot(projectRoot);
+        const cfg = load(rootDir);
+        const rawConfig = loadRawConfig(rootDir);
+        const driftConfig = parseDriftConfig(rawConfig);
+        const configChecks = buildContainmentChecks(
+          driftConfig.containment ?? [],
+        );
+        const allDriftChecks = [...allChecks, ...configChecks];
 
         if (filter) {
-          const validNames = new Set(allChecks.map((c) => c.name));
+          const validNames = new Set(allDriftChecks.map((c) => c.name));
           const unknown = filter.filter((n) => !validNames.has(n));
           if (unknown.length > 0) {
             const available = [...validNames].sort().join(", ");
@@ -37,9 +45,8 @@ export const register = (
           }
         }
 
-        const cfg = load(rootDir);
         const report = runChecks(
-          allChecks,
+          allDriftChecks,
           rootDir,
           filter,
           cfg.project.languages,

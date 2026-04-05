@@ -16,6 +16,7 @@ import {
   parsePipelineConfig,
   parseGitHubConfig,
   resolveGitHubApiBase,
+  parseDriftConfig,
 } from "./config.js";
 import type { Config } from "./config.js";
 import { useTempDir } from "../test-utils.js";
@@ -273,6 +274,7 @@ describe("config", () => {
       expect(parsePlannerConfig(null)).toEqual({});
       expect(parseGitConfig(null)).toEqual({});
       expect(parseGitHubConfig(null)).toEqual({});
+      expect(parseDriftConfig(null)).toEqual({});
       expect(parsePipelineConfig(null)).toEqual({
         reviewBeforePush: false,
         reviewBlockThreshold: "high",
@@ -721,6 +723,100 @@ describe("config", () => {
       const result = parseIntakeConfig(raw);
       expect(result.jira?.labels).toEqual(["valid", "also-valid"]);
       expect(result.jira?.status).toEqual(["To Do"]);
+    });
+  });
+
+  describe("parseDriftConfig", () => {
+    it("parses full containment rules", () => {
+      const raw = {
+        drift: {
+          containment: [
+            {
+              import: "database/sql",
+              allowedIn: ["internal/db/"],
+              description: "DB driver contained",
+              severity: "error",
+              excludeTests: false,
+            },
+          ],
+        },
+      };
+      expect(parseDriftConfig(raw)).toEqual({
+        containment: [
+          {
+            import: "database/sql",
+            allowedIn: ["internal/db/"],
+            description: "DB driver contained",
+            severity: "error",
+            excludeTests: false,
+          },
+        ],
+      });
+    });
+
+    it("parses minimal containment rule (import + allowedIn only)", () => {
+      const raw = {
+        drift: {
+          containment: [{ import: "express", allowedIn: ["src/api/"] }],
+        },
+      };
+      const result = parseDriftConfig(raw);
+      expect(result.containment).toHaveLength(1);
+      expect(result.containment![0].import).toBe("express");
+      expect(result.containment![0].allowedIn).toEqual(["src/api/"]);
+      expect(result.containment![0].severity).toBeUndefined();
+    });
+
+    it("skips rules missing import field", () => {
+      const raw = {
+        drift: { containment: [{ allowedIn: ["src/api/"] }] },
+      };
+      expect(parseDriftConfig(raw)).toEqual({});
+    });
+
+    it("skips rules missing allowedIn field", () => {
+      const raw = {
+        drift: { containment: [{ import: "express" }] },
+      };
+      expect(parseDriftConfig(raw)).toEqual({});
+    });
+
+    it("skips rules with empty allowedIn array", () => {
+      const raw = {
+        drift: { containment: [{ import: "express", allowedIn: [] }] },
+      };
+      expect(parseDriftConfig(raw)).toEqual({});
+    });
+
+    it("filters non-string values from allowedIn", () => {
+      const raw = {
+        drift: {
+          containment: [{ import: "express", allowedIn: ["src/api/", 42, ""] }],
+        },
+      };
+      const result = parseDriftConfig(raw);
+      expect(result.containment![0].allowedIn).toEqual(["src/api/"]);
+    });
+
+    it("ignores invalid severity values", () => {
+      const raw = {
+        drift: {
+          containment: [
+            { import: "express", allowedIn: ["src/api/"], severity: "fatal" },
+          ],
+        },
+      };
+      const result = parseDriftConfig(raw);
+      expect(result.containment![0].severity).toBeUndefined();
+    });
+
+    it("parses expectedDirectories", () => {
+      const raw = {
+        drift: { expectedDirectories: ["docs", "docs/adr", "src"] },
+      };
+      expect(parseDriftConfig(raw)).toEqual({
+        expectedDirectories: ["docs", "docs/adr", "src"],
+      });
     });
   });
 

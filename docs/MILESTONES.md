@@ -1600,6 +1600,29 @@ in monorepo subdirectories where `.git/` is at the repo root and `.telesis/` is 
 
 ---
 
+## v0.34.0 — Declarative Drift Containment
+
+**Goal:** Let projects declare import containment rules in config rather than requiring
+Telesis source code changes. Unblocks enforcing architecture boundaries in any project.
+
+**Status:** Complete
+
+**Reference:** TDD-025 (Declarative Drift Containment)
+
+### Acceptance Criteria
+
+1. `drift.containment` config section is parsed and validated
+2. Each containment rule generates a `DriftCheck` that runs alongside built-in checks
+3. Rules support: import pattern, allowedIn paths, severity, excludeTests
+4. Config-generated checks appear in `telesis drift` output with `containment:` prefix
+5. `--check containment:<name>` filter works
+6. Go import syntax is matched (bare string imports inside import blocks)
+7. Test files are excluded by default (`excludeTests: true`)
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

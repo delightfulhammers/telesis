@@ -5,7 +5,11 @@ import { runChecks } from "../drift/runner.js";
 import { formatDriftReport } from "../drift/format.js";
 import { handleAction } from "./handle-action.js";
 import { projectRoot } from "./project-root.js";
-import { load } from "../config/config.js";
+import { load, loadRawConfig, parseDriftConfig } from "../config/config.js";
+// Note: load() and loadRawConfig() both read config.yml. We use loadRawConfig()
+// for parseDriftConfig() and load() for the typed project config. The file is
+// small and cached by the OS, so the double-read is negligible.
+import { buildContainmentChecks } from "../drift/containment.js";
 import type { DriftReport } from "../drift/types.js";
 import { extractPRContext } from "../github/environment.js";
 import { upsertDriftComment } from "../github/adapter.js";
@@ -23,9 +27,16 @@ export const driftCommand = new Command("drift")
         githubPr?: boolean;
       }) => {
         const rootDir = resolve(projectRoot());
+        const cfg = load(rootDir);
+        const rawConfig = loadRawConfig(rootDir);
+        const driftConfig = parseDriftConfig(rawConfig);
+        const configChecks = buildContainmentChecks(
+          driftConfig.containment ?? [],
+        );
+        const allDriftChecks = [...allChecks, ...configChecks];
 
         if (opts.check) {
-          const validNames = new Set(allChecks.map((c) => c.name));
+          const validNames = new Set(allDriftChecks.map((c) => c.name));
           const unknown = opts.check.filter((n) => !validNames.has(n));
           if (unknown.length > 0) {
             const available = [...validNames].sort().join(", ");
@@ -35,9 +46,8 @@ export const driftCommand = new Command("drift")
           }
         }
 
-        const cfg = load(rootDir);
         const report = runChecks(
-          allChecks,
+          allDriftChecks,
           rootDir,
           opts.check,
           cfg.project.languages,
