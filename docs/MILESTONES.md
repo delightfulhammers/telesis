@@ -1678,7 +1678,7 @@ especially monorepos with documentation in non-standard locations. The interview
 existing docs instead of re-asking what's already written. Init works without a TTY.
 Context generation supports layered doc paths and inlines TDD substance.
 
-**Status:** Active
+**Status:** Complete
 
 **Reference:** TDD-029 (Existing Project Onboarding)
 

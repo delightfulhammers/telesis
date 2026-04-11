@@ -103,8 +103,9 @@ telesis/
     config/               ← .telesis/config.yml read/write
     context/              ← CLAUDE.md generation from doc tree
     scaffold/             ← project initialization, state detection, unified onboarding (v0.31.0)
-      detect.ts           ← project state detection (greenfield/existing/migration)
-      unified-init.ts     ← unified init orchestrator dispatching to mode-specific logic
+      detect.ts           ← project state detection (greenfield/existing/migration), discovery fallback
+      doc-discovery.ts    ← recursive doc scanner for existing projects (v0.37.0)
+      unified-init.ts     ← unified init orchestrator, non-interactive mode support (v0.37.0)
       upgrade.ts          ← scaffold artifact retrofitting (used internally by init)
     adr/                  ← ADR file management
     tdd/                  ← TDD file management

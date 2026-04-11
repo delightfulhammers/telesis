@@ -23,6 +23,9 @@ project and does the right thing.
 | Flag | Description |
 |------|-------------|
 | `--docs <path>` | Custom docs directory (default: `docs/`) |
+| `--non-interactive` | Skip interview, infer config from existing docs and codebase |
+| `--depth <n>` | Doc discovery depth limit (default: 4) |
+| `--confluence <space-key>` | Import Confluence pages before init |
 
 ## Greenfield Mode
 
@@ -34,6 +37,8 @@ telesis init
 ```
 
 Telesis opens a multi-turn conversation with Claude. It asks about your project's purpose, audience, technology, constraints, and goals. Answer naturally — it's a conversation, not a form. The more context you provide, the better the generated documents will be.
+
+If the project has an existing codebase, the interviewer reads existing documentation from disk (ARCHITECTURE.md, PRD.md, ADRs, etc.) and only asks about gaps — it won't re-ask what's already documented.
 
 A typical interview takes 5–10 turns. Telesis monitors the conversation and wraps up when it has enough information. You can also end the interview early with `Ctrl+C`; your progress is saved automatically.
 
@@ -53,6 +58,17 @@ The interview adapts to your answers, but it generally covers:
 - **Development practices** — testing strategy, deployment model, team conventions
 - **Roadmap** — what's been built, what's next, what "done" looks like
 
+### Non-Interactive Mode
+
+For environments without a TTY (Claude Code, MCP, CI), use `--non-interactive` to skip the
+interview entirely. Telesis infers config from what it finds on disk:
+
+```bash
+telesis init --non-interactive
+```
+
+This produces a minimal CLAUDE.md — run `telesis context` after populating docs for a richer result.
+
 ## Existing Project Mode
 
 When `telesis init` finds documentation files (PRD.md, ARCHITECTURE.md, VISION.md, or
@@ -62,6 +78,11 @@ MILESTONES.md) but no `.telesis/config.yml`, it skips the interview and ingests 
 - Scaffolds standard directories (`docs/adr/`, `docs/tdd/`, `docs/context/`)
 - Generates `CLAUDE.md` from existing docs
 - Reports which docs are present and which are missing
+
+Detection is smart about non-standard doc locations. If no docs are found at `docs/`, telesis
+falls back to recursive discovery — scanning the project tree for known patterns like
+`ARCHITECTURE.md`, `ADR-*.md`, and `TDD-*.md`. This means a monorepo with docs at
+`docs/nats/ARCHITECTURE.md` is correctly identified as an existing project.
 
 Use `--docs` if your documentation lives outside the default `docs/` directory:
 

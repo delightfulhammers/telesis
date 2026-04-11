@@ -47,6 +47,11 @@ Unified project onboarding — auto-detects project state and applies the approp
 - **Existing project** (no `.telesis/`, has docs): ingest docs, create config, scaffold
 - **Migration** (has `.telesis/` from older version): retrofit missing artifacts
 - `--docs <path>` — custom docs directory (default: `docs/`)
+- `--non-interactive` — skip interview, infer config from existing docs and codebase (for Claude Code, MCP, CI)
+- `--depth <n>` — doc discovery depth limit (default: 4)
+- `--confluence <space-key>` — import pages from a Confluence space before init
+- Interview is doc-aware: reads existing docs from disk and only asks about gaps
+- Detection falls back to recursive discovery when docs are at non-standard paths
 - All modes install provider-appropriate adapter (Claude Code: skills + hooks; generic: git hooks)
 - Idempotent — safe to run repeatedly
 - Replaces the former `telesis upgrade` command (removed in v0.31.0)
@@ -55,9 +60,11 @@ Unified project onboarding — auto-detects project state and applies the approp
 
 Regenerates `CLAUDE.md` from current document state.
 
-- Reads all docs in the standard structure
+- Reads docs from all configured layers (default: `docs/`; configurable via `context.layers` in config.yml)
+- Supports layered doc paths for monorepos: merge ADRs, TDDs, and context files from multiple directories
+- Inlines TDD Overview and Interfaces sections in CLAUDE.md (Draft and Accepted, up to 10 most recent)
 - Produces a formatted `CLAUDE.md` that Claude Code can consume
-- Includes: current phase/status, active milestones, recent ADRs, pointers to key docs
+- Includes: current phase/status, active milestones, recent ADRs, component designs, pointers to key docs
 - Idempotent — safe to run any time
 
 ### `telesis adr new <slug>`

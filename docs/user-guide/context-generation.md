@@ -18,6 +18,7 @@ The generated file includes:
 - **Active milestone** — current milestone with acceptance criteria and build sequence
 - **Recent decisions** — the 5 most recent ADRs with titles and status
 - **Key documents** — index of all project documentation
+- **Component designs** — TDD Overview and Interfaces sections for Draft/Accepted TDDs (up to 10)
 - **Design principles** — extracted from VISION.md
 - **Custom context** — verbatim content from `docs/context/*.md`
 - **Development notes** — recent notes grouped by tag
@@ -44,6 +45,28 @@ This is the mechanism by which Telesis keeps AI assistants aligned with your sta
 - What architectural decisions have been made
 - What conventions to follow
 - What recent development context is relevant
+
+## Layered Doc Paths (Monorepo Support)
+
+For monorepos where docs live at multiple levels, configure `context.layers` in
+`.telesis/config.yml`:
+
+```yaml
+context:
+  layers:
+    - path: "../../../docs/shared"    # monorepo-level
+      include: [adrs, context]
+    - path: "docs"                     # sub-project (default)
+      include: [all]
+```
+
+Each layer specifies a path (relative to project root) and which doc types to pull.
+Collections (ADRs, TDDs, context files) merge additively across layers. Singular docs
+(VISION.md, MILESTONES.md) use last-writer-wins — the more local layer takes precedence.
+
+Available scopes: `all`, `adrs`, `tdds`, `context`, `vision`, `milestones`.
+
+When no `context.layers` is configured, behavior is unchanged — `docs/` is the only layer.
 
 ## Custom Context Sections
 

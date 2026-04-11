@@ -1,6 +1,6 @@
 # TDD-029 — Existing Project Onboarding
 
-**Status:** Draft
+**Status:** Accepted
 **Date:** 2026-04-11
 **Author:** Delightful Hammers
 **Related:** #121, #122, #123, #124
