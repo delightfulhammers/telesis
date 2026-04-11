@@ -391,4 +391,206 @@ Appendix content should not appear.
       chmodSync(adrPath, 0o644);
     }
   });
+
+  describe("layered doc paths", () => {
+    const setupWithLayers = (
+      layers: Array<{
+        path: string;
+        include: string[];
+      }>,
+    ): string => {
+      const rootDir = makeTempDir();
+      const cfgYaml = [
+        "project:",
+        "  name: LayerTest",
+        "  owner: Test",
+        "  languages: [TypeScript]",
+        "  status: active",
+        "  repo: ''",
+        "context:",
+        "  layers:",
+        ...layers.flatMap((l) => [
+          `    - path: "${l.path}"`,
+          `      include: [${l.include.join(", ")}]`,
+        ]),
+      ];
+      mkdirSync(join(rootDir, ".telesis"), { recursive: true });
+      writeFileSync(
+        join(rootDir, ".telesis", "config.yml"),
+        cfgYaml.join("\n"),
+      );
+      return rootDir;
+    };
+
+    it("merges ADRs from multiple layers", () => {
+      const rootDir = setupWithLayers([
+        { path: "shared-docs", include: ["adrs"] },
+        { path: "docs", include: ["all"] },
+      ]);
+
+      // Create shared-level ADR
+      mkdirSync(join(rootDir, "shared-docs", "adr"), { recursive: true });
+      writeFileSync(
+        join(rootDir, "shared-docs", "adr", "ADR-001-shared.md"),
+        "# ADR-001: Shared Decision\n",
+      );
+
+      // Create local ADR
+      mkdirSync(join(rootDir, "docs", "adr"), { recursive: true });
+      writeFileSync(
+        join(rootDir, "docs", "adr", "ADR-010-local.md"),
+        "# ADR-010: Local Decision\n",
+      );
+      mkdirSync(join(rootDir, "docs", "tdd"), { recursive: true });
+
+      const output = generate(rootDir);
+      expect(output).toContain("ADR-001-shared");
+      expect(output).toContain("ADR-010-local");
+      expect(output).toContain("2 decisions on record");
+    });
+
+    it("respects layer scope — only includes specified doc types", () => {
+      const rootDir = setupWithLayers([
+        { path: "shared-docs", include: ["adrs"] },
+        { path: "docs", include: ["all"] },
+      ]);
+
+      // Put a TDD in shared-docs — should NOT be included (scope is adrs only)
+      mkdirSync(join(rootDir, "shared-docs", "adr"), { recursive: true });
+      mkdirSync(join(rootDir, "shared-docs", "tdd"), { recursive: true });
+      writeFileSync(
+        join(rootDir, "shared-docs", "tdd", "TDD-001-shared.md"),
+        "# TDD-001: Shared\n\n## Overview\nShared TDD\n",
+      );
+      mkdirSync(join(rootDir, "docs", "adr"), { recursive: true });
+      mkdirSync(join(rootDir, "docs", "tdd"), { recursive: true });
+
+      const output = generate(rootDir);
+      // Shared TDD should not appear (scope excludes tdds)
+      expect(output).not.toContain("TDD-001-shared");
+    });
+
+    it("includes context files from multiple layers", () => {
+      const rootDir = setupWithLayers([
+        { path: "shared-docs", include: ["context"] },
+        { path: "docs", include: ["all"] },
+      ]);
+
+      mkdirSync(join(rootDir, "shared-docs", "context"), { recursive: true });
+      writeFileSync(
+        join(rootDir, "shared-docs", "context", "conventions.md"),
+        "## Shared Conventions\n\nUse gRPC for all services.\n",
+      );
+
+      mkdirSync(join(rootDir, "docs", "adr"), { recursive: true });
+      mkdirSync(join(rootDir, "docs", "tdd"), { recursive: true });
+      mkdirSync(join(rootDir, "docs", "context"), { recursive: true });
+      writeFileSync(
+        join(rootDir, "docs", "context", "local.md"),
+        "## Local Notes\n\nService-specific stuff.\n",
+      );
+
+      const output = generate(rootDir);
+      expect(output).toContain("Use gRPC for all services");
+      expect(output).toContain("Service-specific stuff");
+    });
+
+    it("falls back to default docs/ layer when no config", () => {
+      const rootDir = setupProject();
+      writeFileSync(
+        join(rootDir, "docs", "adr", "ADR-001-test.md"),
+        "# ADR-001: Test\n",
+      );
+
+      const output = generate(rootDir);
+      expect(output).toContain("ADR-001-test");
+    });
+  });
+
+  describe("TDD inlining", () => {
+    it("inlines TDD overview and interfaces in CLAUDE.md", () => {
+      const rootDir = setupProject();
+      writeFileSync(
+        join(rootDir, "docs", "tdd", "TDD-001-auth-layer.md"),
+        [
+          "# TDD-001 — Auth Layer",
+          "",
+          "**Status:** Accepted",
+          "",
+          "## Overview",
+          "",
+          "The auth layer handles JWT validation and session management.",
+          "",
+          "## Interfaces",
+          "",
+          "- `validateToken(token: string): Claims`",
+          "- `createSession(userId: string): Session`",
+          "",
+          "## Data Model",
+          "",
+          "Sessions stored in Redis.",
+        ].join("\n"),
+      );
+
+      const output = generate(rootDir);
+      expect(output).toContain("Component Designs");
+      expect(output).toContain("TDD-001");
+      expect(output).toContain("JWT validation and session management");
+      expect(output).toContain("validateToken");
+      expect(output).toContain("Accepted");
+    });
+
+    it("skips superseded TDDs", () => {
+      const rootDir = setupProject();
+      writeFileSync(
+        join(rootDir, "docs", "tdd", "TDD-001-old.md"),
+        "# TDD-001 — Old\n\n**Status:** Superseded\n\n## Overview\n\nOld stuff.\n",
+      );
+      writeFileSync(
+        join(rootDir, "docs", "tdd", "TDD-002-current.md"),
+        "# TDD-002 — Current\n\n**Status:** Draft\n\n## Overview\n\nCurrent stuff.\n",
+      );
+
+      const output = generate(rootDir);
+      expect(output).not.toContain("TDD-001");
+      expect(output).toContain("TDD-002");
+      expect(output).toContain("Current stuff");
+    });
+
+    it("limits to 10 most recent TDDs", () => {
+      const rootDir = setupProject();
+      for (let i = 1; i <= 12; i++) {
+        const num = String(i).padStart(3, "0");
+        writeFileSync(
+          join(rootDir, "docs", "tdd", `TDD-${num}-item.md`),
+          `# TDD-${num} — Item ${i}\n\n**Status:** Accepted\n\n## Overview\n\nItem ${i} overview.\n`,
+        );
+      }
+
+      const output = generate(rootDir);
+      // Should include TDD-003 through TDD-012 (10 most recent), not TDD-001 or TDD-002
+      expect(output).not.toContain("TDD-001");
+      expect(output).not.toContain("TDD-002");
+      expect(output).toContain("TDD-003");
+      expect(output).toContain("TDD-012");
+    });
+
+    it("handles TDDs with no interfaces section", () => {
+      const rootDir = setupProject();
+      writeFileSync(
+        join(rootDir, "docs", "tdd", "TDD-001-simple.md"),
+        "# TDD-001 — Simple\n\n**Status:** Draft\n\n## Overview\n\nJust an overview.\n",
+      );
+
+      const output = generate(rootDir);
+      expect(output).toContain("Just an overview");
+      expect(output).toContain("TDD-001");
+    });
+
+    it("shows no component designs section when no TDDs exist", () => {
+      const rootDir = setupProject();
+      const output = generate(rootDir);
+      expect(output).not.toContain("Component Designs");
+    });
+  });
 });

@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join, basename } from "node:path";
 import { load } from "../config/config.js";
+import type { DocLayer, DocLayerScope } from "../config/config.js";
 import { extractActiveMilestone } from "../milestones/parse.js";
 import { renderTemplate } from "../templates/index.js";
 import { loadNotes } from "../notes/store.js";
@@ -148,6 +149,107 @@ const countFiles = (dir: string, pattern: RegExp): number => {
   ).length;
 };
 
+interface ScannedTDD {
+  readonly name: string;
+  readonly status: string;
+  readonly overview: string;
+  readonly interfaces: string;
+  readonly path: string;
+  readonly num: number;
+}
+
+const TDD_NUMBER_RE = /^TDD-(\d+)/;
+const TDD_TITLE_RE = /^#\s+TDD-\d+\s*[—–-]\s*(.+)/m;
+const TDD_STATUS_RE = /^\*\*Status:\*\*\s*(.+)/m;
+const OVERVIEW_HEADER_RE = /^##\s+Overview/i;
+const INTERFACES_HEADER_RE = /^##\s+Interfaces/i;
+
+const MAX_INLINED_TDDS = 10;
+
+/** Extract a section from content string (avoids re-reading the file). */
+const extractSectionFromContent = (content: string, re: RegExp): string => {
+  const lines = content.split("\n");
+  let capturing = false;
+  const result: string[] = [];
+
+  for (const line of lines) {
+    if (!capturing && re.test(line)) {
+      capturing = true;
+      continue;
+    }
+    if (capturing) {
+      const trimmed = line.trim();
+      if (isSectionBoundary(trimmed)) break;
+      result.push(line);
+    }
+  }
+
+  return result.join("\n").trim();
+};
+
+const scanTDDs = (tddDir: string): { items: ScannedTDD[]; count: number } => {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(tddDir, { withFileTypes: true });
+  } catch (err) {
+    if (isENOENT(err)) return { items: [], count: 0 };
+    throw err;
+  }
+
+  const tddFiles = entries.filter(
+    (entry) => !entry.isDirectory() && /^TDD-.*\.md$/.test(entry.name),
+  );
+
+  if (tddFiles.length === 0) return { items: [], count: 0 };
+
+  const tdds: ScannedTDD[] = [];
+
+  for (const entry of tddFiles) {
+    const filePath = join(tddDir, entry.name);
+    const content = readFileSync(filePath, "utf-8");
+
+    // Extract status
+    let status = "Draft";
+    const statusMatch = TDD_STATUS_RE.exec(content);
+    if (statusMatch?.[1]) {
+      status = statusMatch[1].trim();
+    }
+
+    // Skip superseded TDDs
+    if (status.toLowerCase() === "superseded") continue;
+
+    // Extract TDD number
+    const numMatch = TDD_NUMBER_RE.exec(entry.name);
+    const num = numMatch?.[1] ? parseInt(numMatch[1], 10) : 0;
+
+    // Extract title
+    let name = entry.name.replace(/\.md$/, "");
+    const titleMatch = TDD_TITLE_RE.exec(content);
+    if (titleMatch?.[1]) {
+      name = `${entry.name.replace(/\.md$/, "").split("-").slice(0, 2).join("-")}: ${titleMatch[1].trim()}`;
+    }
+
+    // Extract sections from the single read — no re-reading the file
+    const overview = extractSectionFromContent(content, OVERVIEW_HEADER_RE);
+    const interfaces = extractSectionFromContent(content, INTERFACES_HEADER_RE);
+
+    tdds.push({
+      name,
+      status,
+      overview,
+      interfaces,
+      path: entry.name,
+      num,
+    });
+  }
+
+  // Sort by number, take most recent
+  tdds.sort((a, b) => a.num - b.num);
+  const recent = tdds.slice(Math.max(0, tdds.length - MAX_INLINED_TDDS));
+
+  return { items: recent, count: tddFiles.length };
+};
+
 const scanContextFiles = (contextDir: string): ContextSection[] => {
   let entries: Dirent[];
   try {
@@ -166,32 +268,99 @@ const scanContextFiles = (contextDir: string): ContextSection[] => {
     }));
 };
 
+/** Check if a layer's include list covers a given scope */
+const layerIncludes = (layer: DocLayer, scope: DocLayerScope): boolean => {
+  return layer.include.includes("all") || layer.include.includes(scope);
+};
+
 export const generate = (rootDir: string): string => {
   const cfg = load(rootDir);
+  const contextConfig = cfg.context ?? {
+    layers: [{ path: "docs", include: ["all" as DocLayerScope] }],
+  };
 
-  const { summaries: adrs, count: adrCount } = scanADRs(
-    join(rootDir, "docs", "adr"),
+  // Collect ADRs, TDDs, and context files across all layers
+  let allADRSummaries: string[] = [];
+  let totalADRCount = 0;
+  let allTDDItems: ScannedTDD[] = [];
+  let totalTDDCount = 0;
+  let allContextSections: ContextSection[] = [];
+
+  // For singular docs, use the last (most local) layer that includes them
+  let milestonesContent = "";
+  let principles = "";
+  let description = "";
+
+  for (const layer of contextConfig.layers) {
+    const layerPath = join(rootDir, layer.path);
+
+    if (layerIncludes(layer, "adrs")) {
+      const { summaries, count } = scanADRs(join(layerPath, "adr"));
+      allADRSummaries = allADRSummaries.concat(summaries);
+      totalADRCount += count;
+    }
+
+    if (layerIncludes(layer, "tdds")) {
+      const { items: layerTDDs, count: layerTDDCount } = scanTDDs(
+        join(layerPath, "tdd"),
+      );
+      allTDDItems = allTDDItems.concat(layerTDDs);
+      totalTDDCount += layerTDDCount;
+    }
+
+    if (layerIncludes(layer, "context")) {
+      const sections = scanContextFiles(join(layerPath, "context"));
+      allContextSections = allContextSections.concat(sections);
+    }
+
+    if (layerIncludes(layer, "milestones")) {
+      const content = extractActiveMilestone(join(layerPath, "MILESTONES.md"));
+      if (content) milestonesContent = content;
+    }
+
+    if (layerIncludes(layer, "vision")) {
+      const p = extractSection(
+        join(layerPath, "VISION.md"),
+        PRINCIPLES_HEADER_RE,
+        false,
+      );
+      if (p) principles = p;
+
+      const d = extractSection(
+        join(layerPath, "VISION.md"),
+        DESCRIPTION_HEADER_RE,
+        false,
+      );
+      if (d) description = d;
+    }
+  }
+
+  // Deduplicate ADR summaries by number (later layers override), sort, take 5.
+  // Unparseable ADRs (num=0) get unique negative keys to avoid collision.
+  const adrByNum = new Map<number, string>();
+  let unparseableIdx = 0;
+  for (const summary of allADRSummaries) {
+    const num = parseADRNumber(summary);
+    const key = num === 0 ? -(++unparseableIdx) : num;
+    adrByNum.set(key, summary);
+  }
+  const sortedADRs = [...adrByNum.values()].sort((a, b) => {
+    return parseADRNumber(a) - parseADRNumber(b);
+  });
+  const recentADRs = sortedADRs.slice(Math.max(0, sortedADRs.length - 5));
+
+  // Deduplicate TDDs by num, sort, cap at MAX_INLINED_TDDS.
+  // Unparseable TDDs (num=0) get unique negative keys to avoid collision.
+  const tddByNum = new Map<number, ScannedTDD>();
+  let unparseableTDDIdx = 0;
+  for (const tdd of allTDDItems) {
+    const key = tdd.num === 0 ? -(++unparseableTDDIdx) : tdd.num;
+    tddByNum.set(key, tdd);
+  }
+  const sortedTDDs = [...tddByNum.values()].sort((a, b) => a.num - b.num);
+  const recentTDDs = sortedTDDs.slice(
+    Math.max(0, sortedTDDs.length - MAX_INLINED_TDDS),
   );
-
-  const tddCount = countFiles(join(rootDir, "docs", "tdd"), /^TDD-.*\.md$/);
-
-  const milestonesContent = extractActiveMilestone(
-    join(rootDir, "docs", "MILESTONES.md"),
-  );
-
-  const principles = extractSection(
-    join(rootDir, "docs", "VISION.md"),
-    PRINCIPLES_HEADER_RE,
-    false,
-  );
-
-  const description = extractSection(
-    join(rootDir, "docs", "VISION.md"),
-    DESCRIPTION_HEADER_RE,
-    false,
-  );
-
-  const contextSections = scanContextFiles(join(rootDir, "docs", "context"));
 
   const { items: notes } = loadNotes(rootDir);
   const notesSection = renderNotesSection(notes);
@@ -211,11 +380,12 @@ export const generate = (rootDir: string): string => {
     GeneratedDate: generatedDate,
     Description: description,
     MilestonesContent: milestonesContent,
-    ADRs: adrs.length > 0 ? { items: adrs } : false,
-    ADRCount: adrCount,
-    TDDCount: tddCount,
+    ADRs: recentADRs.length > 0 ? { items: recentADRs } : false,
+    ADRCount: totalADRCount,
+    TDDCount: totalTDDCount,
+    TDDs: recentTDDs.length > 0 ? { items: recentTDDs } : false,
     Principles: principles,
-    ContextSections: contextSections,
+    ContextSections: allContextSections,
     JournalSection: journalSection || false,
     NotesSection: notesSection || false,
   });

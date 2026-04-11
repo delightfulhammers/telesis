@@ -42,6 +42,7 @@ export interface ReviewConfig {
 export interface Config {
   readonly project: Project;
   readonly review?: ReviewConfig;
+  readonly context?: ContextConfig;
 }
 
 const configPath = (rootDir: string): string =>
@@ -163,6 +164,7 @@ export const load = (rootDir: string): Config => {
       repo: str("repo"),
     },
     review: parseReviewConfig(raw.review),
+    context: parseContextConfig(raw as RawConfig),
   };
 
   validate(cfg);
@@ -634,6 +636,79 @@ export const parseGitConfig = (raw: RawConfig | null): GitConfig => {
   }
 
   return result;
+};
+
+export type DocLayerScope =
+  | "all"
+  | "adrs"
+  | "tdds"
+  | "context"
+  | "vision"
+  | "milestones";
+
+const VALID_LAYER_SCOPES = new Set<string>([
+  "all",
+  "adrs",
+  "tdds",
+  "context",
+  "vision",
+  "milestones",
+]);
+
+export interface DocLayer {
+  readonly path: string;
+  readonly include: readonly DocLayerScope[];
+}
+
+export interface ContextConfig {
+  readonly layers: readonly DocLayer[];
+}
+
+/** Parse context config from .telesis/config.yml, returning default single-layer if absent */
+export const parseContextConfig = (raw: RawConfig | null): ContextConfig => {
+  const defaultConfig: ContextConfig = {
+    layers: [{ path: "docs", include: ["all"] }],
+  };
+
+  if (!raw || typeof raw !== "object" || !raw.context) return defaultConfig;
+
+  const context = raw.context;
+  if (typeof context !== "object" || context === null) return defaultConfig;
+
+  const c = context as Record<string, unknown>;
+  if (!Array.isArray(c.layers) || c.layers.length === 0) return defaultConfig;
+
+  const layers = c.layers
+    .map((item): DocLayer | null => {
+      if (!item || typeof item !== "object") return null;
+      const l = item as Record<string, unknown>;
+      if (typeof l.path !== "string" || l.path.length === 0) return null;
+      // Reject absolute paths and excessive traversal to prevent scanning
+      // arbitrary filesystem locations. Allow up to 3 levels of ..
+      // (sufficient for monorepo sub-projects reaching repo root).
+      if (l.path.startsWith("/")) return null;
+      const segments = l.path.split(/[/\\]/);
+      const upCount = segments.filter((s: string) => s === "..").length;
+      if (upCount > 3) return null;
+
+      let include: DocLayerScope[];
+      if (Array.isArray(l.include)) {
+        include = l.include.filter(
+          (v): v is DocLayerScope =>
+            typeof v === "string" && VALID_LAYER_SCOPES.has(v),
+        );
+      } else {
+        include = ["all"];
+      }
+      if (include.length === 0) include = ["all"];
+
+      return { path: l.path, include };
+    })
+    .filter((l): l is DocLayer => l !== null);
+
+  if (layers.length === 0) return defaultConfig;
+
+  return { layers };
 };
 
 export interface DriftContainmentRule {

@@ -1671,6 +1671,49 @@ driving the full Telesis lifecycle.
 
 ---
 
+## v0.37.0 — Existing Project Onboarding
+
+**Goal:** Make `telesis init` and `telesis context` work well on existing projects,
+especially monorepos with documentation in non-standard locations. The interview reads
+existing docs instead of re-asking what's already written. Init works without a TTY.
+Context generation supports layered doc paths and inlines TDD substance.
+
+**Status:** Active
+
+**Reference:** TDD-029 (Existing Project Onboarding)
+
+### Acceptance Criteria
+
+1. `discoverDocs()` recursively finds ARCHITECTURE.md, PRD.md, ADR dirs, TDD dirs, and
+   other known doc patterns anywhere in the project tree
+2. The interview system prompt includes discovered doc content — the interviewer references
+   existing docs and only asks about gaps
+3. `telesis init --non-interactive` skips readline, infers config from discovered docs +
+   manifests, generates only missing docs, and exits cleanly
+4. `detectState()` uses discovery as fallback — projects with docs outside `docs/` root
+   are correctly identified as "existing" mode
+5. `context.layers` config allows specifying additional doc source directories with scoped
+   doc types (ADRs, TDDs, context files, etc.)
+6. `telesis context generate` merges docs from all configured layers into CLAUDE.md
+7. TDD Overview and Interfaces sections are inlined in CLAUDE.md (Draft and Accepted TDDs,
+   up to 10 most recent)
+8. All new business logic has colocated unit tests
+9. Running `telesis drift` produces zero errors
+
+### Build Sequence
+
+1. **Phase 1 — Doc discovery:** `src/scaffold/doc-discovery.ts` — recursive scanner with
+   depth/size limits, tests
+2. **Phase 2 — Doc-aware interview:** inject discovered docs into interview system prompt,
+   update prompt instructions for gap-filling mode
+3. **Phase 3 — Non-interactive init:** `--non-interactive` flag, skip readline, config
+   inference from discovered docs, generate missing docs only
+4. **Phase 4 — Layered doc paths:** config schema extension, context generation merges
+   across layers
+5. **Phase 5 — TDD inlining:** `scanTDDs()` function, template section, capped at 10
+
+---
+
 ## v1.0.0 — Production Ready
 
 **Goal:** Stabilize Telesis through cross-project usage. Address gaps in generalization,

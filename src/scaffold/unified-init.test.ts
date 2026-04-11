@@ -131,4 +131,46 @@ describe("runUnifiedInit", () => {
       expect(result.existingDocs).toContain("documentation/PRD.md");
     });
   });
+
+  describe("non-interactive mode", () => {
+    it("skips interview in greenfield mode when nonInteractive is true", async () => {
+      const dir = makeTempDir();
+      const deps = { ...noopDeps(dir), nonInteractive: true };
+      const result = await runUnifiedInit(deps);
+
+      expect(result.mode).toBe("greenfield");
+      expect(deps.runGreenfield).not.toHaveBeenCalled();
+      expect(deps.extractConfigFromDocs).toHaveBeenCalled();
+      expect(deps.saveConfig).toHaveBeenCalled();
+    });
+
+    it("still scaffolds directories in non-interactive greenfield", async () => {
+      const dir = makeTempDir();
+      const deps = { ...noopDeps(dir), nonInteractive: true };
+      await runUnifiedInit(deps);
+
+      expect(deps.scaffoldDirectories).toHaveBeenCalled();
+    });
+
+    it("generates context in non-interactive greenfield", async () => {
+      const dir = makeTempDir();
+      const deps = { ...noopDeps(dir), nonInteractive: true };
+      await runUnifiedInit(deps);
+
+      expect(deps.generateContext).toHaveBeenCalled();
+    });
+
+    it("uses discovery fallback to detect existing docs at non-standard paths", async () => {
+      const dir = makeTempDir();
+      // Docs not at docs/ root — normally greenfield, but discovery should find them
+      mkdirSync(join(dir, "docs", "nats"), { recursive: true });
+      writeFileSync(join(dir, "docs", "nats", "ARCHITECTURE.md"), "# Arch\n");
+
+      const deps = noopDeps(dir);
+      const result = await runUnifiedInit(deps);
+
+      // Discovery fallback should detect this as existing mode
+      expect(result.mode).toBe("existing");
+    });
+  });
 });

@@ -17,6 +17,7 @@ import {
   parseGitHubConfig,
   resolveGitHubApiBase,
   parseDriftConfig,
+  parseContextConfig,
 } from "./config.js";
 import type { Config } from "./config.js";
 import { useTempDir } from "../test-utils.js";
@@ -839,6 +840,99 @@ describe("config", () => {
         },
       });
       expect(exists(rootDir)).toBe(true);
+    });
+  });
+
+  describe("parseContextConfig", () => {
+    it("returns default single-layer when no context section", () => {
+      const config = parseContextConfig({});
+      expect(config.layers).toHaveLength(1);
+      expect(config.layers[0]!.path).toBe("docs");
+      expect(config.layers[0]!.include).toContain("all");
+    });
+
+    it("returns default when raw is null", () => {
+      const config = parseContextConfig(null);
+      expect(config.layers).toHaveLength(1);
+    });
+
+    it("parses layers with explicit scopes", () => {
+      const config = parseContextConfig({
+        context: {
+          layers: [
+            { path: "../../docs/shared", include: ["adrs", "context"] },
+            { path: "docs", include: ["all"] },
+          ],
+        },
+      });
+      expect(config.layers).toHaveLength(2);
+      expect(config.layers[0]!.path).toBe("../../docs/shared");
+      expect(config.layers[0]!.include).toEqual(["adrs", "context"]);
+      expect(config.layers[1]!.path).toBe("docs");
+    });
+
+    it("defaults include to all when not specified", () => {
+      const config = parseContextConfig({
+        context: {
+          layers: [{ path: "docs" }],
+        },
+      });
+      expect(config.layers[0]!.include).toEqual(["all"]);
+    });
+
+    it("filters invalid scopes", () => {
+      const config = parseContextConfig({
+        context: {
+          layers: [{ path: "docs", include: ["adrs", "invalid", "tdds"] }],
+        },
+      });
+      expect(config.layers[0]!.include).toEqual(["adrs", "tdds"]);
+    });
+
+    it("skips layers with empty path", () => {
+      const config = parseContextConfig({
+        context: {
+          layers: [{ path: "", include: ["all"] }, { path: "docs" }],
+        },
+      });
+      expect(config.layers).toHaveLength(1);
+      expect(config.layers[0]!.path).toBe("docs");
+    });
+
+    it("returns default when layers array is empty", () => {
+      const config = parseContextConfig({
+        context: { layers: [] },
+      });
+      expect(config.layers).toHaveLength(1);
+      expect(config.layers[0]!.path).toBe("docs");
+    });
+
+    it("rejects absolute paths", () => {
+      const config = parseContextConfig({
+        context: {
+          layers: [
+            { path: "/etc/secrets", include: ["all"] },
+            { path: "docs", include: ["all"] },
+          ],
+        },
+      });
+      expect(config.layers).toHaveLength(1);
+      expect(config.layers[0]!.path).toBe("docs");
+    });
+
+    it("rejects excessive path traversal (more than 3 levels)", () => {
+      const config = parseContextConfig({
+        context: {
+          layers: [
+            { path: "../../../../etc", include: ["all"] },
+            { path: "../../../docs/shared", include: ["adrs"] },
+            { path: "docs", include: ["all"] },
+          ],
+        },
+      });
+      expect(config.layers).toHaveLength(2);
+      expect(config.layers[0]!.path).toBe("../../../docs/shared");
+      expect(config.layers[1]!.path).toBe("docs");
     });
   });
 });

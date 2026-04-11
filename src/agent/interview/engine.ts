@@ -10,6 +10,7 @@ import {
 } from "./state.js";
 import { buildInterviewSystemPrompt, hasCompletionSignal } from "./prompts.js";
 import { summarizeCodebase } from "../../scaffold/codebase-summary.js";
+import { discoverDocs } from "../../scaffold/doc-discovery.js";
 
 const DEFAULT_MAX_TURNS = 20;
 const DONE_SENTINEL = "/done";
@@ -50,7 +51,21 @@ export const runInterview = async (
     console.error("[telesis] Warning: codebase summary failed:", err);
   }
 
-  const systemPrompt = buildInterviewSystemPrompt(codebaseSummary);
+  // Discover existing documentation to inject into interview context
+  let discoveredDocs;
+  try {
+    const discovery = discoverDocs(rootDir);
+    if (discovery.docs.length > 0) {
+      discoveredDocs = discovery.docs;
+    }
+  } catch (err) {
+    console.error("[telesis] Warning: doc discovery failed:", err);
+  }
+
+  const systemPrompt = buildInterviewSystemPrompt({
+    codebaseSummary,
+    discoveredDocs,
+  });
   let state = createInitialState(sessionId);
   await ensureStateDir(rootDir);
 

@@ -62,184 +62,206 @@ export const initCommand = new Command("init")
     "--confluence <space-key>",
     "Import pages from a Confluence space before init",
   )
+  .option(
+    "--non-interactive",
+    "Skip interview, infer config from existing docs and codebase",
+  )
+  .option("--depth <n>", "Doc discovery depth limit (default: 4)", parseInt)
   .action(
-    handleAction(async (opts: { docs?: string; confluence?: string }) => {
-      const rootDir = process.cwd();
-      const docsDir = opts.docs ?? "docs";
+    handleAction(
+      async (opts: {
+        docs?: string;
+        confluence?: string;
+        nonInteractive?: boolean;
+        depth?: number;
+      }) => {
+        const rootDir = process.cwd();
+        const docsDir = opts.docs ?? "docs";
 
-      console.log("\ntelesis init\n");
+        console.log("\ntelesis init\n");
 
-      // Pre-init: import Confluence pages if requested
-      if (opts.confluence) {
-        const auth = resolveJiraAuth();
-        if (!auth) {
-          throw new Error(
-            "JIRA_TOKEN not set. Confluence uses the same Atlassian auth. Set JIRA_TOKEN (and JIRA_EMAIL for Cloud).",
-          );
-        }
-        const baseUrl =
-          process.env.CONFLUENCE_BASE_URL ??
-          (auth.email
-            ? `https://${auth.email.split("@")[1]?.split(".")[0] ?? "company"}.atlassian.net/wiki`
-            : "");
-        if (!baseUrl) {
-          throw new Error(
-            "Set CONFLUENCE_BASE_URL to your Confluence instance URL (e.g., https://company.atlassian.net/wiki).",
-          );
-        }
-        console.log(
-          `Importing Confluence space "${opts.confluence}" into ${docsDir}/...`,
-        );
-        const result = await ingestConfluenceSpace(
-          { baseUrl, auth },
-          opts.confluence,
-          join(rootDir, docsDir),
-        );
-        console.log(
-          `  ${result.pagesWritten} page(s) imported, ${result.skippedExisting} skipped (already exist)`,
-        );
-        if (result.files.length > 0) {
-          for (const f of result.files) {
-            console.log(`  + ${docsDir}/${f}`);
+        // Pre-init: import Confluence pages if requested
+        if (opts.confluence) {
+          const auth = resolveJiraAuth();
+          if (!auth) {
+            throw new Error(
+              "JIRA_TOKEN not set. Confluence uses the same Atlassian auth. Set JIRA_TOKEN (and JIRA_EMAIL for Cloud).",
+            );
           }
+          const baseUrl =
+            process.env.CONFLUENCE_BASE_URL ??
+            (auth.email
+              ? `https://${auth.email.split("@")[1]?.split(".")[0] ?? "company"}.atlassian.net/wiki`
+              : "");
+          if (!baseUrl) {
+            throw new Error(
+              "Set CONFLUENCE_BASE_URL to your Confluence instance URL (e.g., https://company.atlassian.net/wiki).",
+            );
+          }
+          console.log(
+            `Importing Confluence space "${opts.confluence}" into ${docsDir}/...`,
+          );
+          const result = await ingestConfluenceSpace(
+            { baseUrl, auth },
+            opts.confluence,
+            join(rootDir, docsDir),
+          );
+          console.log(
+            `  ${result.pagesWritten} page(s) imported, ${result.skippedExisting} skipped (already exist)`,
+          );
+          if (result.files.length > 0) {
+            for (const f of result.files) {
+              console.log(`  + ${docsDir}/${f}`);
+            }
+          }
+          console.log("");
         }
-        console.log("");
-      }
 
-      const io = createTerminalIO();
+        const io = opts.nonInteractive ? null : createTerminalIO();
 
-      try {
-        const result = await runUnifiedInit({
-          rootDir,
-          docsDir,
+        try {
+          const result = await runUnifiedInit({
+            rootDir,
+            docsDir,
+            nonInteractive: opts.nonInteractive,
 
-          runGreenfield: async () => {
-            if (!process.env.ANTHROPIC_API_KEY) {
-              throw new Error(
-                "ANTHROPIC_API_KEY environment variable is not set. " +
-                  "Set it to your Anthropic API key before running telesis init.",
+            runGreenfield: async () => {
+              if (!io) {
+                throw new Error(
+                  "runGreenfield requires interactive terminal — " +
+                    "use --non-interactive for headless init",
+                );
+              }
+
+              if (!process.env.ANTHROPIC_API_KEY) {
+                throw new Error(
+                  "ANTHROPIC_API_KEY environment variable is not set. " +
+                    "Set it to your Anthropic API key before running telesis init.",
+                );
+              }
+
+              const sessionId = randomUUID();
+              const telemetry = createTelemetryLogger(rootDir);
+              const sdk = createSdk();
+
+              const interviewClient = createModelClient({
+                sdk,
+                telemetry,
+                sessionId,
+                component: "interview",
+              });
+              const generateClient = createModelClient({
+                sdk,
+                telemetry,
+                sessionId,
+                component: "generate",
+              });
+              const configClient = createModelClient({
+                sdk,
+                telemetry,
+                sessionId,
+                component: "config-extract",
+              });
+
+              const deps: InitDeps = {
+                rootDir,
+                interviewClient,
+                generateClient,
+                configClient,
+                runInterview: (o) => runInterview({ ...o, io, maxTurns: 20 }),
+                generateDocuments,
+                extractConfig,
+                generateContext: generate,
+                onDocGenerated: (docType) => {
+                  console.log(`  ✓ ${DOCUMENT_LABELS[docType]}`);
+                },
+              };
+
+              const initResult = await runInit(deps);
+              console.log(`  ✓ CLAUDE.md`);
+              console.log(
+                `\nInitialized ${initResult.config.project.name} — ` +
+                  `${initResult.documentsGenerated.length} documents generated ` +
+                  `from ${initResult.turnCount} interview turn${initResult.turnCount === 1 ? "" : "s"}.`,
+              );
+              return initResult;
+            },
+
+            applyMigration: (dir) => applyUpgrade(dir),
+
+            extractConfigFromDocs: async (_dir, _docsPath) => {
+              // Minimal config from directory name.
+              // Future: LLM extraction from existing doc content.
+              const rawName = rootDir.split("/").pop() ?? "project";
+              const name =
+                rawName
+                  .replace(/[^\w\s-]/g, "")
+                  .trim()
+                  .slice(0, 128) || "project";
+              return {
+                project: {
+                  name,
+                  owner: "",
+                  language: "",
+                  languages: [],
+                  status: "active" as const,
+                  repo: "",
+                },
+              };
+            },
+
+            saveConfig: (dir, config) => saveConfig(dir, config),
+            generateContext: (dir) => generate(dir),
+            scaffoldDirectories,
+
+            installProviderAdapter: (dir, hasClaudeDir) => {
+              // Generic adapter for all providers — git hooks
+              const gitRoot = findGitRoot(dir);
+              if (gitRoot) {
+                try {
+                  installHook(dir, gitRoot);
+                  console.log("  Installed git pre-commit hook");
+                } catch (err) {
+                  console.log(
+                    `  Warning: could not install git pre-commit hook: ${err instanceof Error ? err.message : err}`,
+                  );
+                }
+              }
+
+              if (hasClaudeDir) {
+                // Claude Code adapter — install skills/hooks/MCP config.
+                // applyUpgrade is idempotent — safe even if migration already ran.
+                const upgradeResult = applyUpgrade(dir);
+                if (upgradeResult.added.length > 0) {
+                  console.log(
+                    `  Installed ${upgradeResult.added.length} Claude Code artifact(s)`,
+                  );
+                }
+              }
+            },
+          });
+
+          console.log(`\nMode: ${result.mode}`);
+          if (result.existingDocs.length > 0) {
+            console.log(`Found: ${result.existingDocs.join(", ")}`);
+          }
+          if (result.missingDocs.length > 0) {
+            console.log(`Missing: ${result.missingDocs.join(", ")}`);
+          }
+          if (result.migrationResult) {
+            const { added, alreadyPresent } = result.migrationResult;
+            if (added.length > 0) {
+              console.log(`Added ${added.length} artifact(s)`);
+            }
+            if (alreadyPresent.length > 0) {
+              console.log(
+                `${alreadyPresent.length} artifact(s) already present`,
               );
             }
-
-            const sessionId = randomUUID();
-            const telemetry = createTelemetryLogger(rootDir);
-            const sdk = createSdk();
-
-            const interviewClient = createModelClient({
-              sdk,
-              telemetry,
-              sessionId,
-              component: "interview",
-            });
-            const generateClient = createModelClient({
-              sdk,
-              telemetry,
-              sessionId,
-              component: "generate",
-            });
-            const configClient = createModelClient({
-              sdk,
-              telemetry,
-              sessionId,
-              component: "config-extract",
-            });
-
-            const deps: InitDeps = {
-              rootDir,
-              interviewClient,
-              generateClient,
-              configClient,
-              runInterview: (o) => runInterview({ ...o, io, maxTurns: 20 }),
-              generateDocuments,
-              extractConfig,
-              generateContext: generate,
-              onDocGenerated: (docType) => {
-                console.log(`  ✓ ${DOCUMENT_LABELS[docType]}`);
-              },
-            };
-
-            const initResult = await runInit(deps);
-            console.log(`  ✓ CLAUDE.md`);
-            console.log(
-              `\nInitialized ${initResult.config.project.name} — ` +
-                `${initResult.documentsGenerated.length} documents generated ` +
-                `from ${initResult.turnCount} interview turn${initResult.turnCount === 1 ? "" : "s"}.`,
-            );
-            return initResult;
-          },
-
-          applyMigration: (dir) => applyUpgrade(dir),
-
-          extractConfigFromDocs: async (_dir, _docsPath) => {
-            // Minimal config from directory name.
-            // Future: LLM extraction from existing doc content.
-            const rawName = rootDir.split("/").pop() ?? "project";
-            const name =
-              rawName
-                .replace(/[^\w\s-]/g, "")
-                .trim()
-                .slice(0, 128) || "project";
-            return {
-              project: {
-                name,
-                owner: "",
-                language: "",
-                languages: [],
-                status: "active" as const,
-                repo: "",
-              },
-            };
-          },
-
-          saveConfig: (dir, config) => saveConfig(dir, config),
-          generateContext: (dir) => generate(dir),
-          scaffoldDirectories,
-
-          installProviderAdapter: (dir, hasClaudeDir) => {
-            // Generic adapter for all providers — git hooks
-            const gitRoot = findGitRoot(dir);
-            if (gitRoot) {
-              try {
-                installHook(dir, gitRoot);
-                console.log("  Installed git pre-commit hook");
-              } catch (err) {
-                console.log(
-                  `  Warning: could not install git pre-commit hook: ${err instanceof Error ? err.message : err}`,
-                );
-              }
-            }
-
-            if (hasClaudeDir) {
-              // Claude Code adapter — install skills/hooks/MCP config.
-              // applyUpgrade is idempotent — safe even if migration already ran.
-              const upgradeResult = applyUpgrade(dir);
-              if (upgradeResult.added.length > 0) {
-                console.log(
-                  `  Installed ${upgradeResult.added.length} Claude Code artifact(s)`,
-                );
-              }
-            }
-          },
-        });
-
-        console.log(`\nMode: ${result.mode}`);
-        if (result.existingDocs.length > 0) {
-          console.log(`Found: ${result.existingDocs.join(", ")}`);
-        }
-        if (result.missingDocs.length > 0) {
-          console.log(`Missing: ${result.missingDocs.join(", ")}`);
-        }
-        if (result.migrationResult) {
-          const { added, alreadyPresent } = result.migrationResult;
-          if (added.length > 0) {
-            console.log(`Added ${added.length} artifact(s)`);
           }
-          if (alreadyPresent.length > 0) {
-            console.log(`${alreadyPresent.length} artifact(s) already present`);
-          }
+        } finally {
+          io?.close();
         }
-      } finally {
-        io.close();
-      }
-    }),
+      },
+    ),
   );

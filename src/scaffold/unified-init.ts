@@ -8,6 +8,8 @@ import type { Config } from "../config/config.js";
 export interface UnifiedInitDeps {
   readonly rootDir: string;
   readonly docsDir?: string;
+  /** Skip interactive interview — infer config from disk */
+  readonly nonInteractive?: boolean;
   /** Greenfield mode: run AI interview + doc generation (existing init flow) */
   readonly runGreenfield: () => Promise<{
     turnCount: number;
@@ -47,6 +49,9 @@ export interface UnifiedInitResult {
  * - existing: ingest docs, extract config, scaffold
  * - migration: retrofit missing artifacts
  *
+ * When nonInteractive is set, greenfield mode is treated like existing mode —
+ * config is inferred from disk, no readline required.
+ *
  * All modes end with provider adapter installation.
  */
 export const runUnifiedInit = async (
@@ -59,8 +64,20 @@ export const runUnifiedInit = async (
   switch (state.mode) {
     case "greenfield": {
       deps.scaffoldDirectories(deps.rootDir);
-      // runGreenfield owns interview, doc generation, config save, and context generation
-      await deps.runGreenfield();
+
+      if (deps.nonInteractive) {
+        // Non-interactive greenfield: infer config from disk, no interview.
+        // CLAUDE.md will be minimal since no docs exist yet — user should
+        // run `telesis context` after populating docs.
+        const docsDir = deps.docsDir ?? "docs";
+        const config = await deps.extractConfigFromDocs(deps.rootDir, docsDir);
+        deps.saveConfig(deps.rootDir, config);
+        const claudeContent = deps.generateContext(deps.rootDir);
+        writeFileSync(join(deps.rootDir, "CLAUDE.md"), claudeContent);
+      } else {
+        // Interactive greenfield: run interview + doc generation
+        await deps.runGreenfield();
+      }
       break;
     }
 
